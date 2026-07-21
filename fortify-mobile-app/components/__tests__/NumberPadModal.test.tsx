@@ -6,6 +6,12 @@ import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import type { WorkoutSession } from '@/src/types/workout';
 
+const mockAdvanceStep = jest.fn();
+const mockTourState = {
+  isTourActive: false,
+  activeStepId: null as string | null,
+};
+
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: 'LinearGradient',
 }));
@@ -32,9 +38,8 @@ jest.mock('@/src/components/workout/RPEHelpModal', () => ({
 
 jest.mock('@/src/contexts/InAppTourContext', () => ({
   useInAppTour: () => ({
-    isTourActive: false,
-    activeStepId: null,
-    advanceStep: jest.fn(),
+    ...mockTourState,
+    advanceStep: mockAdvanceStep,
   }),
 }));
 
@@ -43,6 +48,12 @@ jest.mock('@/src/components/tour/TourAnchor', () => ({
 }));
 
 describe('NumberPadModal', () => {
+  beforeEach(() => {
+    mockTourState.isTourActive = false;
+    mockTourState.activeStepId = null;
+    mockAdvanceStep.mockReset();
+  });
+
   afterEach(() => {
     useWorkoutStore.getState().resetStore();
   });
@@ -167,5 +178,54 @@ describe('NumberPadModal', () => {
 
     const pendingValue = useWorkoutStore.getState().activeNumberPad?.pendingValue;
     expect(pendingValue).toBe('3');
+  });
+
+  it('waits for the keypad exit animation before advancing the tour', () => {
+    jest.useFakeTimers();
+    mockTourState.isTourActive = true;
+    mockTourState.activeStepId = 'fill_reps_column';
+    const onClose = jest.fn();
+    const activeSession: WorkoutSession = {
+      localId: 'session-tour',
+      name: 'Tour workout',
+      notes: '',
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [{
+        localId: 'exercise-tour',
+        exerciseId: 'ex-tour',
+        exerciseName: 'Row',
+        sets: [
+          { localId: 'set-1', setNumber: 1, setType: 'normal', weight: 225, reps: 8, rpe: null, restSeconds: null, notes: '', isCompleted: false, orderIndex: 0 },
+          { localId: 'set-2', setNumber: 2, setType: 'normal', weight: 225, reps: null, rpe: null, restSeconds: null, notes: '', isCompleted: false, orderIndex: 1 },
+        ],
+        notes: '',
+        orderIndex: 0,
+      }],
+      isSynced: false,
+    };
+
+    useWorkoutStore.setState({ activeSession, isWorkoutActive: true });
+    useWorkoutStore.getState().openNumberPad('exercise-tour', 'set-1', 'reps');
+
+    const { getByTestId } = renderWithTheme(
+      <NumberPadModal
+        visible
+        onClose={onClose}
+        onConfirm={jest.fn()}
+        inputType="reps"
+      />
+    );
+
+    fireEvent.press(getByTestId('number-pad-fill-down'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockAdvanceStep).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(399);
+    expect(mockAdvanceStep).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(mockAdvanceStep).toHaveBeenCalledTimes(1);
+    expect(useWorkoutStore.getState().activeSession?.exercises[0].sets[1].reps).toBe(8);
+    jest.useRealTimers();
   });
 });

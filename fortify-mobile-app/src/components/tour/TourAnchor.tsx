@@ -28,12 +28,18 @@ export function TourAnchor({
     activeSecondaryAnchorId,
     activeArrowAnchorId,
   } = useInAppTour();
+  const isActiveAnchor = activeAnchorId === id
+    || activeSecondaryAnchorId === id
+    || activeArrowAnchorId === id;
+  const isActiveAnchorRef = useRef(isActiveAnchor);
+  isActiveAnchorRef.current = isActiveAnchor;
 
   const measure = useCallback(() => {
     if (disabled) {
       unregisterAnchor(id);
       return;
     }
+    if (!isActiveAnchorRef.current) return;
     const node = ref.current;
     if (!node) return;
     node.measureInWindow((x, y, width, height) => {
@@ -55,6 +61,13 @@ export function TourAnchor({
   }, [disabled, id, unregisterAnchor]);
 
   useEffect(() => {
+    if (disabled || isActiveAnchor) return;
+    interactionTaskRef.current?.cancel();
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    if (lateSettleTimerRef.current) clearTimeout(lateSettleTimerRef.current);
+  }, [disabled, isActiveAnchor]);
+
+  useEffect(() => {
     return () => {
       interactionTaskRef.current?.cancel();
       if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
@@ -66,7 +79,7 @@ export function TourAnchor({
   useEffect(() => {
     if (
       disabled
-      || (activeAnchorId !== id && activeSecondaryAnchorId !== id && activeArrowAnchorId !== id)
+      || !isActiveAnchor
     ) return;
 
     if (!deferMeasurementUntilInteractions) {
@@ -78,36 +91,31 @@ export function TourAnchor({
     if (lateSettleTimerRef.current) clearTimeout(lateSettleTimerRef.current);
 
     interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
-      requestAnimationFrame(measure);
       if (deferMeasurementUntilInteractions) {
         settleTimerRef.current = setTimeout(() => {
           requestAnimationFrame(measure);
-        }, 120);
+        }, 280);
         lateSettleTimerRef.current = setTimeout(() => {
           requestAnimationFrame(measure);
-        }, 320);
+        }, 520);
+        return;
       }
-    });
-    if (!deferMeasurementUntilInteractions) {
+
       settleTimerRef.current = setTimeout(() => {
         requestAnimationFrame(measure);
-      }, 120);
-      lateSettleTimerRef.current = setTimeout(() => {
-        requestAnimationFrame(measure);
-      }, 320);
-    }
+      }, 260);
+    });
   }, [
-    activeAnchorId,
-    activeSecondaryAnchorId,
-    activeArrowAnchorId,
     deferMeasurementUntilInteractions,
     disabled,
     id,
+    isActiveAnchor,
     measure,
   ]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     onLayout?.(event);
+    if (disabled || !isActiveAnchor) return;
     // Modal-route anchors should wait for the transition to finish before reporting a position.
     if (!deferMeasurementUntilInteractions) {
       requestAnimationFrame(measure);
@@ -118,25 +126,21 @@ export function TourAnchor({
     if (lateSettleTimerRef.current) clearTimeout(lateSettleTimerRef.current);
 
     interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
-      requestAnimationFrame(measure);
       if (deferMeasurementUntilInteractions) {
         settleTimerRef.current = setTimeout(() => {
           requestAnimationFrame(measure);
-        }, 180);
+        }, 280);
         lateSettleTimerRef.current = setTimeout(() => {
           requestAnimationFrame(measure);
-        }, 420);
+        }, 520);
+        return;
       }
-    });
-    if (!deferMeasurementUntilInteractions) {
+
       settleTimerRef.current = setTimeout(() => {
         requestAnimationFrame(measure);
-      }, 180);
-      lateSettleTimerRef.current = setTimeout(() => {
-        requestAnimationFrame(measure);
-      }, 420);
-    }
-  }, [deferMeasurementUntilInteractions, measure, onLayout]);
+      }, 260);
+    });
+  }, [deferMeasurementUntilInteractions, disabled, isActiveAnchor, measure, onLayout]);
 
   return (
     <View

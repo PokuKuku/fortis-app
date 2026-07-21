@@ -13,10 +13,10 @@ import { BaseModal } from './BaseModal';
 import {
   useTheme,
   type AccentColorName,
-  ACCENT_COLORS,
   ACCENT_COLOR_LABELS,
 } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { getAccentPalette } from '@/src/utils/accentColors';
 
 interface AccentColorPickerProps {
   visible: boolean;
@@ -101,16 +101,6 @@ export function AccentColorPicker({
             // Apply the palette in the same interaction as the toggle. Theme
             // persistence remains asynchronous inside the theme context.
             setDisplayIsDark(nextIsDark);
-            if (nextIsDark && accentColor === 'midnight') {
-              // Frost preserves contrast when Midnight is carried from light
-              // mode into dark mode. This only occurs through this toggle;
-              // users can still deliberately select Midnight while in dark mode.
-              void setAccentColor('slate');
-            } else if (!nextIsDark && accentColor === 'slate') {
-              // Mirror the automatic dark-mode adjustment when returning to
-              // light mode, without restricting manual Frost selection.
-              void setAccentColor('midnight');
-            }
             void setMode(nextIsDark ? 'dark' : 'light');
           }}
           style={({ pressed }) => [
@@ -138,7 +128,7 @@ export function AccentColorPicker({
 
       <View style={styles.grid}>
         {COLOR_ORDER.map((colorName) => {
-          const palette = ACCENT_COLORS[colorName];
+          const palette = getAccentPalette(colorName, isDark);
           const isSelected = colorName === accentColor;
 
           return (

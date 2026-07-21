@@ -1,7 +1,9 @@
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import {
   getInAppTourVersionForServerUpdate,
+  getNextInAppTourStepId,
   isProfileEligibleForInAppTour,
+  shouldLockInAppTourScreen,
   shouldBypassProGateForTourState,
 } from '@/src/contexts/InAppTourContext';
 
@@ -119,5 +121,26 @@ describe('getInAppTourVersionForServerUpdate', () => {
       currentVersion: null,
       status: 'started',
     })).toBe(30);
+  });
+});
+
+describe('getNextInAppTourStepId', () => {
+  it('requires the user to close Voice Coach before quick start', () => {
+    expect(getNextInAppTourStepId('ai_chat_overview')).toBe('close_ai_chat');
+    expect(getNextInAppTourStepId('close_ai_chat')).toBe('quick_start');
+  });
+
+  it('requires the user to close the active workout before insights', () => {
+    expect(getNextInAppTourStepId('rest_timer_settings')).toBe('close_active_workout');
+    expect(getNextInAppTourStepId('close_active_workout')).toBe('go_insights');
+  });
+});
+
+describe('shouldLockInAppTourScreen', () => {
+  it('locks scrolling for active spotlight steps only', () => {
+    expect(shouldLockInAppTourScreen(true, 'spotlight')).toBe(true);
+    expect(shouldLockInAppTourScreen(true, 'blocking')).toBe(false);
+    expect(shouldLockInAppTourScreen(true, 'non_blocking')).toBe(false);
+    expect(shouldLockInAppTourScreen(false, 'spotlight')).toBe(false);
   });
 });

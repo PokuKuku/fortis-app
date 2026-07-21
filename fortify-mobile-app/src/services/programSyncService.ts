@@ -387,47 +387,43 @@ async function updateExistingProgram(
 
       retainedWorkoutIds.add(serverWorkoutId);
 
-      const { error: deleteExercisesError } = await supabase
-        .from('program_exercises')
-        .delete()
-        .eq('program_workout_id', serverWorkoutId);
-
-      if (deleteExercisesError) {
-        throw deleteExercisesError;
+      if (workout.exercises.length === 0) {
+        throw new Error(`Workout "${workout.name}" must contain at least one exercise`);
       }
 
-      if (workout.exercises.length > 0) {
-        const exerciseIdMap = await resolveExerciseIdMap(workout.exercises);
-        const exercisesToInsert = workout.exercises.map((ex, exerciseIndex) => {
-          const resolvedId = isValidUUID(ex.exerciseId)
-            ? ex.exerciseId
-            : exerciseIdMap.get(ex.exerciseId) ||
-              (ex.exerciseName ? exerciseIdMap.get(normalizeExerciseKey(ex.exerciseName)) : null);
+      const exerciseIdMap = await resolveExerciseIdMap(workout.exercises);
+      const exercisesToReplace = workout.exercises.map((ex) => {
+        const resolvedId = isValidUUID(ex.exerciseId)
+          ? ex.exerciseId
+          : exerciseIdMap.get(ex.exerciseId) ||
+            (ex.exerciseName ? exerciseIdMap.get(normalizeExerciseKey(ex.exerciseName)) : null);
 
-          if (!resolvedId) {
-            throw new Error(`Unable to resolve exercise: ${ex.exerciseName || ex.exerciseId}`);
-          }
-
-          return {
-            program_workout_id: serverWorkoutId,
-            exercise_id: resolvedId,
-            exercise_name_snapshot: ex.exerciseName ?? null,
-            sets: ex.sets,
-            reps: ex.reps,
-            rest_seconds: ex.restSeconds || 120,
-            notes: ex.notes,
-            set_details: ex.setDetails ?? null,
-            order_index: ex.orderIndex ?? exerciseIndex,
-          };
-        });
-
-        const { error: exercisesError } = await supabase
-          .from('program_exercises')
-          .insert(exercisesToInsert);
-
-        if (exercisesError) {
-          throw exercisesError;
+        if (!resolvedId) {
+          throw new Error(`Unable to resolve exercise: ${ex.exerciseName || ex.exerciseId}`);
         }
+
+        return {
+          exercise_id: resolvedId,
+          exercise_name_snapshot: ex.exerciseName ?? null,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest_seconds: ex.restSeconds || 120,
+          notes: ex.notes,
+          set_details: ex.setDetails ?? null,
+        };
+      });
+
+      const { error: exercisesError } = await supabase.rpc(
+        'replace_program_workout_exercises',
+        {
+          p_program_workout_id: serverWorkoutId,
+          p_name: workout.name,
+          p_exercises: exercisesToReplace,
+        }
+      );
+
+      if (exercisesError) {
+        throw exercisesError;
       }
     }
 

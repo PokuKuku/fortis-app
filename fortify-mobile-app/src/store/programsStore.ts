@@ -1680,36 +1680,32 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             return null;
           }
 
-          const { error: deleteExercisesError } = await supabase
-            .from('program_exercises')
-            .delete()
-            .eq('program_workout_id', entry.workoutId);
-          if (deleteExercisesError) {
-            set({ error: deleteExercisesError.message });
+          const exercises = template.workouts[0]?.exercises || [];
+          if (exercises.length === 0) {
+            set({ error: `Workout "${workoutName}" must contain at least one exercise` });
             return null;
           }
 
-          const exercises = template.workouts[0]?.exercises || [];
-          if (exercises.length > 0) {
-            const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
-            const exercisesToInsert = resolvedExercises.map((exercise, exerciseIndex) => ({
-              program_workout_id: entry.workoutId,
-              exercise_id: exercise.resolvedExerciseId,
-              exercise_name_snapshot: exercise.exerciseName ?? null,
-              sets: exercise.sets,
-              reps: exercise.reps,
-              rest_seconds: exercise.restSeconds ?? 120,
-              notes: exercise.notes,
-              order_index: exerciseIndex,
-            }));
-
-            const { error: insertExercisesError } = await supabase
-              .from('program_exercises')
-              .insert(exercisesToInsert);
-            if (insertExercisesError) {
-              set({ error: insertExercisesError.message });
-              return null;
+          const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
+          const { error: replaceExercisesError } = await supabase.rpc(
+            'replace_program_workout_exercises',
+            {
+              p_program_workout_id: entry.workoutId,
+              p_name: workoutName,
+              p_exercises: resolvedExercises.map((exercise) => ({
+                exercise_id: exercise.resolvedExerciseId,
+                exercise_name_snapshot: exercise.exerciseName ?? null,
+                sets: exercise.sets,
+                reps: exercise.reps,
+                rest_seconds: exercise.restSeconds ?? 120,
+                notes: exercise.notes,
+                set_details: exercise.setDetails ?? null,
+              })),
             }
+          );
+          if (replaceExercisesError) {
+            set({ error: replaceExercisesError.message });
+            return null;
           }
         } else {
           const { data: workout, error: workoutError } = await supabase
@@ -2061,59 +2057,44 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }
 
     try {
-      const { error: workoutError } = await supabase
-        .from('program_workouts')
-        .update({ name: normalizedName })
-        .eq('id', workoutId);
-      if (workoutError) {
-        throw new Error(workoutError.message);
+      if (exercises.length === 0) {
+        throw new Error('A program workout must contain at least one exercise');
       }
 
-      const { error: deleteError } = await supabase
-        .from('program_exercises')
-        .delete()
-        .eq('program_workout_id', workoutId);
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
-      let persistedExercises: ProgramExercise[] = [];
-      if (exercises.length > 0) {
-        const resolvedExercises = await resolveExerciseIdsForSupabase(
-          exercises.map((exercise) => ({
-            exerciseId: exercise.exerciseId,
-            exerciseName: exercise.exerciseName,
-            sets: exercise.sets,
-            reps: exercise.reps,
-            restSeconds: exercise.restSeconds,
-            notes: exercise.notes,
-            setDetails: exercise.setDetails,
-            orderIndex: 0,
-          }))
-        );
-
-        const exercisesToInsert = resolvedExercises.map((exercise, index) => ({
-          program_workout_id: workoutId,
-          exercise_id: exercise.resolvedExerciseId,
-          exercise_name_snapshot: exercise.exerciseName ?? null,
-          sets: Math.max(1, exercise.sets),
-          reps: exercise.reps || '8-12',
-          rest_seconds: exercise.restSeconds ?? 120,
+      const resolvedExercises = await resolveExerciseIdsForSupabase(
+        exercises.map((exercise) => ({
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          restSeconds: exercise.restSeconds,
           notes: exercise.notes,
-          set_details: exercise.setDetails ?? null,
-          order_index: index,
-        }));
+          setDetails: exercise.setDetails,
+          orderIndex: 0,
+        }))
+      );
 
-        const { data, error: insertError } = await supabase
-          .from('program_exercises')
-          .insert(exercisesToInsert)
-          .select('*');
-        if (insertError) {
-          throw new Error(insertError.message);
+      const { data, error: replaceError } = await supabase.rpc(
+        'replace_program_workout_exercises',
+        {
+          p_program_workout_id: workoutId,
+          p_name: normalizedName,
+          p_exercises: resolvedExercises.map((exercise) => ({
+            exercise_id: exercise.resolvedExerciseId,
+            exercise_name_snapshot: exercise.exerciseName ?? null,
+            sets: Math.max(1, exercise.sets),
+            reps: exercise.reps || '8-12',
+            rest_seconds: exercise.restSeconds ?? 120,
+            notes: exercise.notes ?? '',
+            set_details: exercise.setDetails ?? null,
+          })),
         }
-
-        persistedExercises = (data ?? []).map(mapExerciseFromDTO);
+      );
+      if (replaceError) {
+        throw new Error(replaceError.message);
       }
+
+      const persistedExercises: ProgramExercise[] = (data ?? []).map(mapExerciseFromDTO);
 
       set((state) => ({
         programs: state.programs.map((entry) =>

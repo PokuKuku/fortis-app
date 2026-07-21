@@ -659,6 +659,9 @@ export function SetRow({
   const shouldAnchorWeight = isFirstTourSet && isTourActive && activeStepId === 'fill_weight_column';
   const shouldAnchorReps = isFirstTourSet && isTourActive && activeStepId === 'fill_reps_column';
   const shouldAnchorComplete = isFirstTourSet && isTourActive && activeStepId === 'complete_remaining_sets';
+  const isRestrictedLongPressTourStep = shouldAnchorTourSetControls && isTourActive && (
+    activeStepId === 'fill_weight_column' || activeStepId === 'complete_remaining_sets'
+  );
 
   return (
     <Animated.View
@@ -666,6 +669,7 @@ export function SetRow({
     >
       <Swipeable
         ref={swipeableRef}
+        enabled={!isRestrictedLongPressTourStep}
         renderRightActions={renderRightActions}
         overshootRight={false}
         friction={2}
@@ -684,7 +688,9 @@ export function SetRow({
             accessibilityRole="button"
             accessibilityLabel={`${setNumberLabel} type: ${setTypeLabel}`}
             accessibilityHint="Double tap to change set type"
+            disabled={isRestrictedLongPressTourStep}
             onPress={() => {
+              if (isRestrictedLongPressTourStep) return;
               badgeRef.current?.measureInWindow((x, y, width, height) => {
                 setPopoverPosition({ x: x, y: y + height + 4 });
                 setShowTypeSelector(true);
@@ -720,8 +726,15 @@ export function SetRow({
               accessibilityRole="button"
               accessibilityLabel={`${setNumberLabel} weight`}
               accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
-              onPress={() => handleInputPress('weight')}
-              onLongPress={() => handleApplyToRemaining('weight')}
+              disabled={isRestrictedLongPressTourStep && !shouldAnchorWeight}
+              onPress={() => {
+                if (isRestrictedLongPressTourStep) return;
+                handleInputPress('weight');
+              }}
+              onLongPress={() => {
+                if (isRestrictedLongPressTourStep && !shouldAnchorWeight) return;
+                handleApplyToRemaining('weight');
+              }}
               delayLongPress={350}
               style={[
                 getInputStyle('weight'),
@@ -755,8 +768,15 @@ export function SetRow({
               accessibilityRole="button"
               accessibilityLabel={`${setNumberLabel} reps`}
               accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
-              onPress={() => handleInputPress('reps')}
-              onLongPress={() => handleApplyToRemaining('reps')}
+              disabled={isRestrictedLongPressTourStep}
+              onPress={() => {
+                if (isRestrictedLongPressTourStep) return;
+                handleInputPress('reps');
+              }}
+              onLongPress={() => {
+                if (isRestrictedLongPressTourStep) return;
+                handleApplyToRemaining('reps');
+              }}
               delayLongPress={350}
               style={[
                 getInputStyle('reps'),
@@ -802,8 +822,15 @@ export function SetRow({
             accessibilityLabel={`${setNumberLabel} completed`}
             accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
             accessibilityState={{ checked: set.isCompleted }}
-            onPress={handleCheckboxPress}
-            onLongPress={handleCheckboxLongPress}
+            disabled={isRestrictedLongPressTourStep && !shouldAnchorComplete}
+            onPress={() => {
+              if (isRestrictedLongPressTourStep) return;
+              handleCheckboxPress();
+            }}
+            onLongPress={() => {
+              if (isRestrictedLongPressTourStep && !shouldAnchorComplete) return;
+              handleCheckboxLongPress();
+            }}
             delayLongPress={350}
             style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
           >

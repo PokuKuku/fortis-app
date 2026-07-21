@@ -51,6 +51,8 @@ const FILL_ICON_SIZE = Math.round(scale(20) * PAD_SCALE);
 const NUMBER_GRID_WIDTH = Math.round((BUTTON_SIZE * NUMBER_COLUMNS) + (PAD_GAP * (NUMBER_COLUMNS - 1)));
 const PAD_CONTAINER_WIDTH = Math.round(NUMBER_GRID_WIDTH + PAD_GAP + CONTROLS_WIDTH);
 const PAD_WIDTH = Math.round(PAD_CONTAINER_WIDTH + (PAD_HORIZONTAL * 2));
+const NUMBER_PAD_EXIT_DURATION_MS = 350;
+const TOUR_STEP_SETTLE_BUFFER_MS = 50;
 
 interface NumberPadModalProps {
   visible: boolean;
@@ -70,7 +72,7 @@ export function NumberPadModal({
   useEditor = false,
 }: NumberPadModalProps) {
   const { colors, isDark } = useTheme();
-  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
+  const { isTourActive, activeStepId, advanceStep, isScreenScrollLocked } = useInAppTour();
   const insets = useSafeAreaInsets();
 
   // Dynamic theme-aware styles
@@ -95,7 +97,7 @@ export function NumberPadModal({
     rpeButtonText: { color: colors.textPrimary },
     unitButtonText: { color: colors.textPrimary },
     // Accent-based gradient and shadow for next button
-    nextButtonGradient: colors.accentGradient as unknown as string[],
+    nextButtonGradient: colors.accentGradient as unknown as [string, string, ...string[]],
     nextButtonShadow: { shadowColor: colors.accentShadow },
   };
 
@@ -229,7 +231,7 @@ export function NumberPadModal({
         // measuring the checkmark for the next tour spotlight.
         setTimeout(() => {
           void advanceStep();
-        }, 260);
+        }, NUMBER_PAD_EXIT_DURATION_MS + TOUR_STEP_SETTLE_BUFFER_MS);
       }
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -278,10 +280,10 @@ export function NumberPadModal({
   return (
     <View style={styles.absoluteContainer} pointerEvents="box-none">
       {/* Keyboard */}
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={panGesture.enabled(!isScreenScrollLocked)}>
         <Animated.View
           entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
-          exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
+          exiting={SlideOutDown.duration(NUMBER_PAD_EXIT_DURATION_MS).easing(Easing.in(Easing.cubic))}
           style={[styles.container, containerAnimatedStyle]}
         >
           <View
@@ -382,8 +384,13 @@ export function NumberPadModal({
 
               {/* Fill Down button - only in active workout mode */}
               {!useEditor && (
-                <TourAnchor id={TOUR_ANCHOR_IDS.activeSetFillDown} disabled={!shouldAnchorFillDown}>
+                <TourAnchor
+                  id={TOUR_ANCHOR_IDS.activeSetFillDown}
+                  disabled={!shouldAnchorFillDown}
+                  deferMeasurementUntilInteractions
+                >
                   <Pressable
+                    testID="number-pad-fill-down"
                     onPress={handleFillDown}
                     style={({ pressed }) => [
                       styles.controlButton,

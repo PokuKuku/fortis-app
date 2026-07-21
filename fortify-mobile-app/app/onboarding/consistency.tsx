@@ -130,6 +130,8 @@ export default function OnboardingConsistencyScreen() {
       title="How many days a week do you typically work out?"
       subtitle={undefined}
       onBack={() => router.back()}
+      useScrollView={false}
+      scrollEnabled={false}
       floatingFooter={
         <GlassButton
           style={styles.button}

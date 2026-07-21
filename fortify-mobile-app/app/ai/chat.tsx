@@ -73,6 +73,7 @@ import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { AI_CONNECTION_INTERRUPTED_MESSAGE } from '@/src/services/aiService';
+import { shouldGenerateWorkoutFromVoice } from '@/src/utils/realtimeCoach';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -238,7 +239,13 @@ export default function AIChatScreen() {
   const { colors, isDark } = useTheme();
   const { profile, user } = useAuth();
   const { runProFeature } = useProFeatureGate();
-  const { isTourActive, activeStepId, advanceStep, completeCurrentStepAction } = useInAppTour();
+  const {
+    isTourActive,
+    activeStepId,
+    advanceStep,
+    completeCurrentStepAction,
+    isScreenScrollLocked,
+  } = useInAppTour();
   const isNavigating = useRef(false);
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const appliedRequestedModeRef = useRef<string | null>(null);
@@ -259,6 +266,7 @@ export default function AIChatScreen() {
   const [pendingVoiceMedia, setPendingVoiceMedia] = useState<AIPendingMedia[]>([]);
   const [isPickingVoiceMedia, setIsPickingVoiceMedia] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
+  const [isGeneratingTextWorkout, setIsGeneratingTextWorkout] = useState(false);
   const [clarificationPreviewMessage, setClarificationPreviewMessage] = useState<AIConversationMessage | null>(null);
   const [resolvedClarificationMessageIds, setResolvedClarificationMessageIds] = useState<Set<string>>(() => new Set());
   const scrollViewRef = useRef<FlatList<AIConversationMessage>>(null);
@@ -278,6 +286,10 @@ export default function AIChatScreen() {
     clearText: { color: colors.textTertiary },
     loadingText: { color: colors.textSecondary },
     errorHint: { color: colors.textTertiary },
+    buildingWorkoutCard: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
+      borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)',
+    },
   };
 
   // Store state
@@ -684,15 +696,22 @@ export default function AIChatScreen() {
         });
         chatWorkoutActions.setTemplateSaveError(null);
         setInputText('');
-        const response = await sendMessage(
-          intent,
-          message,
-          requestContext,
-          flattenAIMediaImages(pendingChatMedia),
-          attachments
+        setIsGeneratingTextWorkout(
+          shouldGenerateWorkoutFromVoice(message, Boolean(currentWorkoutTemplateDraft))
         );
-        if (response.type !== 'error') {
-          setPendingChatMedia([]);
+        try {
+          const response = await sendMessage(
+            intent,
+            message,
+            requestContext,
+            flattenAIMediaImages(pendingChatMedia),
+            attachments
+          );
+          if (response.type !== 'error') {
+            setPendingChatMedia([]);
+          }
+        } finally {
+          setIsGeneratingTextWorkout(false);
         }
       },
     );
@@ -811,10 +830,20 @@ export default function AIChatScreen() {
         const allowed = await requestAIFeatureConsent();
         if (!allowed) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        await retryLastMessage();
+        setIsGeneratingTextWorkout(
+          shouldGenerateWorkoutFromVoice(
+            lastFailedMessage?.message ?? '',
+            Boolean(currentWorkoutTemplateDraft)
+          )
+        );
+        try {
+          await retryLastMessage();
+        } finally {
+          setIsGeneratingTextWorkout(false);
+        }
       },
     );
-  }, [requestAIFeatureConsent, retryLastMessage, runProFeature]);
+  }, [currentWorkoutTemplateDraft, lastFailedMessage?.message, requestAIFeatureConsent, retryLastMessage, runProFeature]);
 
   const handleStartVoiceCoach = useCallback(async () => (
     runProFeature(
@@ -949,7 +978,7 @@ export default function AIChatScreen() {
       <StainlessSteelPattern />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
-        <GestureDetector gesture={panGesture}>
+        <GestureDetector gesture={panGesture.enabled(!isScreenScrollLocked)}>
           <View style={[styles.header, themedStyles.header]}>
             <View style={styles.headerLeft}>
               {mode === 'chat' && messages.length > 0 && (
@@ -1015,15 +1044,29 @@ export default function AIChatScreen() {
               })}
             </View>
             <View style={styles.headerRight}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={handleClose}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Close coach"
-              >
-                <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
-              </TouchableOpacity>
+              {isTourActive && activeStepId === 'close_ai_chat' ? (
+                <TourAnchor id={TOUR_ANCHOR_IDS.aiChatCloseButton}>
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={handleClose}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close coach"
+                  >
+                    <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
+                  </TouchableOpacity>
+                </TourAnchor>
+              ) : (
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleClose}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close coach"
+                >
+                  <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </GestureDetector>
@@ -1080,6 +1123,7 @@ export default function AIChatScreen() {
             keyboardVerticalOffset={0}
           >
             <FlatList
+              scrollEnabled={!isScreenScrollLocked}
               ref={scrollViewRef}
               data={visibleMessages}
               keyExtractor={(message) => message.id}
@@ -1126,7 +1170,35 @@ export default function AIChatScreen() {
               ) : null}
               ListFooterComponent={(
                 <>
-                  {isSendingMessage && (
+                  {isSendingMessage && isGeneratingTextWorkout ? (
+                    <Animated.View
+                      entering={FadeIn.duration(200)}
+                      exiting={FadeOut.duration(150)}
+                      style={styles.buildingWorkoutContainer}
+                    >
+                      <View
+                        testID="chat-workout-loading-card"
+                        style={[styles.buildingWorkoutCard, themedStyles.buildingWorkoutCard]}
+                      >
+                        <Text
+                          allowFontScaling={false}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.82}
+                          numberOfLines={1}
+                          style={[styles.buildingWorkoutTitle, { color: colors.textPrimary }]}
+                        >
+                          Building Workout
+                        </Text>
+                        <Text
+                          allowFontScaling={false}
+                          numberOfLines={1}
+                          style={[styles.buildingWorkoutMeta, { color: colors.textSecondary }]}
+                        >
+                          Coming up...
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  ) : isSendingMessage ? (
                     <Animated.View
                       entering={FadeIn.duration(200)}
                       exiting={FadeOut.duration(150)}
@@ -1135,7 +1207,7 @@ export default function AIChatScreen() {
                       <AnimatedLoadingSparkles />
                       <Text style={[styles.loadingText, themedStyles.loadingText]}>{loadingMessage}</Text>
                     </Animated.View>
-                  )}
+                  ) : null}
 
                   {showRateLimitWarning && (
                     <Animated.View
@@ -1357,6 +1429,26 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
     alignSelf: 'stretch',
+  },
+  buildingWorkoutContainer: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+  },
+  buildingWorkoutCard: {
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  buildingWorkoutTitle: {
+    ...Typography.h4,
+    fontFamily: 'BankGothicBT-Medium',
+    fontWeight: 'normal',
+  },
+  buildingWorkoutMeta: {
+    ...Typography.bodySmall,
   },
   loadingIconWrapper: {
     width: IconSizes.md,

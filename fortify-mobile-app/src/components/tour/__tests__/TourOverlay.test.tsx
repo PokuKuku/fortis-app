@@ -55,6 +55,88 @@ describe('TourOverlay', () => {
     expect(spotlightHole.props.ry).toBe(spotlightHole.props.rx);
   });
 
+  it('blocks touches inside informational highlights by default', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 100, y: 200, width: 120, height: 50 }}
+        body="Informational highlight"
+      />
+    );
+
+    expect(view.getByTestId('tour-hole-blocker-0')).toBeTruthy();
+  });
+
+  it('can point at one control from all four sides', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 40, y: 120, width: 280, height: 400 }}
+        arrowTargetRect={{ x: 150, y: 220, width: 48, height: 36 }}
+        body="Press and hold 225"
+        showArrow
+        arrowDirections={['top', 'right', 'bottom', 'left']}
+      />
+    );
+
+    expect(view.getByTestId('tour-arrow-top')).toBeTruthy();
+    expect(view.getByTestId('tour-arrow-right')).toBeTruthy();
+    expect(view.getByTestId('tour-arrow-bottom')).toBeTruthy();
+    expect(view.getByTestId('tour-arrow-left')).toBeTruthy();
+  });
+
+  it('blocks the highlighted area except for the arrow target when requested', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 40, y: 120, width: 280, height: 400 }}
+        arrowTargetRect={{ x: 150, y: 220, width: 48, height: 36 }}
+        body="Press and hold 225"
+        allowAnchorInteraction
+        allowOnlyArrowTargetInteraction
+      />
+    );
+
+    expect(view.getByTestId('tour-hole-blocker-top')).toBeTruthy();
+    expect(view.getByTestId('tour-hole-blocker-right')).toBeTruthy();
+    expect(view.getByTestId('tour-hole-blocker-bottom')).toBeTruthy();
+    expect(view.getByTestId('tour-hole-blocker-left')).toBeTruthy();
+  });
+
+  it('keeps the main anchor interactive when no separate arrow target exists', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 260, y: 600, width: 90, height: 52 }}
+        body="Tap the highlighted keyboard control"
+        allowAnchorInteraction
+        allowOnlyArrowTargetInteraction
+      />
+    );
+
+    expect(view.queryByTestId('tour-hole-blocker-0')).toBeNull();
+  });
+
+  it('supports bold emphasis within the tour directions', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 100, y: 200, width: 120, height: 50 }}
+        body="Press and hold 225 to fill the remaining sets."
+        boldPhrases={['Press and hold']}
+      />
+    );
+
+    expect(view.getByText('Press and hold').props.style).toEqual(
+      expect.objectContaining({ fontWeight: expect.any(String) })
+    );
+  });
+
   it('supports a step-specific vertical spotlight offset', () => {
     const view = render(
       <TourOverlay
@@ -68,6 +150,27 @@ describe('TourOverlay', () => {
     );
 
     expect(view.getByTestId('tour-spotlight-hole-0').props.y).toBe(206);
+  });
+
+  it('can widen and raise a spotlight without extending its bottom edge', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 40, y: 120, width: 280, height: 400 }}
+        body="Set controls"
+        holePadding={0}
+        holePaddingHorizontal={8}
+        holePaddingTop={8}
+        holePaddingBottom={0}
+      />
+    );
+
+    const spotlightHole = view.getByTestId('tour-spotlight-hole-0');
+    expect(spotlightHole.props.x).toBe(32);
+    expect(spotlightHole.props.y).toBe(112);
+    expect(spotlightHole.props.width).toBe(296);
+    expect(spotlightHole.props.height).toBe(408);
   });
 
   it('keeps replay and next as independent actions', () => {

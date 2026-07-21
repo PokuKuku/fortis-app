@@ -27,6 +27,15 @@ const LIGHT_MODE_ACCENT_OVERRIDES: Partial<Record<AccentColorName, AccentColorPa
   },
 };
 
+const DARK_MODE_ACCENT_OVERRIDES: Partial<Record<AccentColorName, AccentColorPalette>> = {
+  midnight: {
+    base: '#677890',
+    light: '#94a3b8',
+    dark: '#475569',
+    rgb: [103, 120, 144],
+  },
+};
+
 /**
  * Curated accent color palettes that work well with both dark and light themes.
  * Each color is chosen to maintain good contrast and visual harmony.
@@ -174,8 +183,11 @@ export function getAccentRgba(colorName: AccentColorName, opacity: number): stri
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${opacity})`;
 }
 
-function getModeAwareAccentPalette(colorName: AccentColorName, isDark: boolean): AccentColorPalette {
-  return isDark ? ACCENT_COLORS[colorName] : (LIGHT_MODE_ACCENT_OVERRIDES[colorName] ?? ACCENT_COLORS[colorName]);
+export function getAccentPalette(colorName: AccentColorName, isDark: boolean): AccentColorPalette {
+  if (isDark) {
+    return DARK_MODE_ACCENT_OVERRIDES[colorName] ?? ACCENT_COLORS[colorName];
+  }
+  return LIGHT_MODE_ACCENT_OVERRIDES[colorName] ?? ACCENT_COLORS[colorName];
 }
 
 function getRgbaFromPalette(palette: AccentColorPalette, opacity: number): string {
@@ -189,7 +201,7 @@ function getRgbaFromPalette(palette: AccentColorPalette, opacity: number): strin
  * Light mode: base → dark (for better contrast on light backgrounds)
  */
 export function getAccentGradient(colorName: AccentColorName, isDark: boolean): readonly [string, string] {
-  const palette = getModeAwareAccentPalette(colorName, isDark);
+  const palette = getAccentPalette(colorName, isDark);
   if (isDark) {
     return [palette.light, palette.base] as const;
   }
@@ -201,7 +213,7 @@ export function getAccentGradient(colorName: AccentColorName, isDark: boolean): 
  * These values replace the hardcoded green values in the theme.
  */
 export function generateAccentThemeColors(colorName: AccentColorName, isDark: boolean) {
-  const palette = getModeAwareAccentPalette(colorName, isDark);
+  const palette = getAccentPalette(colorName, isDark);
   const contrastColorName = ACCENT_CONTRAST_MAP[colorName];
 
   return {

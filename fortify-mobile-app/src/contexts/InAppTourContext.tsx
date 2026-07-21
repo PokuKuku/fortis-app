@@ -16,7 +16,13 @@ import {
   type PersistedInAppTourState,
 } from '@/src/services/inAppTourService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
+import {
+  TourOverlay,
+  type AnchorRect,
+  type TourArrowDirection,
+  type TourOverlayMode,
+  type TourOverlayPlacement,
+} from '@/src/components/tour/TourOverlay';
 import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
 import {
   AI_CHAT_OVERVIEW_COPY,
@@ -47,6 +53,7 @@ type TourStepId =
   | 'ai_text_chat_result'
   | 'ai_voice_chat_open'
   | 'ai_chat_overview'
+  | 'close_ai_chat'
   | 'quick_start'
   | 'launch_workout'
   | 'rest_timer'
@@ -58,6 +65,7 @@ type TourStepId =
   | 'set_target'
   | 'set_target_explanation'
   | 'rest_timer_settings'
+  | 'close_active_workout'
   | 'go_insights'
   | 'insights_overview'
   | 'support_overview'
@@ -75,7 +83,9 @@ type TourStep = {
   mode: TourOverlayMode;
   primaryActionLabel?: string | null;
   showArrow?: boolean;
+  arrowDirections?: TourArrowDirection[];
   arrowColor?: string;
+  boldPhrases?: string[];
   centerTooltip?: boolean;
   showHighlight?: boolean;
   hideTooltip?: boolean;
@@ -85,10 +95,13 @@ type TourStep = {
   placement?: TourOverlayPlacement;
   renderOverlay?: boolean;
   holePadding?: number;
+  holePaddingHorizontal?: number;
+  holePaddingTop?: number;
   holePaddingBottom?: number;
   holeOffsetY?: number;
   reserveArrowSpace?: boolean;
   allowAnchorInteraction?: boolean;
+  allowOnlyArrowTargetInteraction?: boolean;
   requiresActionBeforeNext?: boolean;
 };
 
@@ -165,6 +178,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'paste_workout_demo',
@@ -196,6 +210,7 @@ const TOUR_STEPS: TourStep[] = [
     primaryActionLabel: null,
     showArrow: false,
     holePadding: 0,
+    allowAnchorInteraction: true,
   },
   {
     id: 'ai_chat_open',
@@ -205,6 +220,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'ai_text_chat_overview',
@@ -214,6 +230,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'ai_text_chat_result',
@@ -225,6 +242,7 @@ const TOUR_STEPS: TourStep[] = [
     primaryActionLabel: 'Continue',
     showArrow: true,
     requiresActionBeforeNext: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'ai_voice_chat_open',
@@ -234,6 +252,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'ai_chat_overview',
@@ -246,6 +265,17 @@ const TOUR_STEPS: TourStep[] = [
     showHighlight: false,
   },
   {
+    id: 'close_ai_chat',
+    route: '/ai/chat',
+    anchorId: TOUR_ANCHOR_IDS.aiChatCloseButton,
+    body: 'Tap X to close Voice Coach.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: false,
+    holePadding: 0,
+    allowAnchorInteraction: true,
+  },
+  {
     id: 'quick_start',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
@@ -253,6 +283,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'launch_workout',
@@ -262,6 +293,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'open_voice_log',
@@ -282,7 +314,15 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    arrowDirections: ['top', 'right', 'bottom', 'left'],
     arrowColor: ACCENT_COLORS.midnight.base,
+    boldPhrases: ['Press and hold'],
+    allowAnchorInteraction: true,
+    allowOnlyArrowTargetInteraction: true,
+    holePadding: 0,
+    holePaddingHorizontal: 8,
+    holePaddingTop: 16,
+    holePaddingBottom: 0,
   },
   {
     id: 'fill_reps_column',
@@ -301,12 +341,18 @@ const TOUR_STEPS: TourStep[] = [
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
     arrowAnchorId: TOUR_ANCHOR_IDS.activeSetComplete,
-    body: 'Press and hold a checkmark in the rightmost column to complete all remaining sets.',
+    body: 'Press and hold the checkmark in the rightmost column to complete all remaining sets.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    arrowDirections: ['top', 'right', 'bottom', 'left'],
     allowAnchorInteraction: true,
     arrowColor: ACCENT_COLORS.midnight.base,
+    boldPhrases: ['Press and hold'],
+    holePadding: 0,
+    holePaddingHorizontal: 8,
+    holePaddingTop: 16,
+    holePaddingBottom: 0,
   },
   {
     id: 'logging_shortcuts',
@@ -359,6 +405,17 @@ const TOUR_STEPS: TourStep[] = [
     showArrow: false,
   },
   {
+    id: 'close_active_workout',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.activeWorkoutCloseButton,
+    body: 'Tap X to close the workout.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: false,
+    holePadding: 0,
+    allowAnchorInteraction: true,
+  },
+  {
     id: 'go_insights',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.insightsTab,
@@ -367,6 +424,7 @@ const TOUR_STEPS: TourStep[] = [
     primaryActionLabel: null,
     showArrow: true,
     holeOffsetY: 6,
+    allowAnchorInteraction: true,
   },
   {
     id: 'insights_overview',
@@ -401,6 +459,20 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
+export function getNextInAppTourStepId(currentStepId: TourStepId): TourStepId | null {
+  if (currentStepId === 'open_add_with_voice') return 'paste_workout_tip';
+  const currentIndex = TOUR_STEPS.findIndex((step) => step.id === currentStepId);
+  if (currentIndex < 0 || currentIndex >= TOUR_STEPS.length - 1) return null;
+  return TOUR_STEPS[currentIndex + 1].id;
+}
+
+export function shouldLockInAppTourScreen(
+  isTourActive: boolean,
+  mode: TourOverlayMode | null | undefined
+): boolean {
+  return isTourActive && mode === 'spotlight';
+}
+
 const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'streak_counter',
   'welcome',
@@ -430,6 +502,8 @@ const USER_DRIVEN_NAV_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'voice_add_multiple',
   'paste_workout_tip',
   'close_workout_builder',
+  'close_ai_chat',
+  'close_active_workout',
   'open_voice_log',
 ]);
 const ANCHOR_RECT_JITTER_PX = 2;
@@ -512,6 +586,7 @@ type InAppTourContextValue = {
   activeAnchorId: TourAnchorId | null;
   activeSecondaryAnchorId: TourAnchorId | null;
   activeArrowAnchorId: TourAnchorId | null;
+  isScreenScrollLocked: boolean;
   advanceStep: () => void;
   skipTour: () => void;
   currentStepNumber: number | null;
@@ -542,8 +617,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
   const isWorkoutActive = useWorkoutStore((s) => s.isWorkoutActive);
-  const activeWorkoutSession = useWorkoutStore((s) => s.activeSession);
-  const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
+  const firstExerciseAllSetsCompleted = useWorkoutStore((s) => {
+    const sets = s.activeSession?.exercises[0]?.sets ?? [];
+    return sets.length > 0 && sets.every((set) => set.isCompleted);
+  });
 
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
   const [tourLoaded, setTourLoaded] = useState(false);
@@ -768,8 +845,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, updateProfile]);
 
-  const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
-
   const startTour = useCallback(async (): Promise<boolean> => {
     if (!tourLoaded) return false;
     if (isTourActive) return false;
@@ -827,13 +902,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isTourActive]);
 
-  useEffect(() => {
-    const prevCount = lastCompletedCountRef.current;
-    const nextCount = workoutCompletedSessions.length;
-    if (prevCount === nextCount) return;
-    lastCompletedCountRef.current = nextCount;
-  }, [workoutCompletedSessions.length]);
-
   const advanceStep = useCallback(async () => {
     if (!tourLoaded) return;
     if (!isTourActive || currentStepIndex < 0) return;
@@ -845,9 +913,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
 
     const now = new Date().toISOString();
-    const nextStep = logicalStep?.id === 'open_add_with_voice'
-      ? TOUR_STEPS.find((step) => step.id === 'paste_workout_tip')!
-      : TOUR_STEPS[currentStepIndex + 1];
+    const nextStepId = logicalStep ? getNextInAppTourStepId(logicalStep.id) : null;
+    const nextStep = TOUR_STEPS.find((step) => step.id === nextStepId)!;
     const next: PersistedInAppTourState = {
       version: IN_APP_TOUR_VERSION,
       status: 'in_progress',
@@ -855,20 +922,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
 
-    if (logicalStep?.id === 'rest_timer_settings' && isWorkoutActive) {
-      cancelWorkout();
-    }
-
     await setTourStateAndPersist(next);
-
-    if (logicalStep?.id === 'ai_chat_overview') {
-      router.navigate('/(tabs)');
-      return;
-    }
-    if (logicalStep?.id === 'rest_timer_settings') {
-      router.navigate('/(tabs)');
-    }
-  }, [cancelWorkout, currentStepIndex, finishTour, isTourActive, isWorkoutActive, logicalStep?.id, router, setTourStateAndPersist, tourLoaded]);
+  }, [currentStepIndex, finishTour, isTourActive, logicalStep?.id, setTourStateAndPersist, tourLoaded]);
 
   // Long presses update workout state asynchronously. Advance only after the
   // completed sets are committed, which keeps the next tour anchor available.
@@ -879,10 +934,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const firstExerciseSets = activeWorkoutSession?.exercises[0]?.sets ?? [];
-    const hasCompletedRemainingSets = firstExerciseSets.length > 0
-      && firstExerciseSets.every((set) => set.isCompleted);
-    if (!hasCompletedRemainingSets || completedSetsTourAdvanceRef.current) {
+    if (!firstExerciseAllSetsCompleted || completedSetsTourAdvanceRef.current) {
       return;
     }
 
@@ -891,7 +943,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       void advanceStep();
     }, 180);
     return () => clearTimeout(timer);
-  }, [activeWorkoutSession?.exercises, advanceStep, isTourActive, logicalStep?.id]);
+  }, [advanceStep, firstExerciseAllSetsCompleted, isTourActive, logicalStep?.id]);
 
   const autoNavStepRef = useRef<string | null>(null);
 
@@ -1148,6 +1200,22 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
 
+  // Advance after the user closes Voice Coach.
+  useEffect(() => {
+    if (!isTourActive || logicalStep?.id !== 'close_ai_chat') return;
+    if (isOnStepRoute('/(tabs)')) {
+      void advanceStep();
+    }
+  }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
+
+  // Advance after the user closes the tour-created workout.
+  useEffect(() => {
+    if (!isTourActive || logicalStep?.id !== 'close_active_workout') return;
+    if (isOnStepRoute('/(tabs)')) {
+      void advanceStep();
+    }
+  }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
+
   // Advance when user reaches the Insights tab.
   useEffect(() => {
     if (!isTourActive || logicalStep?.id !== 'go_insights') return;
@@ -1165,6 +1233,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     activeAnchorId: logicalStep?.anchorId ?? null,
     activeSecondaryAnchorId: logicalStep?.secondaryAnchorId ?? null,
     activeArrowAnchorId: logicalStep?.arrowAnchorId ?? null,
+    isScreenScrollLocked: shouldLockInAppTourScreen(isTourActive, logicalStep?.mode),
     advanceStep: () => void advanceStep(),
     skipTour: () => void finishTour('skipped'),
     currentStepNumber: logicalStep ? getStepIndexById(logicalStep.id) + 1 : null,
@@ -1258,7 +1327,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         primaryAction={primaryAction}
         secondaryAction={skipAction}
         showArrow={Boolean(overlayStep?.showArrow) && isTooltipVisible && Boolean(currentAnchorRect)}
+        arrowDirections={overlayStep?.arrowDirections}
         arrowColor={overlayStep?.arrowColor}
+        boldPhrases={overlayStep?.boldPhrases}
         centerTooltip={
           Boolean(overlayStep?.centerTooltip) ||
           (overlayStep?.mode === 'spotlight' && !currentAnchorRect)
@@ -1270,10 +1341,13 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         tooltipTopOffset={overlayStep?.tooltipTopOffset ?? 0}
         placement={overlayStep?.placement}
         holePadding={overlayStep?.holePadding}
+        holePaddingHorizontal={overlayStep?.holePaddingHorizontal}
+        holePaddingTop={overlayStep?.holePaddingTop}
         holePaddingBottom={overlayStep?.holePaddingBottom}
         holeOffsetY={overlayStep?.holeOffsetY}
         reserveArrowSpace={overlayStep?.reserveArrowSpace}
         allowAnchorInteraction={overlayStep?.allowAnchorInteraction}
+        allowOnlyArrowTargetInteraction={overlayStep?.allowOnlyArrowTargetInteraction}
         onTooltipHideComplete={handleTooltipHideComplete}
       />
       <AccentColorPicker

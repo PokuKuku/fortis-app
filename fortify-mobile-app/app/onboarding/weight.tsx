@@ -26,7 +26,7 @@ const LB_MIN = 80;
 const LB_MAX = 400;
 const KG_MIN = 40;
 const KG_MAX = 180;
-const DIAL_STEP = 0.1;
+const DIAL_STEP = 0.5;
 
 export default function OnboardingWeightScreen() {
   useOnboardingFunnelScreen("Q5. What's your weight?");
@@ -103,6 +103,7 @@ export default function OnboardingWeightScreen() {
       onBack={() => router.back()}
       bodyAlign="center"
       useScrollView={false}
+      scrollEnabled={false}
       floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>

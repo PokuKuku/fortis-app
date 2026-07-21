@@ -261,6 +261,7 @@ export function ExerciseTargetSheet({
   };
 
   const panGesture = Gesture.Pan()
+    .enabled(!showTourExplanation)
     .activeOffsetY(10)
     .failOffsetX([-15, 15])
     .onUpdate((event) => {
@@ -318,7 +319,12 @@ export function ExerciseTargetSheet({
               <View style={[styles.handle, themedStyles.handle]} />
             </View>
 
-            <View style={styles.content}>
+            <View
+              style={styles.content}
+              pointerEvents={showTourExplanation ? 'none' : 'auto'}
+              accessibilityElementsHidden={showTourExplanation}
+              importantForAccessibility={showTourExplanation ? 'no-hide-descendants' : 'auto'}
+            >
               <View style={styles.header}>
                 <View style={styles.headerText}>
                   <Text style={[styles.title, themedStyles.title]}>Exercise Target</Text>

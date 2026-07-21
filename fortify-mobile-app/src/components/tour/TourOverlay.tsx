@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SpeakerWaveIcon } from 'react-native-heroicons/outline';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
@@ -22,6 +22,7 @@ export type AnchorRect = { x: number; y: number; width: number; height: number }
 
 export type TourOverlayMode = 'blocking' | 'spotlight' | 'non_blocking';
 export type TourOverlayPlacement = 'auto' | 'above' | 'below';
+export type TourArrowDirection = 'top' | 'right' | 'bottom' | 'left';
 
 type Action = {
   label: string;
@@ -41,7 +42,9 @@ type TourOverlayProps = {
   secondaryAction?: Action | null;
   auxiliaryAction?: Action | null;
   showArrow?: boolean;
+  arrowDirections?: readonly TourArrowDirection[];
   arrowColor?: string;
+  boldPhrases?: readonly string[];
   centerTooltip?: boolean;
   showHighlight?: boolean;
   hideTooltip?: boolean;
@@ -50,10 +53,13 @@ type TourOverlayProps = {
   tooltipTopOffset?: number;
   placement?: TourOverlayPlacement;
   holePadding?: number;
+  holePaddingHorizontal?: number;
+  holePaddingTop?: number;
   holePaddingBottom?: number;
   holeOffsetY?: number;
   reserveArrowSpace?: boolean;
   allowAnchorInteraction?: boolean;
+  allowOnlyArrowTargetInteraction?: boolean;
   onTooltipHideComplete?: (() => void) | null;
 };
 
@@ -77,7 +83,7 @@ const TOOLTIP_POSITION_DIRECT_SET_THRESHOLD_PX = 40;
 const TOUR_DIM_BACKGROUND = 'rgba(15, 23, 42, 0.55)';
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-export function TourOverlay({
+export const TourOverlay = memo(function TourOverlay({
   visible,
   mode,
   anchorRect,
@@ -87,7 +93,9 @@ export function TourOverlay({
   primaryAction,
   auxiliaryAction,
   showArrow = false,
+  arrowDirections,
   arrowColor,
+  boldPhrases = [],
   centerTooltip = false,
   showHighlight = true,
   hideTooltip = false,
@@ -96,10 +104,13 @@ export function TourOverlay({
   tooltipTopOffset = 0,
   placement = 'auto',
   holePadding = HOLE_PADDING,
+  holePaddingHorizontal = holePadding,
+  holePaddingTop = holePadding,
   holePaddingBottom = holePadding,
   holeOffsetY = 0,
   reserveArrowSpace = false,
-  allowAnchorInteraction = mode === 'spotlight',
+  allowAnchorInteraction = false,
+  allowOnlyArrowTargetInteraction = false,
   onTooltipHideComplete = null,
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
@@ -132,21 +143,21 @@ export function TourOverlay({
 
   const paddedRect = useMemo(() => {
     if (!anchorRect) return null;
-    const x = Math.max(0, anchorRect.x - holePadding);
-    const y = Math.max(0, anchorRect.y - holePadding + holeOffsetY);
-    const width = Math.min(screenWidth, anchorRect.width + holePadding * 2);
-    const height = Math.min(screenHeight, anchorRect.height + holePadding + holePaddingBottom);
+    const x = Math.max(0, anchorRect.x - holePaddingHorizontal);
+    const y = Math.max(0, anchorRect.y - holePaddingTop + holeOffsetY);
+    const width = Math.min(screenWidth, anchorRect.width + holePaddingHorizontal * 2);
+    const height = Math.min(screenHeight, anchorRect.height + holePaddingTop + holePaddingBottom);
     return { x, y, width, height };
-  }, [anchorRect, holeOffsetY, holePadding, holePaddingBottom, screenHeight, screenWidth]);
+  }, [anchorRect, holeOffsetY, holePaddingBottom, holePaddingHorizontal, holePaddingTop, screenHeight, screenWidth]);
 
   const paddedSecondaryRect = useMemo(() => {
     if (!secondaryAnchorRect) return null;
-    const x = Math.max(0, secondaryAnchorRect.x - holePadding);
-    const y = Math.max(0, secondaryAnchorRect.y - holePadding + holeOffsetY);
-    const width = Math.min(screenWidth, secondaryAnchorRect.width + holePadding * 2);
-    const height = Math.min(screenHeight, secondaryAnchorRect.height + holePadding + holePaddingBottom);
+    const x = Math.max(0, secondaryAnchorRect.x - holePaddingHorizontal);
+    const y = Math.max(0, secondaryAnchorRect.y - holePaddingTop + holeOffsetY);
+    const width = Math.min(screenWidth, secondaryAnchorRect.width + holePaddingHorizontal * 2);
+    const height = Math.min(screenHeight, secondaryAnchorRect.height + holePaddingTop + holePaddingBottom);
     return { x, y, width, height };
-  }, [holeOffsetY, holePadding, holePaddingBottom, screenHeight, screenWidth, secondaryAnchorRect]);
+  }, [holeOffsetY, holePaddingBottom, holePaddingHorizontal, holePaddingTop, screenHeight, screenWidth, secondaryAnchorRect]);
 
   const paddedArrowTargetRect = useMemo(() => {
     if (!arrowTargetRect) return null;
@@ -394,6 +405,26 @@ export function TourOverlay({
     transform: [{ translateY: arrowAnim.value * ARROW_BOB_DISTANCE * (arrowPointsUp ? -1 : 1) }],
   }));
 
+  const arrowTopAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+    transform: [{ translateY: arrowAnim.value * ARROW_BOB_DISTANCE }],
+  }));
+
+  const arrowBottomAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+    transform: [{ translateY: -arrowAnim.value * ARROW_BOB_DISTANCE }],
+  }));
+
+  const arrowLeftAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+    transform: [{ translateX: arrowAnim.value * ARROW_BOB_DISTANCE }],
+  }));
+
+  const arrowRightAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+    transform: [{ translateX: -arrowAnim.value * ARROW_BOB_DISTANCE }],
+  }));
+
   const tooltipPositionAnimatedStyle = useAnimatedStyle(() => ({
     left: tooltipLeft.value,
     top: tooltipTop.value,
@@ -405,7 +436,13 @@ export function TourOverlay({
   }));
 
   const blockOutside = mode !== 'non_blocking';
-  const allowHolePassthrough = allowAnchorInteraction;
+  const shouldRestrictInteraction = allowAnchorInteraction
+    && allowOnlyArrowTargetInteraction
+    && Boolean(paddedArrowTargetRect);
+  const allowHolePassthrough = allowAnchorInteraction && !shouldRestrictInteraction;
+  const restrictedInteractionRect = shouldRestrictInteraction
+    ? paddedArrowTargetRect
+    : null;
 
   const renderBlockingOverlay = () => {
     if (!blockOutside) return null;
@@ -431,6 +468,84 @@ export function TourOverlay({
           <View style={[styles.overlayBlock, { top: rect.y, left: rightLeft, width: Math.max(0, screenWidth - rightLeft), height: rect.height }]} />
         </>
       );
+    };
+
+    const renderHoleTouchBlockers = (rect: AnchorRect, index: number) => {
+      const interactionRect = rect === paddedRect ? restrictedInteractionRect : null;
+      if (!interactionRect) {
+        return (
+          <View
+            key={`tour-hole-${index}`}
+            testID={`tour-hole-blocker-${index}`}
+            pointerEvents="auto"
+            style={[
+              styles.overlayBlock,
+              { left: rect.x, top: rect.y, width: rect.width, height: rect.height },
+            ]}
+          />
+        );
+      }
+
+      const interactionLeft = clamp(interactionRect.x, rect.x, rect.x + rect.width);
+      const interactionTop = clamp(interactionRect.y, rect.y, rect.y + rect.height);
+      const interactionRight = clamp(
+        interactionRect.x + interactionRect.width,
+        interactionLeft,
+        rect.x + rect.width
+      );
+      const interactionBottom = clamp(
+        interactionRect.y + interactionRect.height,
+        interactionTop,
+        rect.y + rect.height
+      );
+      const blockers = [
+        {
+          id: 'top',
+          left: rect.x,
+          top: rect.y,
+          width: rect.width,
+          height: interactionTop - rect.y,
+        },
+        {
+          id: 'bottom',
+          left: rect.x,
+          top: interactionBottom,
+          width: rect.width,
+          height: rect.y + rect.height - interactionBottom,
+        },
+        {
+          id: 'left',
+          left: rect.x,
+          top: interactionTop,
+          width: interactionLeft - rect.x,
+          height: interactionBottom - interactionTop,
+        },
+        {
+          id: 'right',
+          left: interactionRight,
+          top: interactionTop,
+          width: rect.x + rect.width - interactionRight,
+          height: interactionBottom - interactionTop,
+        },
+      ].filter((blocker) => blocker.width > 0 && blocker.height > 0);
+
+      return blockers.map((blocker) => (
+        <Pressable
+          key={`tour-hole-${index}-${blocker.id}`}
+          testID={`tour-hole-blocker-${blocker.id}`}
+          pointerEvents="auto"
+          onPress={() => undefined}
+          style={[
+            styles.overlayBlock,
+            {
+              left: blocker.left,
+              top: blocker.top,
+              width: blocker.width,
+              height: blocker.height,
+            },
+          ]}
+        />
+      ));
     };
 
     const firstHole = holes[0];
@@ -488,13 +603,7 @@ export function TourOverlay({
         <View style={[styles.overlayBlock, { top: secondBottom, left: 0, right: 0, height: Math.max(0, screenHeight - secondBottom) }]} />
 
         {/* In blocking mode we still render the "hole", but we swallow touches over it. */}
-        {!allowHolePassthrough && holes.map((rect, index) => (
-          <View
-            key={`tour-hole-${index}`}
-            pointerEvents="auto"
-            style={{ position: 'absolute', left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
-          />
-        ))}
+        {!allowHolePassthrough && holes.map(renderHoleTouchBlockers)}
       </View>
     );
   };
@@ -519,8 +628,79 @@ export function TourOverlay({
     );
   };
 
+  const renderSingleDirectionalArrow = (direction: TourArrowDirection) => {
+    if (!arrowRect) return null;
+    const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
+    const safeBottom = screenHeight - insets.bottom;
+    const centerX = arrowRect.x + arrowRect.width / 2;
+    const centerY = arrowRect.y + arrowRect.height / 2;
+
+    if (direction === 'left' || direction === 'right') {
+      const pointsRight = direction === 'left';
+      const leftCandidate = pointsRight
+        ? arrowRect.x - ARROW_GAP - ARROW_HEIGHT
+        : arrowRect.x + arrowRect.width + ARROW_GAP;
+      const left = clamp(leftCandidate, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - ARROW_HEIGHT);
+      const top = clamp(centerY - ARROW_WIDTH / 2, safeTop, safeBottom - ARROW_WIDTH);
+      const animatedStyle = pointsRight ? arrowLeftAnimatedStyle : arrowRightAnimatedStyle;
+
+      return (
+        <Animated.View
+          key={direction}
+          testID={`tour-arrow-${direction}`}
+          style={[styles.arrowHorizontal, { left, top }, animatedStyle]}
+          pointerEvents="none"
+        >
+          {pointsRight ? (
+            <>
+              <View style={[styles.arrowLineHorizontal, themedStyles.arrowLine]} />
+              <View style={[styles.arrowHeadRight, { borderLeftColor: arrowColor ?? '#FFFFFF' }]} />
+            </>
+          ) : (
+            <>
+              <View style={[styles.arrowHeadLeft, { borderRightColor: arrowColor ?? '#FFFFFF' }]} />
+              <View style={[styles.arrowLineHorizontal, themedStyles.arrowLine]} />
+            </>
+          )}
+        </Animated.View>
+      );
+    }
+
+    const pointsDown = direction === 'top';
+    const left = clamp(centerX - ARROW_WIDTH / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - ARROW_WIDTH);
+    const topCandidate = pointsDown
+      ? arrowRect.y - ARROW_GAP - ARROW_HEIGHT
+      : arrowRect.y + arrowRect.height + ARROW_GAP;
+    const top = clamp(topCandidate, safeTop, safeBottom - ARROW_HEIGHT);
+    const animatedStyle = pointsDown ? arrowTopAnimatedStyle : arrowBottomAnimatedStyle;
+
+    return (
+      <Animated.View
+        key={direction}
+        testID={`tour-arrow-${direction}`}
+        style={[styles.arrow, { left, top }, animatedStyle]}
+        pointerEvents="none"
+      >
+        {pointsDown ? (
+          <>
+            <View style={[styles.arrowLine, themedStyles.arrowLine]} />
+            <View style={[styles.arrowHead, themedStyles.arrow]} />
+          </>
+        ) : (
+          <>
+            <View style={[styles.arrowHeadUp, themedStyles.arrowUp]} />
+            <View style={[styles.arrowLine, themedStyles.arrowLine]} />
+          </>
+        )}
+      </Animated.View>
+    );
+  };
+
   const renderArrow = () => {
     if (!showArrow || !arrowRect) return null;
+    if (arrowDirections?.length) {
+      return arrowDirections.map(renderSingleDirectionalArrow);
+    }
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
     const centerX = arrowRect.x + arrowRect.width / 2;
     const left = clamp(centerX - ARROW_WIDTH / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - ARROW_WIDTH);
@@ -583,7 +763,20 @@ export function TourOverlay({
               }
             }}
           >
-            <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
+            <Text style={[styles.bodyText, themedStyles.bodyText]}>
+              {boldPhrases.length === 0
+                ? body
+                : body.split(new RegExp(`(${boldPhrases.map((phrase) => phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi'))
+                  .filter(Boolean)
+                  .map((segment, index) => {
+                    const shouldBold = boldPhrases.some((phrase) => phrase.toLowerCase() === segment.toLowerCase());
+                    return (
+                      <Text key={`${segment}-${index}`} style={shouldBold ? styles.bodyTextBold : undefined}>
+                        {segment}
+                      </Text>
+                    );
+                  })}
+            </Text>
 
             {auxiliaryAction ? (
               <TouchableOpacity
@@ -616,7 +809,7 @@ export function TourOverlay({
   );
 
   return overlayContent;
-}
+});
 
 const styles = StyleSheet.create({
   overlayBlock: {
@@ -644,6 +837,9 @@ const styles = StyleSheet.create({
     lineHeight: moderateScale(22),
     fontWeight: FontWeights.medium,
     textAlign: 'center',
+  },
+  bodyTextBold: {
+    fontWeight: FontWeights.bold,
   },
   auxiliaryButton: {
     alignSelf: 'center',
@@ -685,9 +881,28 @@ const styles = StyleSheet.create({
     shadowRadius: scale(4),
     elevation: 8,
   },
+  arrowHorizontal: {
+    position: 'absolute',
+    width: ARROW_HEIGHT,
+    height: ARROW_WIDTH,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: scale(2) },
+    shadowOpacity: 0.35,
+    shadowRadius: scale(4),
+    elevation: 8,
+  },
   arrowLine: {
     width: scale(2),
     height: ARROW_LINE_HEIGHT,
+    borderRadius: scale(1),
+  },
+  arrowLineHorizontal: {
+    width: ARROW_LINE_HEIGHT,
+    height: scale(2),
     borderRadius: scale(1),
   },
   arrowHead: {
@@ -709,5 +924,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: ARROW_WIDTH * 0.6,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
+  },
+  arrowHeadRight: {
+    marginLeft: scale(2),
+    width: 0,
+    height: 0,
+    borderTopWidth: ARROW_WIDTH / 2,
+    borderBottomWidth: ARROW_WIDTH / 2,
+    borderLeftWidth: ARROW_WIDTH * 0.6,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+  },
+  arrowHeadLeft: {
+    marginRight: scale(2),
+    width: 0,
+    height: 0,
+    borderTopWidth: ARROW_WIDTH / 2,
+    borderBottomWidth: ARROW_WIDTH / 2,
+    borderRightWidth: ARROW_WIDTH * 0.6,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
   },
 });

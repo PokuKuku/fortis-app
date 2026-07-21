@@ -13,7 +13,7 @@ import {
 import { format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { CameraIcon, PencilIcon, CheckIcon, UserIcon } from 'react-native-heroicons/outline';
+import { CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -27,6 +27,7 @@ import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 const HEATMAP_CELL_SIZE = 10;
 const HEATMAP_CELL_GAP = 4;
 const HEATMAP_DAY_LABEL_WIDTH = 34;
+const DEFAULT_PROFILE_AVATAR = require('../../../assets/fortify_new_icon.png') as ImageSourcePropType;
 
 function withAlpha(color: string, alpha: number): string {
   if (!color.startsWith('#') || color.length !== 7) {
@@ -240,11 +241,11 @@ export function ProfileHeader() {
     backgroundColor: colors.accentOverlay,
   };
 
-  const avatarSource: ImageSourcePropType | null = localAvatarUri
+  const avatarSource: ImageSourcePropType = localAvatarUri
     ? { uri: localAvatarUri }
     : profile?.avatar_url
       ? { uri: profile.avatar_url }
-      : null;
+      : DEFAULT_PROFILE_AVATAR;
 
   useEffect(() => {
     if (didScrollToCurrentMonthRef.current || currentMonthWeekIndex < 0) return;
@@ -279,12 +280,8 @@ export function ProfileHeader() {
                 color={colors.accent}
               />
             </View>
-          ) : avatarSource ? (
-            <Image source={avatarSource} style={styles.avatarImage} />
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <UserIcon color={colors.textSecondary} size={34} strokeWidth={1.8} />
-            </View>
+            <Image source={avatarSource} style={styles.avatarImage} resizeMode="cover" />
           )}
           <View style={[styles.cameraIconBadge, cameraIconBadgeStyle, { borderColor: colors.background }]}>
             <CameraIcon color={colors.accentForegroundOnFill} size={12} strokeWidth={2.5} />
@@ -519,13 +516,6 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-  },
-  avatarPlaceholder: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   cameraIconBadge: {
     position: 'absolute',

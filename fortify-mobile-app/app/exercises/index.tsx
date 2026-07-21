@@ -29,6 +29,10 @@ import {
   type ExerciseSearchIndex,
 } from '@/src/utils/exerciseSearch';
 import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import {
+  exerciseMatchesMuscleFilters,
+  getExerciseMuscleFilterKeys,
+} from '@/src/utils/exerciseMuscleFilters';
 import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import {
   getCachedExerciseImageSource,
@@ -166,7 +170,7 @@ export default function ExercisesScreen() {
   const uniqueMuscles = useMemo(() => {
     const muscles = new Set<string>();
     allExercises.forEach(ex => {
-      ex.primaryMuscles?.forEach(muscle => {
+      getExerciseMuscleFilterKeys(ex).forEach(muscle => {
         if (muscle) muscles.add(muscle);
       });
     });
@@ -245,8 +249,7 @@ export default function ExercisesScreen() {
         : allExercises.filter((exercise) => exercise.name.toLowerCase().includes(normalizedQuery));
 
     return baseResults.filter((exercise) => {
-      const matchesMuscle = selectedMuscles.length === 0 ||
-        exercise.primaryMuscles?.some(muscle => selectedMuscles.includes(muscle));
+      const matchesMuscle = exerciseMatchesMuscleFilters(exercise, selectedMuscles);
 
       const matchesEquipment = selectedEquipment.length === 0 ||
         selectedEquipment.includes(exercise.equipment);

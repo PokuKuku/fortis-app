@@ -76,7 +76,7 @@ export default function CreateWorkoutScreen() {
   const dateValue = Array.isArray(date) ? date[0] : date;
   const isEditingTemplate = mode === 'template' && !!templateId;
   const isEditingProgramWorkout = mode === 'program' && !!programId && !!workoutId;
-  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
+  const { isTourActive, activeStepId, advanceStep, isScreenScrollLocked } = useInAppTour();
   const programs = useProgramsStore(s => s.programs);
   const { canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
   const shouldAnchorAddWithVoice = isTourActive && activeStepId === 'open_add_with_voice';
@@ -687,7 +687,7 @@ export default function CreateWorkoutScreen() {
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <GestureDetector gesture={panGesture}>
+        <GestureDetector gesture={panGesture.enabled(!isScreenScrollLocked)}>
           <View>
             {/* Drag Handle */}
             <View style={styles.dragHandleContainer}>
@@ -782,6 +782,7 @@ export default function CreateWorkoutScreen() {
 
         {/* Exercise List */}
         <FlatList
+          scrollEnabled={!isScreenScrollLocked}
           data={editorSession?.exercises || []}
           renderItem={renderExerciseCard}
           keyExtractor={item => item.localId}

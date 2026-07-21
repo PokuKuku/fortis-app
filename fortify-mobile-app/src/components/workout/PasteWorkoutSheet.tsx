@@ -307,6 +307,7 @@ export function PasteWorkoutSheet({
             </View>
             <ScrollView
               style={styles.sheetScroll}
+              scrollEnabled={!isTourExample}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[styles.sheetContent, { paddingBottom: sheetBottomPadding }]}
@@ -328,7 +329,7 @@ export function PasteWorkoutSheet({
                   value={text}
                   onChangeText={(value) => { setText(value); setError(null); }}
                   multiline
-                  scrollEnabled
+                  scrollEnabled={!isTourExample}
                   numberOfLines={4}
                   editable={!isTourExample}
                   accessibilityLabel="Paste workout notes"
@@ -417,6 +418,7 @@ export function PasteWorkoutSheet({
             centerTooltip
             showArrow={false}
             showHighlight
+            allowAnchorInteraction
           />
         ) : null}
       {showFormatHelp ? (

@@ -387,6 +387,15 @@ export function ExerciseCard({
 
   const shouldAnchorVoiceLog = isTourActive && activeStepId === 'open_voice_log' && shouldAnchorVoiceButton;
   const isSetTargetTourStep = isTourActive && activeStepId === 'set_target' && shouldAnchorSetTarget;
+  const shouldAnchorTourSetSection = shouldAnchorTourSetControls && isTourActive && (
+    activeStepId === 'fill_weight_column'
+    || activeStepId === 'fill_reps_column'
+    || activeStepId === 'complete_remaining_sets'
+    || activeStepId === 'logging_shortcuts'
+  );
+  const isRestrictedLongPressTourStep = shouldAnchorTourSetControls && isTourActive && (
+    activeStepId === 'fill_weight_column' || activeStepId === 'complete_remaining_sets'
+  );
   const renderVoiceButton = () => (
     <Pressable
       onPress={handleVoiceLog}
@@ -580,8 +589,12 @@ export function ExerciseCard({
           </Animated.View>
         )}
 
-        {/* Sets Table */}
-        <View style={styles.setsTable}>
+        <TourAnchor
+          id={TOUR_ANCHOR_IDS.activeWorkoutExerciseCard}
+          disabled={!shouldAnchorTourSetSection}
+        >
+          {/* Sets Table */}
+          <View style={styles.setsTable}>
           {/* Header Row */}
           <View style={styles.tableHeader}>
             <Text
@@ -643,14 +656,17 @@ export function ExerciseCard({
               shouldAnchorTourSetControls={shouldAnchorTourSetControls}
             />
           ))}
-        </View>
+          </View>
+
+        </TourAnchor>
 
         {/* Add Set Button */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add set"
           accessibilityHint="Adds a set to this exercise"
-          onPress={handleAddSet}
+          disabled={isRestrictedLongPressTourStep}
+          onPress={isRestrictedLongPressTourStep ? undefined : handleAddSet}
           style={({ pressed }) => [
             styles.addSetButton,
             pressed && styles.pressed

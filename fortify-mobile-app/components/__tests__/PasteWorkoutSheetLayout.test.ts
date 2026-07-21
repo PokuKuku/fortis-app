@@ -32,4 +32,11 @@ describe('PasteWorkoutSheet layout', () => {
     expect(nearbyProps).toContain('minimumFontScale={0.72}');
     expect(nearbyProps).toContain('numberOfLines={1}');
   });
+
+  it('keeps Make Template interactive while the tour overlay blocks scrolling', () => {
+    const tourOverlayIndex = source.indexOf('<TourOverlay');
+    const tourOverlayProps = source.slice(tourOverlayIndex, tourOverlayIndex + 500);
+    expect(tourOverlayProps).toContain('allowAnchorInteraction');
+    expect(source).toContain('scrollEnabled={!isTourExample}');
+  });
 });

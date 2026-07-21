@@ -354,6 +354,10 @@ interface WorkoutState {
     setLocalId: string,
     updates: Partial<WorkoutSet>
   ) => void;
+  updateSets: (
+    exerciseLocalId: string,
+    updatesBySetLocalId: Record<string, Partial<WorkoutSet>>
+  ) => void;
   completeSet: (exerciseLocalId: string, setLocalId: string) => void;
   updateSetType: (
     exerciseLocalId: string,
@@ -1610,22 +1614,27 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     updateSet: (exerciseLocalId, setLocalId, updates) => {
+      get().updateSets(exerciseLocalId, { [setLocalId]: updates });
+    },
+
+    updateSets: (exerciseLocalId, updatesBySetLocalId) => {
       const { activeSession, weightUnits } = get();
       if (!activeSession) return;
 
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
 
-        const hasWeightUpdate = Object.prototype.hasOwnProperty.call(updates, 'weight');
-        const shouldSetUnit = hasWeightUpdate && !Object.prototype.hasOwnProperty.call(updates, 'weightUnit');
         const currentWeightUnit = weightUnits[ex.exerciseId] || 'lbs';
-        const nextUpdates = shouldSetUnit
-          ? { ...updates, weightUnit: updates.weight === null ? null : currentWeightUnit }
-          : updates;
-
-        const sets = ex.sets.map((s) =>
-          s.localId === setLocalId ? { ...s, ...nextUpdates } : s
-        );
+        const sets = ex.sets.map((s) => {
+          const updates = updatesBySetLocalId[s.localId];
+          if (!updates) return s;
+          const hasWeightUpdate = Object.prototype.hasOwnProperty.call(updates, 'weight');
+          const shouldSetUnit = hasWeightUpdate && !Object.prototype.hasOwnProperty.call(updates, 'weightUnit');
+          const nextUpdates = shouldSetUnit
+            ? { ...updates, weightUnit: updates.weight === null ? null : currentWeightUnit }
+            : updates;
+          return { ...s, ...nextUpdates };
+        });
 
         return { ...ex, sets };
       });
@@ -2584,10 +2593,12 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       if (setsToUpdate.length === 0) return false;
 
-      // Update each set
-      setsToUpdate.forEach(s => {
-        get().updateSet(exerciseLocalId, s.localId, { [inputType]: valueToApply });
-      });
+      // Apply the column fill in one store update. Repeating updateSet here causes
+      // a render and persistence pass for every remaining row, which is especially
+      // visible while the tour is transitioning away from the number pad.
+      get().updateSets(exerciseLocalId, Object.fromEntries(
+        setsToUpdate.map((set) => [set.localId, { [inputType]: valueToApply }])
+      ));
 
       return true;
     },

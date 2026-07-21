@@ -132,6 +132,7 @@ export default function OnboardingBirthdateScreen() {
       onBack={() => router.back()}
       bodyAlign="center"
       useScrollView={false}
+      scrollEnabled={false}
       floatingFooter={
         <GlassButton
           style={styles.button}

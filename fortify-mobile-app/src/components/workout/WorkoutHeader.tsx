@@ -99,6 +99,7 @@ export function WorkoutHeaderTopBar({
   };
 
   const shouldAnchorRestTimerSettings = isTourActive && activeStepId === 'rest_timer_settings';
+  const shouldAnchorWorkoutClose = isTourActive && activeStepId === 'close_active_workout';
 
   const wrapAnchor = (enabled: boolean, id: string, node: ReactElement) =>
     enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
@@ -176,19 +177,23 @@ export function WorkoutHeaderTopBar({
           {showCompactTimers ? renderTimers(true) : null}
         </View>
 
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onCancelPress();
-          }}
-          style={({ pressed }) => [
-            styles.cancelButton,
-            themedStyles.cancelButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
-        </Pressable>
+        {wrapAnchor(
+          shouldAnchorWorkoutClose,
+          TOUR_ANCHOR_IDS.activeWorkoutCloseButton,
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onCancelPress();
+            }}
+            style={({ pressed }) => [
+              styles.cancelButton,
+              themedStyles.cancelButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
+          </Pressable>
+        )}
       </View>
     </View>
   );

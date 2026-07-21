@@ -19,7 +19,7 @@ interface OnboardingRulerPickerProps {
   enableHaptics?: boolean;
 }
 
-const TICK_SPACING = scale(12);
+const TICK_SPACING = scale(10);
 const TICK_WIDTH = scale(2);
 const CONTAINER_HEIGHT = scale(96);
 const CENTER_LINE_HEIGHT = scale(56);

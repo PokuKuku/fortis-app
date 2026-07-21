@@ -1487,7 +1487,7 @@ export default function ProgramsScreen() {
   const { colors, isDark } = useTheme();
   const { user, isAuthResolved } = useAuth();
   const readableSubtext = getReadableSubtextColors(isDark);
-  const { isTourActive, activeStepId, hasTourFinished } = useInAppTour();
+  const { isTourActive, activeStepId, hasTourFinished, isScreenScrollLocked } = useInAppTour();
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
   const [highlightedWorkoutId, setHighlightedWorkoutId] = useState<string | null>(null);
   const modalStyles = useModalStyles();
@@ -1528,7 +1528,6 @@ export default function ProgramsScreen() {
   const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
   const [onboardingProgramSpec, setOnboardingProgramSpec] = useState<OnboardingProgramSpec | null>(null);
-  const [isOnboardingPreviewDismissing, setIsOnboardingPreviewDismissing] = useState(false);
   const [newUserChecklistState, setNewUserChecklistState] = useState<NewUserChecklistState>(
     getDefaultNewUserChecklistState
   );
@@ -1536,9 +1535,6 @@ export default function ProgramsScreen() {
   const [isNewUserChecklistModalVisible, setIsNewUserChecklistModalVisible] = useState(false);
   const [isNewUserChecklistCompleteVisible, setIsNewUserChecklistCompleteVisible] = useState(false);
   const previousNewUserChecklistCompletedCountRef = useRef<number | null>(null);
-  const onboardingPreviewOpacity = useRef(new Animated.Value(1)).current;
-  const onboardingPreviewScale = useRef(new Animated.Value(1)).current;
-  const onboardingPreviewTranslateY = useRef(new Animated.Value(0)).current;
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
 
   useEffect(() => {
@@ -1830,20 +1826,10 @@ export default function ProgramsScreen() {
       : 'BUILDING...';
 
   useEffect(() => {
-    if (!onboardingPreviewProgram || isOnboardingPreviewDismissing) {
-      return;
+    if (onboardingPreviewProgram) {
+      router.prefetch(`/programs/${onboardingPreviewProgram.id}`);
     }
-
-    onboardingPreviewOpacity.setValue(1);
-    onboardingPreviewScale.setValue(1);
-    onboardingPreviewTranslateY.setValue(0);
-  }, [
-    isOnboardingPreviewDismissing,
-    onboardingPreviewOpacity,
-    onboardingPreviewProgram,
-    onboardingPreviewScale,
-    onboardingPreviewTranslateY,
-  ]);
+  }, [onboardingPreviewProgram, router]);
 
   const templates = useMemo(
     () => sortItemsBySavedOrder(baseTemplates, homeCardOrder.workoutIds),
@@ -1978,56 +1964,29 @@ export default function ProgramsScreen() {
     router.prefetch(`/programs/${programId}`);
   };
 
-  const handleOnboardingProgramPreviewPress = useCallback(async () => {
-    if (!onboardingPreviewProgram || !onboardingProgramSpec || isOnboardingPreviewDismissing) return;
+  const handleOnboardingProgramPreviewPress = useCallback(() => {
+    if (!onboardingPreviewProgram || !onboardingProgramSpec) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsOnboardingPreviewDismissing(true);
-
-    await new Promise<void>((resolve) => {
-      Animated.parallel([
-        Animated.timing(onboardingPreviewOpacity, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(onboardingPreviewScale, {
-          toValue: 0.96,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(onboardingPreviewTranslateY, {
-          toValue: -12,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]).start(() => resolve());
-    });
-
-    setOnboardingProgramSpec({
+    const dismissedSpec: OnboardingProgramSpec = {
       ...onboardingProgramSpec,
       status: 'dismissed',
       generatedProgramId: onboardingPreviewProgram.id,
       updatedAt: new Date().toISOString(),
-    });
+    };
 
-    try {
-      await updatePendingOnboardingProgramSpec({
-        status: 'dismissed',
-        generatedProgramId: onboardingPreviewProgram.id,
-      });
-    } catch (error) {
-      console.warn('Failed to dismiss onboarding program preview:', error);
-    }
     router.push(`/programs/${onboardingPreviewProgram.id}`);
-    setIsOnboardingPreviewDismissing(false);
+    setOnboardingProgramSpec(dismissedSpec);
+
+    void updatePendingOnboardingProgramSpec({
+      status: 'dismissed',
+      generatedProgramId: onboardingPreviewProgram.id,
+    }).catch((error) => {
+      console.warn('Failed to dismiss onboarding program preview:', error);
+    });
   }, [
-    isOnboardingPreviewDismissing,
-    onboardingPreviewOpacity,
     onboardingPreviewProgram,
     onboardingProgramSpec,
-    onboardingPreviewScale,
-    onboardingPreviewTranslateY,
     router,
   ]);
 
@@ -2469,6 +2428,7 @@ export default function ProgramsScreen() {
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <NestableScrollContainer
+          scrollEnabled={!isScreenScrollLocked}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -2492,18 +2452,10 @@ export default function ProgramsScreen() {
           ) : null}
 
           {shouldShowOnboardingProgramPreview && (
-            <Animated.View
-              style={{
-                opacity: onboardingPreviewOpacity,
-                transform: [
-                  { translateY: onboardingPreviewTranslateY },
-                  { scale: onboardingPreviewScale },
-                ],
-              }}
-            >
+            <View>
               <TouchableOpacity
                 activeOpacity={0.84}
-                disabled={!onboardingPreviewProgram || isOnboardingPreviewDismissing}
+                disabled={!onboardingPreviewProgram}
                 onPress={handleOnboardingProgramPreviewPress}
                 style={[
                   styles.onboardingProgramPreviewCard,
@@ -2554,7 +2506,7 @@ export default function ProgramsScreen() {
                   </LinearGradient>
                 </View>
               </TouchableOpacity>
-            </Animated.View>
+            </View>
           )}
 
           {/* Programs Section */}

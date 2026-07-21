@@ -5,6 +5,16 @@ import { SetRow } from '@/src/components/workout/SetRow';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import type { WorkoutSession } from '@/src/types/workout';
 
+const mockTourState: {
+  isTourActive: boolean;
+  activeStepId: string | null;
+  advanceStep: jest.Mock;
+} = {
+  isTourActive: false,
+  activeStepId: null,
+  advanceStep: jest.fn(),
+};
+
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: 'LinearGradient',
 }));
@@ -15,11 +25,7 @@ jest.mock('react-native-heroicons/outline', () => ({
 }));
 
 jest.mock('@/src/contexts/InAppTourContext', () => ({
-  useInAppTour: () => ({
-    isTourActive: false,
-    activeStepId: null,
-    advanceStep: jest.fn(),
-  }),
+  useInAppTour: () => mockTourState,
 }));
 
 jest.mock('@/src/components/tour/TourAnchor', () => ({
@@ -29,6 +35,9 @@ jest.mock('@/src/components/tour/TourAnchor', () => ({
 describe('SetRow', () => {
   afterEach(() => {
     useWorkoutStore.getState().resetStore();
+    mockTourState.isTourActive = false;
+    mockTourState.activeStepId = null;
+    mockTourState.advanceStep.mockReset();
   });
 
   const renderWithTheme = (ui: React.ReactElement) => render(
@@ -213,5 +222,69 @@ describe('SetRow', () => {
     expect(updatedSet?.reps).toBe(10);
     expect(updatedSet?.isCompleted).toBe(true);
     expect(useWorkoutStore.getState().validationErrorsBySet).toEqual({});
+  });
+
+  it('blocks every non-target control during the complete-remaining-sets tour step', () => {
+    const activeSession: WorkoutSession = {
+      localId: 'session-tour',
+      name: 'Tour Workout',
+      notes: '',
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [{
+        localId: 'exercise-tour',
+        exerciseId: 'ex-tour',
+        exerciseName: 'Bent Over Row',
+        sets: [
+          {
+            localId: 'set-tour-1',
+            setNumber: 1,
+            setType: 'normal',
+            weight: 225,
+            reps: 8,
+            rpe: null,
+            restSeconds: null,
+            notes: '',
+            isCompleted: false,
+            orderIndex: 0,
+          },
+          {
+            localId: 'set-tour-2',
+            setNumber: 2,
+            setType: 'normal',
+            weight: 225,
+            reps: 8,
+            rpe: null,
+            restSeconds: null,
+            notes: '',
+            isCompleted: false,
+            orderIndex: 1,
+          },
+        ],
+        notes: '',
+        orderIndex: 0,
+      }],
+      isSynced: false,
+    };
+
+    useWorkoutStore.setState({ activeSession, isWorkoutActive: true });
+    mockTourState.isTourActive = true;
+    mockTourState.activeStepId = 'complete_remaining_sets';
+
+    const { getByLabelText } = renderWithTheme(
+      <SetRow
+        exerciseLocalId="exercise-tour"
+        setLocalId="set-tour-2"
+        setIndex={1}
+        shouldAnchorTourSetControls
+      />
+    );
+
+    fireEvent.press(getByLabelText('Set 2 weight'));
+    fireEvent.press(getByLabelText('Set 2 reps'));
+    fireEvent.press(getByLabelText('Set 2 completed'));
+
+    expect(useWorkoutStore.getState().activeNumberPad).toBeNull();
+    expect(useWorkoutStore.getState().activeSession?.exercises[0].sets[1].isCompleted).toBe(false);
   });
 });

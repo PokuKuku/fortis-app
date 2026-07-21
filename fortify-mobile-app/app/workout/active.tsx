@@ -42,8 +42,6 @@ import { FinishConfirmationModal } from '@/src/components/workout/modals/FinishC
 import { ReplaceExerciseConfirmModal } from '@/src/components/workout/modals/ReplaceExerciseConfirmModal';
 import { RestTimerCompleteModal } from '@/src/components/workout/modals/RestTimerCompleteModal';
 import { SaveAsTemplateModal } from '@/src/components/workout/modals/SaveAsTemplateModal';
-import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { WorkoutSession } from '@/src/types/workout';
@@ -85,7 +83,7 @@ export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const posthog = usePostHog();
   const { colors, isDark } = useTheme();
-  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
+  const { isTourActive, activeStepId, advanceStep, isScreenScrollLocked } = useInAppTour();
   const activeSession = useWorkoutStore(s => s.activeSession);
   const addExercises = useWorkoutStore(s => s.addExercises);
   const workoutStartTime = useWorkoutStore(s => s.workoutStartTime);
@@ -111,22 +109,16 @@ export default function ActiveWorkoutScreen() {
     if (!exercise || !firstSet) return;
 
     preparedTourSetStepRef.current = activeStepId;
-    const { closeNumberPad, openNumberPad, setWeightUnit, updateSet } = useWorkoutStore.getState();
+    const { closeNumberPad, openNumberPad, setWeightUnit, updateSets } = useWorkoutStore.getState();
 
     if (activeStepId === 'fill_weight_column') {
       void setWeightUnit(exercise.exerciseId, 'lbs');
-      updateSet(exercise.localId, firstSet.localId, {
-        weight: 225,
-        reps: 8,
-        isCompleted: false,
-      });
-      exercise.sets.slice(1).forEach((set) => {
-        updateSet(exercise.localId, set.localId, {
-          weight: null,
-          reps: null,
-          isCompleted: false,
-        });
-      });
+      updateSets(exercise.localId, Object.fromEntries(exercise.sets.map((set, index) => [
+        set.localId,
+        index === 0
+          ? { weight: 225, reps: 8, isCompleted: false }
+          : { weight: null, reps: null, isCompleted: false },
+      ])));
       closeNumberPad();
       return;
     }
@@ -413,6 +405,15 @@ export default function ActiveWorkoutScreen() {
   // Handle cancel workout
   const handleCancelPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isTourActive && activeStepId === 'close_active_workout') {
+      cancelWorkout();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)');
+      }
+      return;
+    }
     setShowCancelModal(true);
   };
 
@@ -825,25 +826,7 @@ export default function ActiveWorkoutScreen() {
       />
     );
 
-    const shouldAnchorExerciseCard =
-      index === 0 &&
-      isTourActive &&
-      (
-        activeStepId === 'fill_weight_column'
-        || activeStepId === 'fill_reps_column'
-        || activeStepId === 'complete_remaining_sets'
-        || activeStepId === 'logging_shortcuts'
-      );
-
-    if (!shouldAnchorExerciseCard) {
-      return card;
-    }
-
-    return (
-      <TourAnchor id={TOUR_ANCHOR_IDS.activeWorkoutExerciseCard}>
-        {card}
-      </TourAnchor>
-    );
+    return card;
   };
 
   // Footer with action buttons
@@ -911,7 +894,7 @@ export default function ActiveWorkoutScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <GestureDetector gesture={panGesture}>
+        <GestureDetector gesture={panGesture.enabled(!isScreenScrollLocked)}>
           <View>
             {/* Drag Handle Indicator */}
             <View style={styles.dragHandleContainer}>
@@ -936,6 +919,7 @@ export default function ActiveWorkoutScreen() {
 
         {/* Exercise List */}
         <FlatList
+          scrollEnabled={!isScreenScrollLocked}
           data={activeSession?.exercises || []}
           extraData={activeSession}
           renderItem={renderExerciseCard}

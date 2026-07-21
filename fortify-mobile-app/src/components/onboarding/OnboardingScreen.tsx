@@ -16,6 +16,7 @@ import { Typography } from '@/constants/Typography';
 import { Spacing } from '@/constants/Sizes';
 import { moderateScale, scale } from '@/src/utils/responsive';
 import { OnboardingProgressBar } from '@/src/components/onboarding/OnboardingProgressBar';
+import { shouldUseOnboardingScrollView } from '@/src/components/onboarding/onboardingScreenLayout';
 
 interface OnboardingScreenProps {
   step: number;
@@ -156,7 +157,11 @@ export function OnboardingScreen({
     ? [styles.bodySection, styles.bodySectionCentered]
     : styles.bodySection;
 
-  const shouldUseScrollView = useScrollView || isShortScreen;
+  const shouldUseScrollView = shouldUseOnboardingScrollView({
+    useScrollView,
+    isShortScreen,
+    scrollEnabled,
+  });
   const footerClearance = floatingFooter
     ? (isShortScreen ? scale(168) : scale(192))
     : scale(Spacing['3xl']);
@@ -215,7 +220,7 @@ export function OnboardingScreen({
               { paddingBottom: footerClearance },
             ]}
             showsVerticalScrollIndicator={false}
-            scrollEnabled={scrollEnabled || isShortScreen}
+            scrollEnabled={scrollEnabled}
             keyboardShouldPersistTaps="handled"
           >
             <View style={contentBlockStyle}>

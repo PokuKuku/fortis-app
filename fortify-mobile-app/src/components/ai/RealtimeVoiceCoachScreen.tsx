@@ -458,10 +458,20 @@ export function RealtimeVoiceCoachScreen({
                   ]}
                 >
                   <View style={[styles.pendingWorkoutCard, pendingWorkoutCardStyle]}>
-                    <Text style={[styles.pendingWorkoutTitle, { color: colors.textPrimary }]}>
+                    <Text
+                      allowFontScaling={false}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                      numberOfLines={1}
+                      style={[styles.pendingWorkoutBuildingTitle, { color: colors.textPrimary }]}
+                    >
                       Building Workout
                     </Text>
-                    <Text style={[styles.pendingWorkoutMeta, { color: colors.textSecondary }]}>
+                    <Text
+                      allowFontScaling={false}
+                      numberOfLines={1}
+                      style={[styles.pendingWorkoutMeta, { color: colors.textSecondary }]}
+                    >
                       Coming up...
                     </Text>
                   </View>
@@ -947,6 +957,11 @@ const styles = StyleSheet.create({
   },
   pendingWorkoutTitle: {
     ...Typography.h4,
+  },
+  pendingWorkoutBuildingTitle: {
+    ...Typography.h4,
+    fontFamily: 'BankGothicBT-Medium',
+    fontWeight: 'normal',
   },
   pendingWorkoutMeta: {
     ...Typography.bodySmall,

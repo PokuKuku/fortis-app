@@ -81,7 +81,6 @@ interface SettingsRowProps {
   label: string;
   value?: string;
   onPress?: () => void;
-  onPressIn?: () => void;
   showChevron?: boolean;
   isLoading?: boolean;
   colors: ReturnType<typeof useTheme>['colors'];
@@ -108,12 +107,11 @@ const getWeeklyRecapPreviewWeekStart = () => {
   );
 };
 
-function SettingsRow({ icon, label, value, onPress, onPressIn, showChevron, isLoading, colors, isDark }: SettingsRowProps) {
+function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colors, isDark }: SettingsRowProps) {
   return (
     <TouchableOpacity
       style={styles.settingsRow}
       activeOpacity={0.7}
-      onPressIn={onPressIn}
       onPress={onPress}
       disabled={!onPress || isLoading}
     >
@@ -751,7 +749,6 @@ export default function SettingsScreen() {
               <SettingsRow
                 icon={<MagnifyingGlassIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Exercise Library"
-                onPressIn={handleOpenExerciseLibrary}
                 onPress={handleOpenExerciseLibrary}
                 showChevron
                 colors={colors}
