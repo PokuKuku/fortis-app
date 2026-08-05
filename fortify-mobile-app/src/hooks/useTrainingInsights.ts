@@ -8,8 +8,11 @@ import {
   dismissInsight,
   snoozeInsightType,
   subscribeToTrainingInsightsRefresh,
+  clearTrainingInsightsRefreshState,
+  getTrainingInsightsRefreshState,
 } from '@/src/services/insightsService';
 import { TrainingInsight, InsightType } from '@/src/types/insights';
+import { collapseSupersededInsights } from '@/src/utils/insightLifecycle';
 
 type CachedInsights = {
   items: TrainingInsight[];
@@ -51,7 +54,7 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     try {
       const parsed = JSON.parse(cached) as CachedInsights;
       if (Array.isArray(parsed.items)) {
-        setInsights(parsed.items);
+        setInsights(collapseSupersededInsights(parsed.items));
         setCachedAt(parsed.cachedAt || null);
         setIsLoading(false);
         const cachedAtMs = Date.parse(parsed.cachedAt);
@@ -69,6 +72,9 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
       if (remote !== null) {
         setInsights(remote);
         await persistCache(remote);
+        if (await getTrainingInsightsRefreshState() === 'ready') {
+          await clearTrainingInsightsRefreshState();
+        }
       }
     } finally {
       lastFetchAtRef.current = Date.now();
@@ -129,6 +135,17 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
         initializedRef.current = true;
         return;
       }
+      const refreshState = await getTrainingInsightsRefreshState();
+      if (refreshState === 'ready') {
+        await fetchLatest();
+        initializedRef.current = true;
+        return;
+      }
+      if (refreshState === 'syncing') {
+        setIsLoading(false);
+        initializedRef.current = true;
+        return;
+      }
       if (cachedAtMs === null || Date.now() - cachedAtMs >= REFRESH_THROTTLE_MS) {
         await fetchLatest();
       }
@@ -152,9 +169,17 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     useCallback(() => {
       if (options?.skipRefresh) return;
       if (!initializedRef.current) return;
-      const now = Date.now();
-      if (now - lastFetchAtRef.current < REFRESH_THROTTLE_MS) return;
-      void fetchLatest();
+      void (async () => {
+        const refreshState = await getTrainingInsightsRefreshState();
+        if (refreshState === 'ready') {
+          await fetchLatest();
+          return;
+        }
+        if (refreshState === 'syncing') return;
+        const now = Date.now();
+        if (now - lastFetchAtRef.current < REFRESH_THROTTLE_MS) return;
+        await fetchLatest();
+      })();
     }, [fetchLatest, options?.skipRefresh])
   );
 

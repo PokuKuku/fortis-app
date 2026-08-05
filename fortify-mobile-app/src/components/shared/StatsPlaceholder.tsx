@@ -33,8 +33,8 @@ export function StatsPlaceholder({ selectedTab }: StatsPlaceholderProps) {
   // Theme-aware styles
   const themedStyles = {
     container: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     iconGradient: {
       borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',

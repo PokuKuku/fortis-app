@@ -130,8 +130,8 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
   const heatmapScale = isCompactHeight ? 0.34 : 0.4;
   const heatmapMinHeight = isCompactHeight ? scale(132) : scale(158);
   const cardTheme = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   const shareCard = (

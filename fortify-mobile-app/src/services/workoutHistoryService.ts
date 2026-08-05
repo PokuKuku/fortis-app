@@ -13,7 +13,10 @@ import type { ExerciseWithSource } from '@/src/types/exercise';
 import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
 import { isCustomExercise, getCustomExercises, getAllExercises } from '@/src/services/exerciseService';
-import { refreshTrainingInsights } from '@/src/services/insightsService';
+import {
+  refreshTrainingInsights,
+  setTrainingInsightsRefreshState,
+} from '@/src/services/insightsService';
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -602,6 +605,10 @@ export async function syncWorkoutSession(
     return { success: false, error: 'Supabase not configured' };
   }
 
+  // Keep the current Insights cards visible while marking them for a forced
+  // reload after this workout reaches the server and its recap is generated.
+  await setTrainingInsightsRefreshState('syncing');
+
   // Check authentication
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -626,9 +633,10 @@ export async function syncWorkoutSession(
     return { success: false, queued: true, error: result.error };
   }
 
-  refreshTrainingInsights().catch((error) => {
-    console.warn('[WorkoutSync] Failed to refresh insights:', error);
-  });
+  const insightsResult = await refreshTrainingInsights();
+  if (!insightsResult.success) {
+    console.warn('[WorkoutSync] Failed to refresh insights:', insightsResult.error);
+  }
 
   return { success: true };
 }
@@ -696,9 +704,13 @@ export async function processPendingQueue(): Promise<{
   await savePendingQueue(remainingQueue);
 
   if (syncedLocalIds.length > 0) {
-    refreshTrainingInsights().catch((error) => {
-      console.warn('[WorkoutSync] Failed to refresh insights after queue sync:', error);
-    });
+    const insightsResult = await refreshTrainingInsights();
+    if (!insightsResult.success) {
+      console.warn(
+        '[WorkoutSync] Failed to refresh insights after queue sync:',
+        insightsResult.error
+      );
+    }
   }
 
   return { processed, failed, syncedLocalIds };

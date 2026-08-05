@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { usePathname, useRootNavigationState, useRouter } from 'expo-router';
+import { useRootNavigationState, useRouter } from 'expo-router';
 import { Asset } from 'expo-asset';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -11,7 +11,7 @@ import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCo
 import { resetStartupReveal } from '@/src/utils/startupReveal';
 type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate' | '/(tabs)';
 const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortifyDemo.mov');
-const SPLASH_LOGO_SHINE_DURATION_MS = 1300;
+const SPLASH_LOGO_SHINE_DURATION_MS = 600;
 
 const resolveStartupRoute = ({
   isAuthenticated,
@@ -41,7 +41,6 @@ const resolveStartupRoute = ({
 
 export default function SplashScreen() {
   const router = useRouter();
-  const pathname = usePathname();
   const rootNavigationState = useRootNavigationState();
   const { colors, isLoading: isThemeLoading } = useTheme();
   const { isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved } = useAuth();
@@ -51,31 +50,16 @@ export default function SplashScreen() {
   } = usePendingOnboardingAuthCompletion();
   const hasNavigatedRef = useRef(false);
   const [logoShineComplete, setLogoShineComplete] = useState(false);
-  const [onboardingWarmupReady, setOnboardingWarmupReady] = useState(false);
 
   useEffect(() => {
     if (!rootNavigationState?.key) {
       return;
     }
 
-    let isActive = true;
-
-    const warmOnboardingRoute = async () => {
-      try {
-        await Asset.fromModule(ONBOARDING_DEMO_VIDEO).downloadAsync();
-      } finally {
-        if (isActive) {
-          setOnboardingWarmupReady(true);
-        }
-      }
-    };
-
-    void warmOnboardingRoute();
-
-    return () => {
-      isActive = false;
-    };
-  }, [router, rootNavigationState?.key]);
+    // Warm the onboarding media opportunistically. A large video should never
+    // hold the startup route; the onboarding screen can finish loading it.
+    void Asset.fromModule(ONBOARDING_DEMO_VIDEO).downloadAsync().catch(() => undefined);
+  }, [rootNavigationState?.key]);
 
   useEffect(() => {
     const profileStateReady = !isAuthenticated || profileResolved;
@@ -106,11 +90,6 @@ export default function SplashScreen() {
       hasProfile: Boolean(profile),
       hasPendingOnboardingCompletion: false,
     });
-    const requiresOnboardingWarmup = nextRoute === '/onboarding/welcome' || nextRoute === '/onboarding';
-    if (requiresOnboardingWarmup && !onboardingWarmupReady) {
-      return;
-    }
-
     hasNavigatedRef.current = true;
     if (nextRoute === '/(tabs)') {
       // Arm the landing veil only for the cold-start handoff into the app.
@@ -128,8 +107,6 @@ export default function SplashScreen() {
     profileResolved,
     pendingOnboardingAuthCompletionResolved,
     hasPendingOnboardingAuthCompletion,
-    onboardingWarmupReady,
-    pathname,
     router,
   ]);
 

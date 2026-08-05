@@ -113,8 +113,8 @@ export const DarkTheme = {
   backdrop: 'rgba(36, 37, 42, 0.8)',
 
   // Glass morphism (white glass on dark)
-  glassBackground: 'rgba(255, 255, 255, 0.08)',
-  glassBorder: 'rgba(255, 255, 255, 0.15)',
+  glassBackground: 'rgba(255, 255, 255, 0.14)',
+  glassBorder: 'rgba(255, 255, 255, 0.16)',
   glassFog: ['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)'] as readonly string[],
 
   // Surface variations
@@ -208,9 +208,9 @@ export const LightTheme = {
   overlayHeavy: 'rgba(0, 0, 0, 0.6)',
   backdrop: 'rgba(0, 0, 0, 0.4)',
 
-  // Glass morphism (dark glass on light - inverted)
-  glassBackground: 'rgba(0, 0, 0, 0.04)',
-  glassBorder: 'rgba(0, 0, 0, 0.08)',
+  // Glass morphism (light glass over the steel background)
+  glassBackground: 'rgba(255, 255, 255, 0.6)',
+  glassBorder: 'rgba(13, 27, 47, 0.12)',
   glassFog: ['rgba(40,40,40,0.12)', 'rgba(60,60,60,0.08)', 'rgba(80,80,80,0.05)', 'rgba(120,120,120,0.02)'] as readonly string[],
 
   // Surface variations

@@ -202,8 +202,8 @@ export default function ExercisesScreen() {
   };
 
   const exerciseCardTheme = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
   const exercisePreviewTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',

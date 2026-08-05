@@ -6,9 +6,29 @@
 
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { TrainingInsightDTO, TrainingInsight, dtoToTrainingInsight, InsightType } from '@/src/types/insights';
+import { TRAINING_INSIGHTS_REFRESH_STATE_KEY } from '@/src/constants/storageKeys';
+import { getScopedItem, removeScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { collapseSupersededInsights } from '@/src/utils/insightLifecycle';
 
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
 const refreshListeners = new Set<() => void>();
+
+export type TrainingInsightsRefreshState = 'syncing' | 'ready';
+
+export async function setTrainingInsightsRefreshState(
+  state: TrainingInsightsRefreshState
+): Promise<void> {
+  await setScopedItem(TRAINING_INSIGHTS_REFRESH_STATE_KEY, state);
+}
+
+export async function getTrainingInsightsRefreshState(): Promise<TrainingInsightsRefreshState | null> {
+  const state = await getScopedItem(TRAINING_INSIGHTS_REFRESH_STATE_KEY);
+  return state === 'syncing' || state === 'ready' ? state : null;
+}
+
+export async function clearTrainingInsightsRefreshState(): Promise<void> {
+  await removeScopedItem(TRAINING_INSIGHTS_REFRESH_STATE_KEY);
+}
 
 export function subscribeToTrainingInsightsRefresh(listener: () => void): () => void {
   refreshListeners.add(listener);
@@ -42,7 +62,9 @@ export async function fetchTrainingInsights(): Promise<TrainingInsight[] | null>
     return null;
   }
 
-  return (data as TrainingInsightDTO[]).map(dtoToTrainingInsight);
+  return collapseSupersededInsights(
+    (data as TrainingInsightDTO[]).map(dtoToTrainingInsight),
+  );
 }
 
 export async function refreshTrainingInsights(): Promise<{ success: boolean; error?: string }> {
@@ -64,6 +86,7 @@ export async function refreshTrainingInsights(): Promise<{ success: boolean; err
     return { success: false, error: error.message };
   }
 
+  await setTrainingInsightsRefreshState('ready');
   notifyTrainingInsightsRefreshed();
   return { success: true };
 }

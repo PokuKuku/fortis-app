@@ -47,8 +47,8 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
   // Theme-aware styles
   const themedStyles = {
     container: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.6)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(13, 27, 47, 0.12)',
     },
     exerciseName: { color: colors.textPrimary },
     placeholderImage: { backgroundColor: colors.accentOverlay },

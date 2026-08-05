@@ -71,8 +71,8 @@ export function CreateWorkoutModal({
     compactStatValue: { color: colors.textPrimary },
     compactStatDivider: { backgroundColor: colors.borderLight },
     exerciseCard: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     exerciseName: { color: colors.accent },
     setsLabel: { color: colors.textSecondary },

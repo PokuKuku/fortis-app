@@ -129,8 +129,8 @@ export function PersonalRecordsCard() {
 
   // Theme-aware card styles
   const cardStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   const dividerStyle = {

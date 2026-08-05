@@ -67,7 +67,7 @@ function StatItem({ icon, value, label, colors, iconBgStyle }: StatItemProps) {
 export function StatsOverviewCard() {
   const router = useRouter();
   const { profile } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const { sessions: historySessions } = useWorkoutHistorySource({ enabled: Boolean(profile?.id) });
   const units = profile?.preferred_units || 'imperial';
@@ -75,8 +75,8 @@ export function StatsOverviewCard() {
 
   // Theme-aware card styles
   const cardStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   const statIconStyle = {

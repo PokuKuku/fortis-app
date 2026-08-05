@@ -89,7 +89,6 @@ export default function ActiveWorkoutScreen() {
   const workoutStartTime = useWorkoutStore(s => s.workoutStartTime);
   const pausedElapsedSeconds = useWorkoutStore(s => s.pausedElapsedSeconds);
   const completedSessions = useWorkoutStore(s => s.completedSessions);
-  const openFirstWorkoutStreakModal = useWorkoutStore(s => s.openFirstWorkoutStreakModal);
   const preparedTourSetStepRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -612,7 +611,6 @@ export default function ActiveWorkoutScreen() {
       is_first_workout: completedSessions.length === 0,
       from_program: Boolean(activeSession?.programId),
     });
-    const shouldShowFirstWorkoutStreak = completedSessions.length === 0;
     const completedSession = await finishWorkout();
     if (completedSession && elapsed >= 20 * 60) {
       void completeNewUserChecklistTask(
@@ -625,10 +623,6 @@ export default function ActiveWorkoutScreen() {
     setShowFinishModal(false);
     setShowSaveTemplateModal(false);
     setFinishSnapshot(null);
-    if (completedSession && shouldShowFirstWorkoutStreak) {
-      navigateAfterWorkoutFinish(openFirstWorkoutStreakModal);
-      return;
-    }
     navigateAfterWorkoutFinish();
   };
 

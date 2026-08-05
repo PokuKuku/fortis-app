@@ -75,6 +75,7 @@ import {
   NEW_USER_CHECKLIST_EVENT,
   persistNewUserChecklistState,
 } from '@/src/utils/newUserChecklist';
+import { useDevHomeTestControlsVisibility } from '@/src/hooks/useDevHomeTestControlsVisibility';
 
 interface SettingsRowProps {
   icon: React.ReactNode;
@@ -190,6 +191,10 @@ export default function SettingsScreen() {
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { user, profile, signOut, updateProfile } = useAuth();
   const { resetTourForDev } = useInAppTour();
+  const {
+    visible: devHomeTestControlsVisible,
+    setVisible: setDevHomeTestControlsVisible,
+  } = useDevHomeTestControlsVisibility();
   const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: Boolean(profile?.id),
   });
@@ -438,6 +443,12 @@ export default function SettingsScreen() {
     setWeeklyRecapPreviewOpen(true);
   };
 
+  const handleToggleHomeTestControls = () => {
+    if (!__DEV__) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    void setDevHomeTestControlsVisible(!devHomeTestControlsVisible);
+  };
+
   const handleResetInAppTour = async () => {
     if (!__DEV__) return;
     if (!user) {
@@ -642,8 +653,8 @@ export default function SettingsScreen() {
 
   // Theme-aware card styles
   const cardStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   const dangerCardStyle = {
@@ -857,6 +868,17 @@ export default function SettingsScreen() {
               <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Developer</Text>
 
               <View style={[styles.settingsCard, cardStyle]}>
+                <SettingsRow
+                  icon={<BugAntIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                  label="Home Test Buttons"
+                  value={devHomeTestControlsVisible ? 'Visible' : 'Hidden'}
+                  onPress={handleToggleHomeTestControls}
+                  colors={colors}
+                  isDark={isDark}
+                />
+
+                <View style={[styles.settingsDivider, dividerStyle]} />
+
                 <SettingsRow
                   icon={<SparklesIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                   label="Preview Weekly Recap"

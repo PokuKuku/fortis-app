@@ -270,8 +270,8 @@ function WorkoutHistoryCard({
     : session.durationSeconds ?? summary.durationSeconds;
 
   const cardTheme = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   return (
@@ -351,8 +351,8 @@ function PendingSyncCard({
     : session.durationSeconds ?? summary.durationSeconds;
 
   const cardTheme = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)',
-    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   return (
@@ -410,8 +410,8 @@ function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) 
   const { colors, isDark } = useTheme();
 
   const containerTheme = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   const buttonStyles = {
@@ -699,8 +699,8 @@ export default function HistoryScreen() {
   // Theme-aware styles
   const themedStyles = {
     calendarCard: {
-      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-      borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     calendarHeader: {
       borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',

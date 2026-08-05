@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
+import { mergeExerciseColloquialAliases } from '@/src/data/exerciseColloquialAliases';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
@@ -96,7 +97,7 @@ function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise
     category: row.category ?? 'strength',
     instructions: row.instructions ?? [],
     images: row.images ?? [],
-    aliases: row.aliases ?? [],
+    aliases: mergeExerciseColloquialAliases(row.id, row.aliases ?? []),
     canonicalId: row.canonical_id ?? null,
     canonicalKey: row.canonical_key ?? null,
     basedOnExerciseId: row.based_on_exercise_id ?? null,

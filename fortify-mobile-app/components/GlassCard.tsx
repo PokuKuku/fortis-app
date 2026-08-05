@@ -74,7 +74,7 @@ export function GlassCard({
   // Theme-aware card styling
   const cardStyle = {
     borderColor: colors.glassBorder,
-    backgroundColor: isDark ? colors.glassBackground : 'rgba(255,255,255,0.85)',
+    backgroundColor: colors.glassBackground,
   };
   const shellShadowStyle = shellShadow ? {
     shadowColor: colors.accentShadow,

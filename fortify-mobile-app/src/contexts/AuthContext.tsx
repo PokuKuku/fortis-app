@@ -20,11 +20,13 @@ import { useStartPresetStore } from '@/src/store/startPresetStore';
 import {
   migrateGuestStorageToUser,
   clearUserScopedStorage,
+  getScopedItem,
+  setScopedItem,
   setActiveScopedStorageUser,
 } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { type AccentColorName } from '@/src/utils/accentColors';
-import { SIGN_OUT_PRESERVED_STORAGE_KEYS } from '@/src/constants/storageKeys';
+import { AUTH_PROFILE_CACHE_KEY, SIGN_OUT_PRESERVED_STORAGE_KEYS } from '@/src/constants/storageKeys';
 import type { WorkoutScheduleHistoryEntry } from '@/src/utils/workoutSchedule';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -72,6 +74,26 @@ export interface Profile {
   theme_mode: 'system' | 'light' | 'dark';
   accent_color: AccentColorName | 'lime' | 'rose' | 'blue';
 }
+
+const readCachedProfile = async (userId: string): Promise<Profile | null> => {
+  try {
+    const rawProfile = await getScopedItem(AUTH_PROFILE_CACHE_KEY, userId);
+    if (!rawProfile) return null;
+
+    const cachedProfile = JSON.parse(rawProfile) as Profile;
+    return cachedProfile?.id === userId ? cachedProfile : null;
+  } catch {
+    return null;
+  }
+};
+
+const cacheProfile = async (profile: Profile): Promise<void> => {
+  try {
+    await setScopedItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify(profile), profile.id);
+  } catch (error) {
+    console.warn('Failed to cache profile:', error);
+  }
+};
 
 export interface AuthContextValue {
   user: User | null;
@@ -243,6 +265,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const profileData = await fetchProfile(user.id);
       setProfile(profileData);
       setProfileResolved(true);
+      if (profileData) {
+        void cacheProfile(profileData);
+      }
     }
   }, [user?.id, fetchProfile]);
 
@@ -349,16 +374,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsAuthResolved(true);
 
       if (sessionToUse?.user) {
-        await migrateGuestStorageToUser(sessionToUse.user.id);
-        const [profileData] = await Promise.all([
-          fetchProfile(sessionToUse.user.id),
-          hydrateUserData(),
-        ]);
-        primeDefaultProgramPersistence(sessionToUse.user.id, profileData);
-        await useProgramsStore.getState().loadLocalPrograms();
-        setProfile(profileData);
+        const userId = sessionToUse.user.id;
+        const cachedProfilePromise = readCachedProfile(userId);
+        const freshProfilePromise = fetchProfile(userId);
+
+        // Migration and store hydration are important for the destination
+        // screen, but none of them are required to choose that destination.
+        void migrateGuestStorageToUser(userId)
+          .then(async () => {
+            await Promise.allSettled([
+              hydrateUserData(),
+              useProgramsStore.getState().loadLocalPrograms(),
+            ]);
+          })
+          .catch((error) => {
+            console.warn('Failed to hydrate local app data:', error);
+          });
+
+        const cachedProfile = await cachedProfilePromise;
+        if (cachedProfile) {
+          setProfile(cachedProfile);
+          setProfileResolved(true);
+          setIsLoading(false);
+          primeDefaultProgramPersistence(userId, cachedProfile);
+          void useStartPresetStore.getState().loadPreset(cachedProfile);
+        }
+
+        const profileData = await freshProfilePromise;
+        primeDefaultProgramPersistence(userId, profileData ?? cachedProfile);
+        setProfile(profileData ?? cachedProfile);
         setProfileResolved(true);
-        void useStartPresetStore.getState().loadPreset(profileData);
+        if (profileData) {
+          void cacheProfile(profileData);
+        }
+        void useStartPresetStore.getState().loadPreset(profileData ?? cachedProfile);
         setIsLoading(false);
         syncPendingWorkouts();
         syncPendingPrograms();
@@ -397,6 +446,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           await useProgramsStore.getState().loadLocalPrograms();
           setProfile(profileData);
           setProfileResolved(true);
+          if (profileData) {
+            void cacheProfile(profileData);
+          }
           void useStartPresetStore.getState().loadPreset(profileData);
 
           // Process any pending syncs when user signs in

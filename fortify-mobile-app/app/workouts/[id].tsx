@@ -89,8 +89,8 @@ export default function WorkoutDetailScreen() {
     container: { backgroundColor: colors.background },
     loadingText: { color: colors.textSecondary },
     notFoundCard: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     notFoundIconWrap: {
       backgroundColor: isDark ? colors.accentOverlay : colors.accentOverlayMedium,
@@ -339,30 +339,42 @@ export default function WorkoutDetailScreen() {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Exercises</Text>
+            <Text
+              style={[
+                styles.sectionTitle,
+                styles.bankGothicSectionTitle,
+                themedStyles.sectionTitle,
+              ]}
+            >
+              Exercises
+            </Text>
             <Text style={[styles.sectionCount, themedStyles.sectionCount]}>
               {workout.exercises.length} exercises
             </Text>
           </View>
 
           <View style={styles.exercisesList}>
-            {workout.exercises.map((exercise) => (
-              <HubExerciseRow
+            {workout.exercises.map((exercise, index) => (
+              <Animated.View
                 key={exercise.id}
-                exerciseName={exercise.exerciseName}
-                primaryMuscles={exercise.primaryMuscles}
-                images={exercise.images}
-                onPress={() => handleExercisePress(exercise.exerciseId)}
-                rightAction={
-                  canEditTemplate ? (
-                    <DeleteKebabMenu
-                      deleteLabel="Delete Exercise"
-                      onViewDetails={() => handleExercisePress(exercise.exerciseId)}
-                      onDelete={() => handleDeleteExercise(exercise.id, exercise.exerciseName)}
-                    />
-                  ) : undefined
-                }
-              />
+                entering={FadeInDown.delay(180 + Math.min(index, 6) * 190).duration(650)}
+              >
+                <HubExerciseRow
+                  exerciseName={exercise.exerciseName}
+                  primaryMuscles={exercise.primaryMuscles}
+                  images={exercise.images}
+                  onPress={() => handleExercisePress(exercise.exerciseId)}
+                  rightAction={
+                    canEditTemplate ? (
+                      <DeleteKebabMenu
+                        deleteLabel="Delete Exercise"
+                        onViewDetails={() => handleExercisePress(exercise.exerciseId)}
+                        onDelete={() => handleDeleteExercise(exercise.id, exercise.exerciseName)}
+                      />
+                    ) : undefined
+                  }
+                />
+              </Animated.View>
             ))}
           </View>
         </Animated.View>
@@ -516,6 +528,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  bankGothicSectionTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 1.2,
   },
   sectionCount: {
     fontSize: FontSizes.sm,

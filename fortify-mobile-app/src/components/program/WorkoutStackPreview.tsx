@@ -47,8 +47,8 @@ export function WorkoutStackPreview({
   // Theme-aware styles for next workout highlighting
   const themedStyles = {
     workoutRow: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.1)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     workoutRowCompleted: {
       opacity: isDark ? 0.5 : 0.6,

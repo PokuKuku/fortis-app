@@ -108,8 +108,8 @@ function WorkoutSection({
 
   // Theme-aware card styles
   const cardStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.6)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(13, 27, 47, 0.12)',
   };
 
   return (
@@ -646,26 +646,38 @@ export default function ProgramDetailScreen() {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
+            <Text
+              style={[
+                styles.sectionTitle,
+                styles.bankGothicSectionTitle,
+                { color: colors.textPrimary },
+              ]}
+            >
+              Workouts
+            </Text>
             <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
               {orderedWorkouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
             </Text>
           </View>
 
           <View style={styles.workoutsList}>
-            {orderedWorkouts.map((workout) => (
-              <WorkoutSection
+            {orderedWorkouts.map((workout, index) => (
+              <Animated.View
                 key={workout.id}
-                workout={workout}
-                scheduleLabel={workoutScheduleLabels[workout.id] ?? `Day ${workout.dayNumber}`}
-                isExpanded={!!expandedWorkouts[workout.id]}
-                onToggle={() => toggleWorkout(workout.id)}
-                onExercisePress={handleExercisePress}
-                onDeleteWorkout={handleDeleteWorkout}
-                onSetAsNext={handleSetWorkoutAsNext}
-                onEditWorkout={handleEditWorkout}
-                onDeleteExercise={handleDeleteExercise}
-              />
+                entering={FadeInDown.delay(180 + Math.min(index, 6) * 190).duration(650)}
+              >
+                <WorkoutSection
+                  workout={workout}
+                  scheduleLabel={workoutScheduleLabels[workout.id] ?? `Day ${workout.dayNumber}`}
+                  isExpanded={!!expandedWorkouts[workout.id]}
+                  onToggle={() => toggleWorkout(workout.id)}
+                  onExercisePress={handleExercisePress}
+                  onDeleteWorkout={handleDeleteWorkout}
+                  onSetAsNext={handleSetWorkoutAsNext}
+                  onEditWorkout={handleEditWorkout}
+                  onDeleteExercise={handleDeleteExercise}
+                />
+              </Animated.View>
             ))}
           </View>
         </Animated.View>
@@ -938,6 +950,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
+  },
+  bankGothicSectionTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 1.2,
   },
   sectionCount: {
     fontSize: FontSizes.sm,

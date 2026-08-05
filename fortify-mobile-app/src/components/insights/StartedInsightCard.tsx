@@ -4,12 +4,12 @@ import { BorderRadius, FontWeights, Spacing } from '@/constants/Sizes';
 import { moderateScale, scale } from '@/src/utils/responsive';
 
 export function StartedInsightCard() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   const themedStyles = {
     card: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     title: { color: colors.textPrimary },
     subtitle: { color: colors.textSecondary },

@@ -23,6 +23,7 @@ export const PENDING_PROGRAM_SYNC_QUEUE_KEY = 'pending_program_sync_queue_v1';
 export const PENDING_STICKY_NOTES_SYNC_KEY = 'pending_sticky_notes_sync_v1';
 export const REST_TIMER_SETTINGS_KEY = 'rest_timer_settings_v1';
 export const STREAK_PAUSE_STATE_KEY = 'streak_pause_state_v1';
+export const PENDING_HOME_WORKOUT_CELEBRATION_KEY = 'pending_home_workout_celebration_v1';
 export const WORKOUT_REMINDER_NOTIFICATION_IDS_KEY = 'workout_reminder_notification_ids_v1';
 export const SCHEDULED_WORKOUT_REMINDER_ENABLED_KEY = 'scheduled_workout_reminder_enabled_v1';
 export const SCHEDULED_WORKOUT_REMINDER_TIME_KEY = 'scheduled_workout_reminder_time_v1';
@@ -58,9 +59,16 @@ export const AI_COACH_LAST_MODE_KEY = 'ai_coach_last_mode_v1';
 export const THEME_MODE_KEY = 'theme_mode_v1';
 export const ACCENT_COLOR_KEY = 'accent_color_v1';
 
+// Developer preferences
+export const DEV_HOME_TEST_CONTROLS_VISIBLE_KEY = 'dev_home_test_controls_visible_v1';
+
+// Auth
+export const AUTH_PROFILE_CACHE_KEY = 'auth_profile_cache_v1';
+
 // Analytics
 export const PROFILE_STATS_CACHE_KEY = 'profile_stats_cache_v1';
 export const TRAINING_INSIGHTS_CACHE_KEY = 'training_insights_cache_v1';
+export const TRAINING_INSIGHTS_REFRESH_STATE_KEY = 'training_insights_refresh_state_v1';
 export const INSIGHT_CHARTS_CACHE_KEY = 'training_insight_charts_cache_v1';
 
 // Keys that should be scoped per user and cleared on sign-out
@@ -80,6 +88,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   PENDING_STICKY_NOTES_SYNC_KEY,
   REST_TIMER_SETTINGS_KEY,
   STREAK_PAUSE_STATE_KEY,
+  PENDING_HOME_WORKOUT_CELEBRATION_KEY,
   WORKOUT_REMINDER_NOTIFICATION_IDS_KEY,
   SCHEDULED_WORKOUT_REMINDER_ENABLED_KEY,
   SCHEDULED_WORKOUT_REMINDER_TIME_KEY,
@@ -102,12 +111,15 @@ export const USER_SCOPED_STORAGE_KEYS = [
   AI_CONVERSATION_KEY,
   AI_COACH_LAST_MODE_KEY,
   AI_REALTIME_COACH_PREFERENCES_KEY,
+  AUTH_PROFILE_CACHE_KEY,
   PROFILE_STATS_CACHE_KEY,
   TRAINING_INSIGHTS_CACHE_KEY,
+  TRAINING_INSIGHTS_REFRESH_STATE_KEY,
   INSIGHT_CHARTS_CACHE_KEY,
   // Appearance (cleared on sign-out to prevent leakage between users)
   THEME_MODE_KEY,
   ACCENT_COLOR_KEY,
+  DEV_HOME_TEST_CONTROLS_VISIBLE_KEY,
 ] as const;
 
 // Account-scoped state that should remain available when the same user signs back in.

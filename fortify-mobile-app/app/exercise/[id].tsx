@@ -34,6 +34,7 @@ import {
 import type { Exercise } from '@/src/types/exercise';
 import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
+import Reanimated, { FadeInUp } from 'react-native-reanimated';
 import { getSetVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 
 type TabType = 'About' | 'History' | 'Charts' | 'Records';
@@ -109,23 +110,23 @@ export default function ExerciseDetailsScreen() {
     variantText: { color: colors.textPrimary },
     variantSubtext: { color: colors.textSecondary },
     historyCard: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.6)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(13, 27, 47, 0.12)',
     },
     historyDate: { color: colors.textPrimary },
     historySession: { color: colors.textSecondary },
     historyStatLabel: { color: colors.textSecondary },
     historyStatValue: { color: colors.accent },
     recordCard: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.6)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(13, 27, 47, 0.12)',
     },
     recordLabel: { color: colors.textSecondary },
     recordValue: { color: colors.textPrimary },
     recordDate: { color: colors.textSecondary },
     statBox: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.6)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(13, 27, 47, 0.12)',
     },
     statValue: { color: colors.textPrimary },
     statLabel: { color: colors.textSecondary },
@@ -465,8 +466,12 @@ export default function ExerciseDetailsScreen() {
             ) : (
               <>
                 <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>WORKOUT HISTORY</Text>
-                {history.map((entry) => (
-                  <View key={entry.sessionId} style={[styles.historyCard, themedStyles.historyCard]}>
+                {history.map((entry, index) => (
+                  <Reanimated.View
+                    key={entry.sessionId}
+                    entering={FadeInUp.delay(Math.min(index, 6) * 190).duration(650)}
+                    style={[styles.historyCard, themedStyles.historyCard]}
+                  >
                     <View style={styles.historyHeader}>
                       <Text style={[styles.historyDate, themedStyles.historyDate]}>
                         {format(entry.date, 'MMM d, yyyy')}
@@ -491,7 +496,7 @@ export default function ExerciseDetailsScreen() {
                         <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Volume</Text>
                       </View>
                     </View>
-                  </View>
+                  </Reanimated.View>
                 ))}
               </>
             )}
@@ -500,7 +505,7 @@ export default function ExerciseDetailsScreen() {
 
         {/* ==================== CHARTS TAB ==================== */}
         {selectedTab === 'Charts' && (
-          <View style={styles.tabContent}>
+          <View style={styles.chartsTabContent}>
             <ExerciseCharts chartData={chartData} formatVolume={formatVolume} unitLabel={unitLabel} />
           </View>
         )}
@@ -521,7 +526,10 @@ export default function ExerciseDetailsScreen() {
 
                 {/* Max Weight */}
                 {records.maxWeight && (
-                  <View style={[styles.recordCard, themedStyles.recordCard]}>
+                  <Reanimated.View
+                    entering={FadeInUp.delay(0).duration(650)}
+                    style={[styles.recordCard, themedStyles.recordCard]}
+                  >
                     <LinearGradient
                       colors={themedStyles.accentGradient}
                       style={styles.recordIcon}
@@ -537,12 +545,15 @@ export default function ExerciseDetailsScreen() {
                         {format(records.maxWeight.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
-                  </View>
+                  </Reanimated.View>
                 )}
 
                 {/* Estimated 1RM */}
                 {records.estimated1RM && (
-                  <View style={[styles.recordCard, themedStyles.recordCard]}>
+                  <Reanimated.View
+                    entering={FadeInUp.delay(190).duration(650)}
+                    style={[styles.recordCard, themedStyles.recordCard]}
+                  >
                     <LinearGradient
                       colors={['#f59e0b', '#d97706']}
                       style={styles.recordIcon}
@@ -556,12 +567,15 @@ export default function ExerciseDetailsScreen() {
                         {format(records.estimated1RM.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
-                  </View>
+                  </Reanimated.View>
                 )}
 
                 {/* Max Reps */}
                 {records.maxReps && (
-                  <View style={[styles.recordCard, themedStyles.recordCard]}>
+                  <Reanimated.View
+                    entering={FadeInUp.delay(380).duration(650)}
+                    style={[styles.recordCard, themedStyles.recordCard]}
+                  >
                     <LinearGradient
                       colors={['#3b82f6', '#2563eb']}
                       style={styles.recordIcon}
@@ -577,12 +591,15 @@ export default function ExerciseDetailsScreen() {
                         {format(records.maxReps.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
-                  </View>
+                  </Reanimated.View>
                 )}
 
                 {/* Best Volume */}
                 {records.maxVolume && (
-                  <View style={[styles.recordCard, themedStyles.recordCard]}>
+                  <Reanimated.View
+                    entering={FadeInUp.delay(570).duration(650)}
+                    style={[styles.recordCard, themedStyles.recordCard]}
+                  >
                     <LinearGradient
                       colors={['#8b5cf6', '#7c3aed']}
                       style={styles.recordIcon}
@@ -598,14 +615,17 @@ export default function ExerciseDetailsScreen() {
                         {format(records.maxVolume.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
-                  </View>
+                  </Reanimated.View>
                 )}
 
                 {/* Total Stats */}
                 <Text style={[styles.sectionTitle, themedStyles.sectionTitle, { marginTop: Spacing.xl }]}>
                   LIFETIME STATS
                 </Text>
-                <View style={styles.statsRow}>
+                <Reanimated.View
+                  entering={FadeInUp.delay(760).duration(650)}
+                  style={styles.statsRow}
+                >
                   <View style={[styles.statBox, themedStyles.statBox]}>
                     <Text style={[styles.statValue, themedStyles.statValue]}>{records.totalWorkouts}</Text>
                     <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
@@ -614,7 +634,7 @@ export default function ExerciseDetailsScreen() {
                     <Text style={[styles.statValue, themedStyles.statValue]}>{records.totalSets}</Text>
                     <Text style={[styles.statLabel, themedStyles.statLabel]}>Total Sets</Text>
                   </View>
-                </View>
+                </Reanimated.View>
               </>
             )}
           </View>
@@ -693,8 +713,12 @@ const styles = StyleSheet.create({
   tabContent: {
     paddingHorizontal: Spacing['2xl'],
   },
+  chartsTabContent: {
+    paddingHorizontal: Spacing.md,
+  },
   sectionTitle: {
     fontSize: FontSizes.sm,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
@@ -750,6 +774,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: FontSizes.xs,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '600',
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
@@ -767,6 +792,7 @@ const styles = StyleSheet.create({
   },
   musclesSectionTitle: {
     fontSize: FontSizes.sm,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
@@ -806,6 +832,7 @@ const styles = StyleSheet.create({
   },
   instructionsSectionTitle: {
     fontSize: FontSizes.sm,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
     color: Colors.textSecondary,
     marginBottom: Spacing.md,

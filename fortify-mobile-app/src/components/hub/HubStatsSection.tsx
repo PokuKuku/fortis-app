@@ -69,8 +69,8 @@ export function HubStatsSection({ stats }: HubStatsSectionProps) {
     tabText: { color: colors.textSecondary },
     tabTextActive: { color: colors.textPrimary },
     card: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     unitToggle: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',

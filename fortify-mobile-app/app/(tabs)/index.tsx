@@ -32,7 +32,7 @@ import Reanimated, { Easing, FadeIn, FadeInDown, FadeOut, runOnJS, useAnimatedSt
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
 import { FontFamily } from '../../constants/Typography';
@@ -122,13 +122,8 @@ type HomeCardOrderState = {
 
 const PROGRAM_CARD_HEIGHT = responsiveValue(64, 70, 78);
 const WORKOUT_CARD_HEIGHT = responsiveValue(68, 76, 84);
-const CARD_ACCENT_GLOW_HEIGHT = scale(8);
-const CARD_ACCENT_GLOW_VISIBLE_HEIGHT = scale(5);
-const CARD_ACCENT_GLOW_LIFT = scale(2);
-const WORKOUT_CARD_ACCENT_GLOW_LIFT = CARD_ACCENT_GLOW_LIFT + scale(1);
-const CARD_ACCENT_GLOW_CLIP_TOP = CARD_ACCENT_GLOW_HEIGHT - CARD_ACCENT_GLOW_VISIBLE_HEIGHT;
-const PROGRAM_CARD_GRID_HEIGHT = PROGRAM_CARD_HEIGHT + CARD_ACCENT_GLOW_VISIBLE_HEIGHT;
-const WORKOUT_CARD_GRID_HEIGHT = WORKOUT_CARD_HEIGHT + CARD_ACCENT_GLOW_VISIBLE_HEIGHT;
+const PROGRAM_CARD_GRID_HEIGHT = PROGRAM_CARD_HEIGHT;
+const WORKOUT_CARD_GRID_HEIGHT = WORKOUT_CARD_HEIGHT;
 const PROGRAM_CARD_PADDING_HORIZONTAL = responsiveValue(10, 12, 14);
 const WORKOUT_CARD_PADDING_HORIZONTAL = responsiveValue(8, 10, 12);
 const CARD_PADDING_TOP = responsiveValue(8, 10, 12);
@@ -153,7 +148,9 @@ const MODAL_ICON_SIZE = scale(24);
 const GRID_GAP = scale(12);
 const CARD_RADIUS = scale(16);
 const CARD_PRESS_DEPTH = scale(2);
-const WORKOUT_CARD_ACCENT_GLOW_INSET = Math.max(0, CARD_RADIUS - scale(4));
+const CARD_INNER_EDGE_INSET = scale(2);
+const CARD_CORNER_ACCENT_SIZE = scale(14);
+const CARD_CORNER_ACCENT_WIDTH = scale(2);
 const CARD_HEADER_MARGIN = scale(4);
 const CARD_TITLE_GAP = scale(6);
 const CARD_Kebab_PADDING = scale(4);
@@ -551,8 +548,8 @@ function NewUserChecklistModal({
   const backdropOpacity = useSharedValue(0);
   const headerTopPadding = Math.max(insets.top + scale(22), scale(82));
   const taskCardStyle = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-    borderColor: isDark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.6)',
+    borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(13,27,47,0.12)',
   };
   const pageAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: pageTranslateX.value }],
@@ -881,8 +878,8 @@ function NewUserChecklistCompleteGraffitiModal({
   const softStroke = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)';
   const floatY = useSharedValue(0);
   const cardStyle = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-    borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.6)',
+    borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(13,27,47,0.12)',
   };
   const floatingArtStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: floatY.value }],
@@ -1345,15 +1342,22 @@ function ProgramDropCard({
     enabled: enableDropZone,
   });
 
-  const baseBackgroundColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)';
-  const baseBorderColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)';
+  const baseBackgroundColor = isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.6)';
+  const baseBorderColor = isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(13, 27, 47, 0.12)';
+  const innerBorderColor = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.6)';
   const cardThemeStyle = {
     backgroundColor: baseBackgroundColor,
     borderColor: baseBorderColor,
   };
+  const cardShadowStyle = {
+    shadowColor: isDark ? '#000000' : '#10213A',
+    shadowOffset: { width: 0, height: scale(2) },
+    shadowOpacity: isDark ? 0.24 : 0.09,
+    shadowRadius: scale(6),
+    elevation: 2,
+  };
   const accentOverlay = colors.accentOverlay;
   const accentBorder = colors.accent;
-  const accentShadow = colors.accentShadow;
   const hoverStyle = useAnimatedStyle(() => {
     return {
       opacity: enableDropZone && isHovered.value ? 1 : 0,
@@ -1363,10 +1367,10 @@ function ProgramDropCard({
     const isDropTarget = enableDropZone && isHovered.value;
     return {
       borderColor: isDropTarget ? accentBorder : baseBorderColor,
-      shadowColor: isDropTarget ? accentBorder : accentShadow,
-      shadowOpacity: isDropTarget ? 0.5 : 0.34,
+      shadowColor: isDropTarget ? accentBorder : isDark ? '#000000' : '#10213A',
+      shadowOpacity: isDropTarget ? 0.42 : isDark ? 0.24 : 0.09,
     };
-  }, [accentBorder, accentShadow, baseBorderColor, enableDropZone]);
+  }, [accentBorder, baseBorderColor, enableDropZone, isDark]);
 
   return (
     <View
@@ -1379,17 +1383,10 @@ function ProgramDropCard({
         onPress={onPress}
         style={styles.cardPressFrame}
       >
-        <View pointerEvents="none" style={styles.cardAccentGlowViewport}>
-          <View
-            style={[
-              styles.cardAccentGlow,
-              { backgroundColor: colors.accent, opacity: isDark ? 0.44 : 0.26 },
-            ]}
-          />
-        </View>
         <Reanimated.View
           style={[
             styles.programCard,
+            cardShadowStyle,
             hoverBorderStyle,
           ]}
         >
@@ -1399,6 +1396,17 @@ function ProgramDropCard({
               styles.cardSurface,
               cardThemeStyle,
               isActive && { borderColor: colors.accentBorder },
+            ]}
+          />
+          <View
+            pointerEvents="none"
+            style={[styles.cardInnerEdge, { borderColor: innerBorderColor }]}
+          />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.cardCornerAccent,
+              { borderTopColor: colors.accent, borderLeftColor: colors.accent },
             ]}
           />
           <Reanimated.View
@@ -1490,6 +1498,7 @@ export default function ProgramsScreen() {
   const { isTourActive, activeStepId, hasTourFinished, isScreenScrollLocked } = useInAppTour();
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
   const [highlightedWorkoutId, setHighlightedWorkoutId] = useState<string | null>(null);
+  const isHomeFocused = useIsFocused();
   const modalStyles = useModalStyles();
   const { sessions: historySessions } = useWorkoutHistorySource({ enabled: Boolean(user) });
   const {
@@ -2266,8 +2275,18 @@ export default function ProgramsScreen() {
 
   // Theme-aware card style for workout cards
   const workoutCardThemeStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.6)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(13, 27, 47, 0.12)',
+  };
+  const workoutCardInnerEdgeStyle = {
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.6)',
+  };
+  const workoutCardShadowStyle = {
+    shadowColor: isDark ? '#000000' : '#10213A',
+    shadowOffset: { width: 0, height: scale(2) },
+    shadowOpacity: isDark ? 0.24 : 0.09,
+    shadowRadius: scale(6),
+    elevation: 2,
   };
 
   // Draggable workout card renderer for DraggableGrid
@@ -2295,20 +2314,9 @@ export default function ProgramsScreen() {
               style={styles.cardPressFrame}
             >
               <View
-                pointerEvents="none"
-                style={[styles.cardAccentGlowViewport, styles.workoutCardAccentGlowViewport]}
-              >
-                <View
-                  style={[
-                    styles.cardAccentGlow,
-                    styles.workoutCardAccentGlow,
-                    { backgroundColor: colors.accent, opacity: isDark ? 0.44 : 0.26 },
-                  ]}
-                />
-              </View>
-              <View
                 style={[
                   styles.workoutCard,
+                  workoutCardShadowStyle,
                 ]}
               >
               <View
@@ -2318,6 +2326,17 @@ export default function ProgramsScreen() {
                   workoutCardThemeStyle,
                   highlightStyle,
                   isActive && { borderColor: colors.accentBorder },
+                ]}
+              />
+              <View
+                pointerEvents="none"
+                style={[styles.cardInnerEdge, workoutCardInnerEdgeStyle]}
+              />
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.cardCornerAccent,
+                  { borderTopColor: colors.accent, borderLeftColor: colors.accent },
                 ]}
               />
               <View style={styles.cardHeader}>
@@ -2354,8 +2373,11 @@ export default function ProgramsScreen() {
                   <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
-              <Text allowFontScaling={false} style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
-                {item.exercises} exercises · {item.lastPerformed}
+              <Text
+                allowFontScaling={false}
+                style={[styles.cardMetaText, { color: readableSubtext.meta }]}
+              >
+                {item.lastPerformed}
               </Text>
               </View>
             </PressDownTouchable>
@@ -2372,6 +2394,8 @@ export default function ProgramsScreen() {
       colors,
       isDark,
       workoutCardThemeStyle,
+      workoutCardInnerEdgeStyle,
+      workoutCardShadowStyle,
       highlightedWorkoutId,
       readableSubtext,
     ]
@@ -2413,8 +2437,8 @@ export default function ProgramsScreen() {
 
   // Theme-aware styles for glass cards and popovers
   const glassCardStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   const popoverStyle = {
@@ -2439,6 +2463,8 @@ export default function ProgramsScreen() {
             scheduleDays={scheduleDays}
             scheduleHistory={scheduleHistory}
             sessions={historySessions}
+            isFocused={isHomeFocused}
+            startupRevealComplete={startupRevealComplete}
             onEditSchedule={() => setScheduleEditorVisible(true)}
           />
 
@@ -3254,38 +3280,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     zIndex: 1,
   },
+  cardInnerEdge: {
+    position: 'absolute',
+    top: CARD_INNER_EDGE_INSET,
+    right: CARD_INNER_EDGE_INSET,
+    bottom: CARD_INNER_EDGE_INSET,
+    left: CARD_INNER_EDGE_INSET,
+    borderRadius: CARD_RADIUS - CARD_INNER_EDGE_INSET,
+    borderWidth: 1,
+    zIndex: 2,
+  },
+  cardCornerAccent: {
+    position: 'absolute',
+    top: scale(1.5),
+    left: scale(1.5),
+    width: CARD_CORNER_ACCENT_SIZE,
+    height: CARD_CORNER_ACCENT_SIZE,
+    borderTopWidth: CARD_CORNER_ACCENT_WIDTH,
+    borderLeftWidth: CARD_CORNER_ACCENT_WIDTH,
+    borderTopLeftRadius: CARD_RADIUS - scale(1.5),
+    zIndex: 3,
+  },
   cardPressFrame: {
     position: 'relative',
     width: '100%',
     overflow: 'visible',
-  },
-  cardAccentGlowViewport: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -(CARD_ACCENT_GLOW_VISIBLE_HEIGHT - CARD_ACCENT_GLOW_LIFT),
-    height: CARD_ACCENT_GLOW_VISIBLE_HEIGHT,
-    borderBottomLeftRadius: CARD_RADIUS,
-    borderBottomRightRadius: CARD_RADIUS,
-    overflow: 'hidden',
-    zIndex: 0,
-  },
-  workoutCardAccentGlowViewport: {
-    left: 0,
-    right: 0,
-    bottom: -(CARD_ACCENT_GLOW_VISIBLE_HEIGHT - WORKOUT_CARD_ACCENT_GLOW_LIFT),
-  },
-  cardAccentGlow: {
-    position: 'absolute',
-    left: CARD_RADIUS,
-    right: CARD_RADIUS,
-    top: -CARD_ACCENT_GLOW_CLIP_TOP,
-    height: CARD_ACCENT_GLOW_HEIGHT,
-    borderRadius: 999,
-  },
-  workoutCardAccentGlow: {
-    left: WORKOUT_CARD_ACCENT_GLOW_INSET,
-    right: WORKOUT_CARD_ACCENT_GLOW_INSET,
   },
   programCard: {
     backgroundColor: 'transparent',
@@ -3295,11 +3314,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: PROGRAM_CARD_PADDING_HORIZONTAL,
     paddingTop: CARD_PADDING_TOP,
     paddingBottom: CARD_PADDING_BOTTOM,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
     overflow: 'visible',
     height: PROGRAM_CARD_HEIGHT,
   },
@@ -3311,11 +3325,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: WORKOUT_CARD_PADDING_HORIZONTAL,
     paddingTop: CARD_PADDING_TOP,
     paddingBottom: CARD_PADDING_BOTTOM,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
     overflow: 'visible',
     height: WORKOUT_CARD_HEIGHT,
   },

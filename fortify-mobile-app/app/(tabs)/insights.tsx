@@ -11,12 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
+import { ChartBarIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { addDays, format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AppHeaderBrand } from '@/src/components/navigation/AppHeaderBrand';
-import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
@@ -349,16 +348,16 @@ function InsightCard({
   const sparklineFillOpacity = sparklineVariant === 'area' ? 1 : undefined;
 
   const cardTheme = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
   const summaryTheme = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
   const sparklineTheme = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
   const pillTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
@@ -924,8 +923,8 @@ export default function InsightsScreen() {
   const visiblePositives = remainingSlots > 0 ? positiveInsights.slice(0, 1) : [];
 
   const cardTheme = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: colors.glassBackground,
+    borderColor: colors.glassBorder,
   };
 
   const openInsightChat = async (insight: TrainingInsight, prompt: string) => {
@@ -1091,14 +1090,70 @@ export default function InsightsScreen() {
           </AccentShadowCard>
 
           {!hasInsights ? (
-            <View style={styles.emptyState}>
-              <Text style={[styles.emptyText, { color: readableText.secondary }]}>
-                No insights yet. Log a completed workout to generate your weekly insight.
-              </Text>
-              <GlassButton style={styles.refreshButton} onPress={refresh}>
-                <Text style={[styles.whyButtonText, { color: colors.accent }]}>Refresh</Text>
-              </GlassButton>
-            </View>
+            <AccentShadowCard radius={CARD_RADIUS} pressable={false}>
+              <View style={[styles.emptyInsightCard, cardTheme]}>
+                <View
+                  style={[
+                    styles.emptyInsightIcon,
+                    {
+                      backgroundColor: colors.accentOverlay,
+                      borderColor: colors.accentBorder,
+                    },
+                  ]}
+                >
+                  <ChartBarIcon color={colors.accent} size={28} strokeWidth={2} />
+                </View>
+
+                <Text style={[styles.emptyInsightTitle, { color: colors.textPrimary }]}>
+                  YOUR INSIGHTS ARE BUILDING
+                </Text>
+                <Text style={[styles.emptyInsightText, { color: readableText.secondary }]}>
+                  Complete a workout and Fortify will turn your training into weekly trends,
+                  progress highlights, and useful recommendations.
+                </Text>
+
+                <View style={styles.emptyInsightSteps}>
+                  <View style={[styles.emptyInsightStep, { borderColor: colors.glassBorder }]}>
+                    <Text style={[styles.emptyInsightStepNumber, { color: colors.accent }]}>1</Text>
+                    <Text style={[styles.emptyInsightStepText, { color: colors.textSecondary }]}>
+                      Finish a workout
+                    </Text>
+                  </View>
+                  <View style={[styles.emptyInsightStep, { borderColor: colors.glassBorder }]}>
+                    <Text style={[styles.emptyInsightStepNumber, { color: colors.accent }]}>2</Text>
+                    <Text style={[styles.emptyInsightStepText, { color: colors.textSecondary }]}>
+                      Check back for your recap
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.emptyInsightButton,
+                    {
+                      backgroundColor: colors.accent,
+                      opacity: isRefreshing ? 0.65 : 1,
+                    },
+                  ]}
+                  onPress={() => void refresh()}
+                  disabled={isRefreshing}
+                  activeOpacity={0.82}
+                >
+                  <Text
+                    style={[
+                      styles.emptyInsightButtonText,
+                      { color: colors.accentForegroundOnFill },
+                    ]}
+                  >
+                    {isRefreshing ? 'Refreshing…' : 'Refresh Insights'}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={[styles.emptyInsightHint, { color: readableText.tertiary }]}>
+                  You can also pull down anytime to refresh.
+                </Text>
+              </View>
+            </AccentShadowCard>
           ) : (
             <View style={styles.insightsList}>
               {showStartedCard && <StartedInsightCard />}
@@ -1585,20 +1640,79 @@ const styles = StyleSheet.create({
     fontSize: ACTION_TEXT_SIZE,
     fontWeight: '600',
   },
-  emptyState: {
+  emptyInsightCard: {
+    borderWidth: 1,
+    borderRadius: CARD_RADIUS,
+    paddingHorizontal: scale(Spacing.xl),
     paddingVertical: EMPTY_PADDING_Y,
     alignItems: 'center',
-    gap: scale(Spacing.md),
   },
-  emptyText: {
+  emptyInsightIcon: {
+    width: scale(58),
+    height: scale(58),
+    borderRadius: scale(18),
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: scale(Spacing.lg),
+  },
+  emptyInsightTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(17),
+    lineHeight: moderateScale(22),
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  emptyInsightText: {
+    marginTop: scale(Spacing.sm),
     textAlign: 'center',
     fontSize: moderateScale(14),
     lineHeight: moderateScale(20),
-    maxWidth: scale(260),
+    maxWidth: scale(310),
   },
-  refreshButton: {
-    alignSelf: 'center',
-    height: ACTION_BUTTON_HEIGHT,
-    paddingHorizontal: scale(Spacing.lg),
+  emptyInsightSteps: {
+    width: '100%',
+    gap: scale(Spacing.sm),
+    marginTop: scale(Spacing.lg),
+  },
+  emptyInsightStep: {
+    minHeight: scale(42),
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: scale(BorderRadius.lg),
+    paddingHorizontal: scale(Spacing.md),
+    gap: scale(Spacing.sm),
+  },
+  emptyInsightStepNumber: {
+    width: scale(22),
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(14),
+    textAlign: 'center',
+  },
+  emptyInsightStepText: {
+    flex: 1,
+    fontSize: moderateScale(13),
+    lineHeight: moderateScale(18),
+    fontWeight: '600',
+  },
+  emptyInsightButton: {
+    minWidth: scale(190),
+    minHeight: scale(44),
+    borderRadius: scale(BorderRadius.xl),
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: scale(Spacing.xl),
+    marginTop: scale(Spacing.lg),
+  },
+  emptyInsightButtonText: {
+    fontSize: moderateScale(14),
+    fontWeight: '700',
+  },
+  emptyInsightHint: {
+    marginTop: scale(Spacing.sm),
+    fontSize: moderateScale(12),
+    lineHeight: moderateScale(16),
+    textAlign: 'center',
   },
 });

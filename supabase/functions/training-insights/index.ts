@@ -2236,6 +2236,65 @@ const dismissStaleStallRiskInsights = async ({
   }
 };
 
+const dismissSupersededActiveInsights = async ({
+  adminClient,
+  userId,
+  evaluatedTypes,
+  currentInsights,
+}: {
+  adminClient: SupabaseClient;
+  userId: string;
+  evaluatedTypes: string[];
+  currentInsights: Record<string, unknown>[];
+}) => {
+  const uniqueTypes = Array.from(new Set(evaluatedTypes));
+  if (uniqueTypes.length === 0) return;
+
+  const buildKey = (row: Record<string, unknown>) => [
+    String(row.type ?? ''),
+    String(row.window ?? ''),
+    String(row.anchor_date ?? ''),
+    String(row.subject_key ?? ''),
+  ].join('|');
+
+  const currentActiveKeys = new Set(
+    currentInsights
+      .filter((insight) => (
+        uniqueTypes.includes(String(insight.type ?? ''))
+        && String(insight.status ?? 'active') === 'active'
+      ))
+      .map(buildKey),
+  );
+
+  const { data: activeRows, error } = await adminClient
+    .from('training_insights')
+    .select('id, type, window, anchor_date, subject_key')
+    .eq('user_id', userId)
+    .in('type', uniqueTypes)
+    .eq('status', 'active');
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch superseded insights:', error.message);
+    return;
+  }
+
+  const supersededIds = (activeRows ?? [])
+    .filter((row: Record<string, unknown>) => !currentActiveKeys.has(buildKey(row)))
+    .map((row: Record<string, unknown>) => String(row.id ?? ''))
+    .filter(Boolean);
+
+  if (supersededIds.length === 0) return;
+
+  const { error: dismissError } = await adminClient
+    .from('training_insights')
+    .update({ status: 'dismissed' })
+    .in('id', supersededIds);
+
+  if (dismissError) {
+    console.warn('[Insights] Failed to dismiss superseded insights:', dismissError.message);
+  }
+};
+
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
@@ -2603,7 +2662,24 @@ Deno.serve(async (req) => {
     }
   }
 
+  const lifecycleTypes = [
+    ...(shouldRunWeeklyFinal ? [INSIGHT_TYPE] : []),
+    ...(shouldRunFatigueFinal ? [FATIGUE_RISK_TYPE] : []),
+    ...(shouldRunImbalanceFinal ? [IMBALANCE_FLAG_TYPE] : []),
+    ...insightsToUpsert
+      .map((insight) => String(insight.type ?? ''))
+      .filter((type) => POSITIVE_INSIGHT_TYPES.includes(type)),
+  ];
+
   if (insightsToUpsert.length === 0) {
+    // No current signal means any previously active result for an evaluated
+    // singleton type is now stale.
+    await dismissSupersededActiveInsights({
+      adminClient,
+      userId: user.id,
+      evaluatedTypes: lifecycleTypes,
+      currentInsights: [],
+    });
     return jsonResponse(
       {
         anchorDate: toIsoDate(weekStart),
@@ -2669,6 +2745,15 @@ Deno.serve(async (req) => {
   if (upsertError) {
     return errorResponse(upsertError.message, 'insight_upsert_failed', 500, false, undefined, origin);
   }
+
+  // Clean up only after replacement rows are safely persisted. Dismissed
+  // current rows stay dismissed, and older active rows cannot surface behind them.
+  await dismissSupersededActiveInsights({
+    adminClient,
+    userId: user.id,
+    evaluatedTypes: lifecycleTypes,
+    currentInsights: (upsertedInsights ?? insightsToUpsert) as Record<string, unknown>[],
+  });
 
   return jsonResponse(
     {

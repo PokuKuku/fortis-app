@@ -27,6 +27,7 @@ import {
   EXERCISE_STICKY_NOTES_KEY,
   EXERCISE_WEIGHT_UNITS_KEY,
   BODY_TYPE_KEY,
+  PENDING_HOME_WORKOUT_CELEBRATION_KEY,
 } from '../constants/storageKeys';
 import { syncWorkoutSession, resyncMissingSets } from '../services/workoutHistoryService';
 import { scheduleWorkoutCompletionNotification } from '../services/workoutCompletionNotifications';
@@ -1000,6 +1001,18 @@ export const useWorkoutStore = create<WorkoutState>()(
         );
       } catch (error) {
         console.warn('Failed to persist completed sessions:', error);
+      }
+
+      try {
+        await setScopedItem(
+          PENDING_HOME_WORKOUT_CELEBRATION_KEY,
+          JSON.stringify({
+            sessionLocalId: completedSession.localId,
+            completedAt: completedSession.completedAt?.toISOString(),
+          })
+        );
+      } catch (error) {
+        console.warn('Failed to queue home workout celebration:', error);
       }
 
       await get().clearPersistedSession();

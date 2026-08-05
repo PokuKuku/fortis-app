@@ -111,8 +111,8 @@ export function ChatEmptyState({
   const themedStyles = {
     title: { color: colors.textPrimary },
     card: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
     },
     cardIcon: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',

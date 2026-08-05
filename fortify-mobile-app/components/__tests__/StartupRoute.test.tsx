@@ -5,6 +5,8 @@ import StartupScreen from '@/app/index';
 const mockReplace = jest.fn();
 const mockUsePendingOnboardingAuthCompletion = jest.fn();
 const mockResetStartupReveal = jest.fn();
+const mockDownloadAsync = jest.fn(() => Promise.resolve());
+const mockAnimatedLogoProps = jest.fn();
 
 const mockAuthState = {
   isAuthResolved: true,
@@ -25,7 +27,7 @@ jest.mock('expo-router', () => ({
 jest.mock('expo-asset', () => ({
   Asset: {
     fromModule: jest.fn(() => ({
-      downloadAsync: jest.fn(() => Promise.resolve()),
+      downloadAsync: mockDownloadAsync,
     })),
   },
 }));
@@ -59,10 +61,11 @@ jest.mock('@/components/AnimatedFortifyLogo', () => {
   const ReactModule = require('react') as typeof React;
 
   return {
-    AnimatedFortifyLogo: ({ onShineComplete }: { onShineComplete?: () => void }) => {
+    AnimatedFortifyLogo: (props: { onShineComplete?: () => void; shineDurationMs?: number }) => {
+      mockAnimatedLogoProps(props);
       ReactModule.useEffect(() => {
-        onShineComplete?.();
-      }, [onShineComplete]);
+        props.onShineComplete?.();
+      }, [props.onShineComplete]);
       return null;
     },
   };
@@ -130,6 +133,25 @@ describe('Startup route guard', () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/onboarding');
     });
+  });
+
+  it('does not block onboarding navigation on video warmup', async () => {
+    mockDownloadAsync.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<StartupScreen />);
+    await finishStartupWait();
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/onboarding');
+    });
+  });
+
+  it('uses the shortened startup logo animation', () => {
+    render(<StartupScreen />);
+
+    expect(mockAnimatedLogoProps).toHaveBeenCalledWith(
+      expect.objectContaining({ shineDurationMs: 600 }),
+    );
   });
 
   it('arms the landing reveal only when cold-starting directly into the tabs', async () => {

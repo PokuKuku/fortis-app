@@ -1,9 +1,15 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { WeeklyProgressCarousel } from '@/src/components/program/WeeklyProgressCarousel';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import {
+  DEV_HOME_TEST_CONTROLS_VISIBLE_KEY,
+  PENDING_HOME_WORKOUT_CELEBRATION_KEY,
+} from '@/src/constants/storageKeys';
+import { removeScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { saveDevHomeTestControlsVisible } from '@/src/services/devPreferencesService';
 
 const mockRunProFeature = jest.fn();
 let mockIsPro = false;
@@ -31,11 +37,15 @@ jest.mock('expo-haptics', () => ({
 }));
 
 describe('WeeklyProgressCarousel streak paywall', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     mockIsPro = false;
     mockRunProFeature.mockResolvedValue(false);
     useWorkoutStore.getState().resetStore();
+    await Promise.all([
+      removeScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY),
+      removeScopedItem(DEV_HOME_TEST_CONTROLS_VISIBLE_KEY),
+    ]);
   });
 
   it('opens the workout streak placement from the Go Pro button', () => {
@@ -94,5 +104,144 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     expect(getByText('2 left this month')).toBeTruthy();
     expect(getByText('Pauses reset next month.')).toBeTruthy();
     expect(getByText('Paused')).toBeTruthy();
+  });
+
+  it('previews a streak increase from the development-only test button', () => {
+    mockIsPro = true;
+    const today = new Date();
+
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[]}
+          sessions={[
+            {
+              localId: 'session-today',
+              name: 'Today',
+              startedAt: today,
+              completedAt: today,
+              exercises: [],
+            } as any,
+          ]}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    fireEvent.press(view.getByLabelText('Test streak increase'));
+
+    expect(view.getByTestId('streak-number-current').props.children).toBe(2);
+    expect(view.getByTestId('streak-number-outgoing').props.children).toBe(1);
+  });
+
+  it('hides every home test control when the developer preference is disabled', async () => {
+    mockIsPro = true;
+
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[]}
+          sessions={[]}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    await act(async () => {
+      await saveDevHomeTestControlsVisible(false);
+    });
+
+    await waitFor(() => {
+      expect(view.queryByLabelText('Test streak percentile celebration')).toBeNull();
+      expect(view.queryByLabelText('Test completed day animation')).toBeNull();
+      expect(view.queryByLabelText('Test streak increase')).toBeNull();
+    });
+  });
+
+  it('previews a completed-day transition from the development-only test button', async () => {
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[]}
+          sessions={[]}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    fireEvent.press(view.getByLabelText('Test completed day animation'));
+
+    await waitFor(() => {
+      expect(view.queryAllByTestId('completed-day-check-glow').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('replays both celebrations on the first focused visit after a scheduled workout', async () => {
+    mockIsPro = true;
+    const completedAt = new Date();
+    const completedSession = {
+      localId: 'newly-completed-session',
+      name: 'Scheduled workout',
+      notes: '',
+      startedAt: completedAt,
+      completedAt,
+      exercises: [],
+      isSynced: false,
+    } as any;
+    await setScopedItem(
+      PENDING_HOME_WORKOUT_CELEBRATION_KEY,
+      JSON.stringify({
+        sessionLocalId: completedSession.localId,
+        completedAt: completedAt.toISOString(),
+      })
+    );
+
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[completedAt.getDay()]}
+          sessions={[completedSession]}
+          isFocused
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    await waitFor(() => {
+      expect(view.getByText("YOU'RE ON FIRE!")).toBeTruthy();
+      expect(view.getByText('1 DAY')).toBeTruthy();
+    });
+    expect(view.queryAllByTestId('completed-day-check-glow')).toHaveLength(0);
+    expect(view.queryByTestId('streak-number-outgoing')).toBeNull();
+
+    fireEvent.press(view.getByLabelText('Continue from streak celebration'));
+
+    await waitFor(() => {
+      expect(view.getByTestId('streak-number-outgoing').props.children).toBe(0);
+    });
+    expect(view.queryAllByTestId('completed-day-check-glow').length).toBeGreaterThan(0);
+  });
+
+  it('cycles the development-only percentile modal preview', async () => {
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[]}
+          sessions={[]}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    fireEvent.press(view.getByLabelText('Test streak percentile celebration'));
+    expect(view.getByText('1 DAY')).toBeTruthy();
+
+    fireEvent.press(view.getByLabelText('Continue from streak celebration'));
+    await waitFor(() => {
+      expect(view.queryAllByTestId('completed-day-check-glow').length).toBeGreaterThan(0);
+    });
+
+    fireEvent.press(view.getByLabelText('Test streak percentile celebration'));
+    expect(view.getByText('2 DAYS')).toBeTruthy();
   });
 });

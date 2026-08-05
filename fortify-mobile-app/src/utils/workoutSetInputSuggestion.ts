@@ -15,6 +15,7 @@ export function getWorkoutSetInputSuggestion(params: {
   previousSet?: WorkoutSet;
   setIndex: number;
   setType: SetType;
+  preferredWeightPerformance?: SetPerformanceSource;
   suggestedPerformance?: SetPerformanceSource;
   fallbackPerformance?: SetPerformanceSource;
   secondaryFallbackPerformance?: SetPerformanceSource;
@@ -23,6 +24,8 @@ export function getWorkoutSetInputSuggestion(params: {
     .slice(0, params.setIndex)
     .filter((set) => set.setType === params.setType)
     .length;
+  const preferredWeightSet = params.preferredWeightPerformance?.sets
+    ?.filter((set) => set.setType === params.setType)[typeIndex];
   const suggestedSet = params.suggestedPerformance?.sets
     ?.filter((set) => set.setType === params.setType)[typeIndex]
     ?? params.fallbackPerformance?.sets
@@ -30,5 +33,19 @@ export function getWorkoutSetInputSuggestion(params: {
     ?? params.secondaryFallbackPerformance?.sets
       ?.filter((set) => set.setType === params.setType)[typeIndex];
 
-  return mergeSetValueSuggestion(params.previousSet, suggestedSet, params.setType);
+  const mergedSuggestion = mergeSetValueSuggestion(
+    params.previousSet,
+    suggestedSet,
+    params.setType
+  );
+  const preferredWeight = preferredWeightSet?.weight;
+
+  if (preferredWeight == null) {
+    return mergedSuggestion;
+  }
+
+  return {
+    weight: preferredWeight,
+    reps: mergedSuggestion?.reps ?? preferredWeightSet?.reps ?? null,
+  };
 }

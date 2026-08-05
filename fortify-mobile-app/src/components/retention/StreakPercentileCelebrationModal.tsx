@@ -1,0 +1,466 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { useTheme } from '@/src/contexts/ThemeContext';
+import { moderateScale, scale } from '@/src/utils/responsive';
+
+type StreakMilestone = {
+  percentile: number;
+  badge?: string;
+  headline: string;
+  message: string;
+};
+
+export const STREAK_PERCENTILE_MILESTONES: Record<number, StreakMilestone> = {
+  1: {
+    percentile: 50,
+    headline: "YOU'RE ON FIRE!",
+    message: 'You showed up, put in the work, and your streak is officially alive.',
+  },
+  2: {
+    percentile: 58,
+    headline: 'TWO FOR TWO!',
+    message: 'Back-to-back scheduled workouts. Your consistency is already heating up!',
+  },
+  3: {
+    percentile: 65,
+    headline: 'THREE STRONG!',
+    message: 'Three scheduled workouts without a miss. You are building real momentum!',
+  },
+  4: {
+    percentile: 71,
+    headline: 'FOUR IN A ROW!',
+    message: 'You are now more consistent than 7 in 10 lifters. Keep showing up!',
+  },
+  5: {
+    percentile: 77,
+    headline: 'FIVE FOR FIVE!',
+    message: 'You are now more consistent than 3 in 4 lifters. Keep the heat going!',
+  },
+  6: {
+    percentile: 82,
+    headline: 'SIX AND SURGING!',
+    message: 'Your routine is becoming uncommon. Six straight workouts and counting!',
+  },
+  7: {
+    percentile: 86,
+    headline: 'SEVEN STRAIGHT!',
+    message: 'No misses. No excuses. You are among the most consistent lifters!',
+  },
+  8: {
+    percentile: 89,
+    headline: 'EIGHT WITHOUT A MISS!',
+    message: 'You are closing in on the top 10%. This streak has serious momentum!',
+  },
+  9: {
+    percentile: 92,
+    badge: 'TOP 8%',
+    headline: 'TOP-TIER CONSISTENCY!',
+    message: 'Nine scheduled workouts in a row. Very few lifters stay this locked in!',
+  },
+  10: {
+    percentile: 94,
+    badge: 'TOP 6%',
+    headline: 'ABSOLUTELY ELITE!',
+    message: 'Ten scheduled workouts without a miss. That is consistency most lifters never reach.',
+  },
+};
+
+type StreakPercentileCelebrationModalProps = {
+  visible: boolean;
+  streak: number;
+  onContinue: () => void;
+};
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const ARC_LENGTH = 300;
+const FIRE_FRAMES = [
+  require('../../../assets/animations/streak-fire/frames/frame-01.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-02.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-03.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-04.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-05.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-06.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-07.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-08.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-09.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-10.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-11.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-12.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-13.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-14.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-15.png'),
+  require('../../../assets/animations/streak-fire/frames/frame-16.png'),
+];
+
+function LivingFlame({
+  size,
+  reduceMotion,
+  active,
+}: {
+  size: number;
+  reduceMotion: boolean;
+  active: boolean;
+}) {
+  const [frameIndex, setFrameIndex] = useState(reduceMotion ? 5 : 0);
+
+  useEffect(() => {
+    if (reduceMotion || !active) {
+      setFrameIndex(5);
+      return;
+    }
+
+    const frameTimer = setInterval(() => {
+      setFrameIndex((current) => (current + 1) % FIRE_FRAMES.length);
+    }, 72);
+
+    return () => clearInterval(frameTimer);
+  }, [active, reduceMotion]);
+
+  return (
+    <Image
+      accessibilityLabel="Animated realistic workout streak flame"
+      source={FIRE_FRAMES[frameIndex]}
+      resizeMode="contain"
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
+function ConsistencyArc({
+  progress,
+  percentile,
+  fillColor,
+  trackColor,
+}: {
+  progress: Animated.Value;
+  percentile: number;
+  fillColor: string;
+  trackColor: string;
+}) {
+  const dashOffset = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [ARC_LENGTH, ARC_LENGTH * (1 - percentile / 100)],
+  });
+
+  return (
+    <View style={styles.arcWrap} testID="streak-percentile-arc">
+      <Svg width="100%" height="100%" viewBox="0 0 250 108">
+        <Path
+          d="M24 92 Q125 5 226 92"
+          fill="none"
+          stroke={trackColor}
+          strokeLinecap="round"
+          strokeWidth="10"
+        />
+        <AnimatedPath
+          d="M24 92 Q125 5 226 92"
+          fill="none"
+          stroke={fillColor}
+          strokeDasharray={`${ARC_LENGTH} ${ARC_LENGTH}`}
+          strokeDashoffset={dashOffset as unknown as number}
+          strokeLinecap="round"
+          strokeWidth="10"
+        />
+      </Svg>
+    </View>
+  );
+}
+
+export function StreakPercentileCelebrationModal({
+  visible,
+  streak,
+  onContinue,
+}: StreakPercentileCelebrationModalProps) {
+  const { colors, isDark } = useTheme();
+  const { height } = useWindowDimensions();
+  const milestone = STREAK_PERCENTILE_MILESTONES[streak] ?? STREAK_PERCENTILE_MILESTONES[10];
+  const fireEntrance = useRef(new Animated.Value(0)).current;
+  const barProgress = useRef(new Animated.Value(0)).current;
+  const [displayedPercentile, setDisplayedPercentile] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const isCompact = height < 740;
+  const flameSize = scale((isCompact ? 150 : 182) + Math.min(10, streak) * 1.2);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    fireEntrance.stopAnimation();
+    barProgress.stopAnimation();
+    fireEntrance.setValue(reduceMotion ? 1 : 0);
+    barProgress.setValue(reduceMotion ? 1 : 0);
+    setDisplayedPercentile(reduceMotion ? milestone.percentile : 0);
+
+    if (reduceMotion) return;
+
+    const countListener = barProgress.addListener(({ value }) => {
+      setDisplayedPercentile(Math.round(milestone.percentile * value));
+    });
+    const entranceAnimation = Animated.parallel([
+      Animated.timing(fireEntrance, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.out(Easing.back(1.35)),
+        useNativeDriver: true,
+      }),
+      Animated.timing(barProgress, {
+        toValue: 1,
+        delay: 280,
+        duration: 1350,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]);
+    entranceAnimation.start();
+
+    return () => {
+      entranceAnimation.stop();
+      barProgress.removeListener(countListener);
+    };
+  }, [barProgress, fireEntrance, milestone.percentile, reduceMotion, visible]);
+
+  const fireStyle = useMemo(() => ({
+    opacity: fireEntrance,
+    transform: [
+      {
+        translateY: fireEntrance.interpolate({
+          inputRange: [0, 1],
+          outputRange: [scale(22), 0],
+        }),
+      },
+      {
+        scale: fireEntrance.interpolate({ inputRange: [0, 0.72, 1], outputRange: [0.45, 1.08, 1] }),
+      },
+    ],
+  }), [fireEntrance]);
+  const copyStyle = {
+    opacity: barProgress.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0.3, 1] }),
+    transform: [
+      { translateY: barProgress.interpolate({ inputRange: [0, 1], outputRange: [scale(10), 0] }) },
+    ],
+  };
+
+  const handleContinue = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    onContinue();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      presentationStyle="fullScreen"
+      onRequestClose={handleContinue}
+      testID="streak-percentile-modal"
+    >
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StainlessSteelPattern />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+          <View style={[styles.content, isCompact && styles.contentCompact]}>
+            <View style={[styles.flameStage, isCompact && styles.flameStageCompact]}>
+              <Animated.View style={fireStyle} testID="streak-percentile-flame">
+                <LivingFlame size={flameSize} reduceMotion={reduceMotion} active={visible} />
+              </Animated.View>
+            </View>
+
+            <Text style={[styles.streakValue, { color: colors.textPrimary }]}>
+              {streak} {streak === 1 ? 'DAY' : 'DAYS'}
+            </Text>
+
+            <View
+              style={[
+                styles.percentileCard,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                },
+              ]}
+            >
+              <ConsistencyArc
+                progress={barProgress}
+                percentile={milestone.percentile}
+                fillColor={colors.accent}
+                trackColor={isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'}
+              />
+              <View style={styles.percentileValueWrap}>
+                <Text style={[styles.percentileNumber, { color: colors.textPrimary }]}>
+                  {displayedPercentile}
+                  <Text style={styles.ordinal}>TH</Text>
+                </Text>
+                <Text style={[styles.percentileLabel, { color: colors.textSecondary }]}>PERCENTILE</Text>
+              </View>
+            </View>
+
+            <Animated.View style={[styles.copyBlock, copyStyle]}>
+              {milestone.badge ? (
+                <Text style={[styles.badge, { color: colors.textPrimary }]}>{milestone.badge}</Text>
+              ) : null}
+              <Text style={[styles.headline, { color: colors.textPrimary }]}>{milestone.headline}</Text>
+              <Text style={[styles.message, { color: colors.textSecondary }]}>{milestone.message}</Text>
+            </Animated.View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue from streak celebration"
+              onPress={handleContinue}
+              style={({ pressed }) => [
+                styles.continueButton,
+                { backgroundColor: colors.accent },
+                isCompact && styles.continueButtonCompact,
+                pressed && styles.continueButtonPressed,
+              ]}
+            >
+              <Text style={[styles.continueText, { color: colors.accentForegroundOnFill }]}>CONTINUE</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingTop: scale(28),
+    paddingBottom: Spacing.lg,
+  },
+  contentCompact: {
+    paddingTop: scale(8),
+  },
+  flameStage: {
+    width: scale(210),
+    height: scale(190),
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  flameStageCompact: {
+    height: scale(145),
+  },
+  streakValue: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(45),
+    letterSpacing: 1.4,
+    marginTop: scale(8),
+    marginBottom: scale(14),
+  },
+  percentileCard: {
+    width: '100%',
+    maxWidth: scale(330),
+    height: scale(150),
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: scale(14),
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.08,
+    shadowRadius: scale(12),
+    elevation: 2,
+  },
+  percentileValueWrap: {
+    alignItems: 'center',
+  },
+  percentileNumber: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(35),
+    lineHeight: moderateScale(37),
+  },
+  ordinal: {
+    fontSize: moderateScale(15),
+  },
+  percentileLabel: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(11),
+    letterSpacing: 1.1,
+  },
+  arcWrap: {
+    position: 'absolute',
+    bottom: scale(9),
+    width: scale(250),
+    height: scale(58),
+  },
+  copyBlock: {
+    width: '100%',
+    maxWidth: scale(340),
+    alignItems: 'center',
+    marginTop: scale(16),
+  },
+  badge: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(18),
+    letterSpacing: 1.1,
+    marginBottom: scale(3),
+  },
+  headline: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(23),
+    letterSpacing: 0.8,
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: moderateScale(15),
+    fontWeight: '600',
+    lineHeight: moderateScale(22),
+    textAlign: 'center',
+    marginTop: scale(8),
+  },
+  continueButton: {
+    width: '100%',
+    maxWidth: scale(350),
+    minHeight: scale(56),
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 'auto',
+    marginBottom: scale(40),
+  },
+  continueButtonCompact: {
+    marginBottom: scale(10),
+  },
+  continueButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.985 }],
+  },
+  continueText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(15),
+    letterSpacing: 1.2,
+  },
+});

@@ -1,7 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import {
+  clearTrainingInsightsRefreshState,
   fetchTrainingInsights,
+  getTrainingInsightsRefreshState,
   refreshTrainingInsights,
 } from '@/src/services/insightsService';
 import { getScopedItem } from '@/src/utils/scopedStorage';
@@ -19,6 +21,8 @@ jest.mock('@/src/services/insightsService', () => ({
   refreshTrainingInsights: jest.fn(),
   dismissInsight: jest.fn(),
   snoozeInsightType: jest.fn(),
+  getTrainingInsightsRefreshState: jest.fn(async () => null),
+  clearTrainingInsightsRefreshState: jest.fn(async () => undefined),
   subscribeToTrainingInsightsRefresh: jest.fn(() => () => undefined),
 }));
 
@@ -37,11 +41,18 @@ describe('useTrainingInsights', () => {
   const mockGetScopedItem = getScopedItem as jest.MockedFunction<typeof getScopedItem>;
   const mockFetch = fetchTrainingInsights as jest.MockedFunction<typeof fetchTrainingInsights>;
   const mockRefresh = refreshTrainingInsights as jest.MockedFunction<typeof refreshTrainingInsights>;
+  const mockGetRefreshState = getTrainingInsightsRefreshState as jest.MockedFunction<
+    typeof getTrainingInsightsRefreshState
+  >;
+  const mockClearRefreshState = clearTrainingInsightsRefreshState as jest.MockedFunction<
+    typeof clearTrainingInsightsRefreshState
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetch.mockResolvedValue([]);
     mockRefresh.mockResolvedValue({ success: true });
+    mockGetRefreshState.mockResolvedValue(null);
   });
 
   it('shows a recent cache without regenerating or fetching again', async () => {
@@ -68,6 +79,21 @@ describe('useTrainingInsights', () => {
     expect(result.current.insights).toEqual([cachedInsight]);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('bypasses the cache throttle when a post-workout recap is ready', async () => {
+    mockGetScopedItem.mockResolvedValue(JSON.stringify({
+      items: [cachedInsight],
+      cachedAt: new Date().toISOString(),
+    }));
+    mockGetRefreshState.mockResolvedValueOnce('ready').mockResolvedValueOnce('ready');
+    mockFetch.mockResolvedValue([cachedInsight]);
+
+    const { result } = renderHook(() => useTrainingInsights());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockClearRefreshState).toHaveBeenCalledTimes(1);
   });
 
   it('regenerates only for an explicit refresh while retaining current data', async () => {

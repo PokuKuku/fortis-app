@@ -4,6 +4,7 @@ const mockNetInfoFetch = jest.fn();
 const mockGetAllExercises = jest.fn();
 const mockGetCustomExercises = jest.fn();
 const mockRefreshTrainingInsights = jest.fn();
+const mockSetTrainingInsightsRefreshState = jest.fn();
 
 jest.mock('@/src/lib/supabase', () => ({
   supabase: {
@@ -30,6 +31,8 @@ jest.mock('@/src/services/exerciseService', () => ({
 
 jest.mock('@/src/services/insightsService', () => ({
   refreshTrainingInsights: (...args: unknown[]) => mockRefreshTrainingInsights(...args),
+  setTrainingInsightsRefreshState: (...args: unknown[]) =>
+    mockSetTrainingInsightsRefreshState(...args),
 }));
 
 import { fetchWorkoutHistory, syncWorkoutSession } from '@/src/services/workoutHistoryService';
@@ -40,7 +43,8 @@ describe('workoutHistoryService custom exercise sync', () => {
     jest.clearAllMocks();
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
     mockNetInfoFetch.mockResolvedValue({ isConnected: true });
-    mockRefreshTrainingInsights.mockResolvedValue(undefined);
+    mockRefreshTrainingInsights.mockResolvedValue({ success: true });
+    mockSetTrainingInsightsRefreshState.mockResolvedValue(undefined);
   });
 
   it('syncs custom workout sets using the server UUID behind the local custom id', async () => {
@@ -128,6 +132,8 @@ describe('workoutHistoryService custom exercise sync', () => {
     const result = await syncWorkoutSession(session);
 
     expect(result.success).toBe(true);
+    expect(mockSetTrainingInsightsRefreshState).toHaveBeenCalledWith('syncing');
+    expect(mockRefreshTrainingInsights).toHaveBeenCalledTimes(1);
     expect(exercisesTable.upsert).toHaveBeenCalled();
     expect(workoutSetsTable.insert).toHaveBeenCalledTimes(1);
     expect(capturedSets).toHaveLength(1);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { addDays, format } from 'date-fns';
-import { CheckIcon, FireIcon } from 'react-native-heroicons/outline';
+import { FireIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -31,6 +31,13 @@ import { ACCENT_COLORS } from '@/src/utils/accentColors';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { AnimatedStreakCounter } from '@/src/components/program/AnimatedStreakCounter';
+import { AnimatedDayCompletion } from '@/src/components/program/AnimatedDayCompletion';
+import { PENDING_HOME_WORKOUT_CELEBRATION_KEY } from '@/src/constants/storageKeys';
+import { getScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
+import { StreakPercentileCelebrationModal } from '@/src/components/retention/StreakPercentileCelebrationModal';
+import Reanimated, { ZoomIn } from 'react-native-reanimated';
+import { useDevHomeTestControlsVisibility } from '@/src/hooks/useDevHomeTestControlsVisibility';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = scale(24);
@@ -39,16 +46,36 @@ const DAY_SIZE = scale(38);
 const DAY_GAP = scale(8);
 const STREAK_PAUSES_PER_MONTH = 3;
 
+const buildDayPopIn = (index: number) =>
+  ZoomIn
+    .delay(index * 55)
+    .springify()
+    .damping(17)
+    .stiffness(190)
+    .mass(0.55);
+
 type WeeklyProgressCarouselProps = {
   scheduleDays: number[];
   scheduleHistory?: WorkoutScheduleHistoryEntry[];
   sessions: WorkoutSession[];
+  isFocused?: boolean;
+  startupRevealComplete?: boolean;
   onEditSchedule: () => void;
 };
 
 type WeekPage = {
   key: string;
   anchorDate: Date;
+};
+
+type DevCompletionPreview = {
+  dateKey: string;
+  isComplete: boolean;
+};
+
+type PendingHomeCelebration = {
+  sessionLocalId: string;
+  completedAt: string;
 };
 
 function formatSetSummary(reps: number | null, weight: number | null, unit?: string | null): string {
@@ -85,9 +112,12 @@ export function WeeklyProgressCarousel({
   scheduleDays,
   scheduleHistory = [],
   sessions,
+  isFocused = true,
+  startupRevealComplete = true,
   onEditSchedule,
 }: WeeklyProgressCarouselProps) {
   const { colors, isDark } = useTheme();
+  const { visible: showDevTestControls } = useDevHomeTestControlsVisibility();
   const { isPro, runProFeature } = useProFeatureGate();
   const isStreakPaused = useWorkoutStore(s => s.isStreakPaused);
   const streakPausedAt = useWorkoutStore(s => s.streakPausedAt);
@@ -99,9 +129,22 @@ export function WeeklyProgressCarousel({
   const modalStyles = useModalStyles();
   const listRef = useRef<FlatList<WeekPage>>(null);
   const editScheduleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionPreviewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const homeCelebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handledCelebrationRef = useRef<string | null>(null);
   const [anchorDate, setAnchorDate] = useState(() => getSundayWeekStart(new Date()));
   const [selectedDay, setSelectedDay] = useState<WeekProgressDay | null>(null);
   const [isStreakModalVisible, setIsStreakModalVisible] = useState(false);
+  const [devStreakBoost, setDevStreakBoost] = useState(0);
+  const [devCompletionPreview, setDevCompletionPreview] = useState<DevCompletionPreview | null>(null);
+  const [homeCompletionPreview, setHomeCompletionPreview] = useState<DevCompletionPreview | null>(null);
+  const [homeStreakPreview, setHomeStreakPreview] = useState<number | null>(null);
+  const [pendingHomeCelebration, setPendingHomeCelebration] = useState<PendingHomeCelebration | null>(null);
+  const [milestoneStreak, setMilestoneStreak] = useState<number | null>(null);
+  const [milestoneDateKey, setMilestoneDateKey] = useState<string | null>(null);
+  const [isDevMilestonePreview, setIsDevMilestonePreview] = useState(false);
+  const [nextDevMilestoneStreak, setNextDevMilestoneStreak] = useState(1);
+  const [homeCelebrationToken, setHomeCelebrationToken] = useState<number | null>(null);
   const headerDateLabel = useMemo(() => format(new Date(), 'MMM d'), []);
   const detailModalWidth = Math.max(1, Math.min(360, windowWidth - Spacing.lg * 2));
   const streakModalWidth = Math.max(1, Math.min(380, windowWidth - Spacing.lg * 2));
@@ -111,7 +154,45 @@ export function WeeklyProgressCarousel({
     if (editScheduleTimeoutRef.current) {
       clearTimeout(editScheduleTimeoutRef.current);
     }
+    if (completionPreviewTimeoutRef.current) {
+      clearTimeout(completionPreviewTimeoutRef.current);
+    }
+    if (homeCelebrationTimeoutRef.current) {
+      clearTimeout(homeCelebrationTimeoutRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    let isMounted = true;
+
+    const loadPendingCelebration = async () => {
+      try {
+        const raw = await getScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY);
+        if (!isMounted || !raw) return;
+        const parsed = JSON.parse(raw) as Partial<PendingHomeCelebration>;
+        if (
+          typeof parsed.sessionLocalId !== 'string'
+          || typeof parsed.completedAt !== 'string'
+          || Number.isNaN(new Date(parsed.completedAt).getTime())
+        ) {
+          await removeScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY);
+          return;
+        }
+        setPendingHomeCelebration({
+          sessionLocalId: parsed.sessionLocalId,
+          completedAt: parsed.completedAt,
+        });
+      } catch (error) {
+        console.warn('Failed to load pending home workout celebration:', error);
+      }
+    };
+
+    void loadPendingCelebration();
+    return () => {
+      isMounted = false;
+    };
+  }, [isFocused]);
 
   const pages = useMemo<WeekPage[]>(
     () => [
@@ -129,6 +210,8 @@ export function WeeklyProgressCarousel({
   const displayedStreak = isStreakPaused && pausedStreakCount !== null
     ? pausedStreakCount
     : streak;
+  const animatedDisplayedStreak = displayedStreak + devStreakBoost;
+  const celebrationDisplayedStreak = homeStreakPreview ?? animatedDisplayedStreak;
   const nextScheduledWorkoutDate = useMemo(
     () => getNextScheduledWorkoutDate({ scheduleDays, scheduleHistory }),
     [scheduleDays, scheduleHistory]
@@ -141,6 +224,87 @@ export function WeeklyProgressCarousel({
     : 'today';
   const streakPausesRemaining = Math.max(0, STREAK_PAUSES_PER_MONTH - streakPausesUsedThisMonth);
   const canPauseStreak = isStreakPaused || streakPausesRemaining > 0;
+
+  const playHomeCelebration = useCallback((
+    completedDateKey: string,
+    { incrementDevStreak = false, consumePending = true } = {}
+  ) => {
+    if (homeCelebrationTimeoutRef.current) {
+      clearTimeout(homeCelebrationTimeoutRef.current);
+    }
+    setHomeCompletionPreview({ dateKey: completedDateKey, isComplete: false });
+    setHomeStreakPreview(
+      incrementDevStreak
+        ? animatedDisplayedStreak
+        : Math.max(0, animatedDisplayedStreak - 1)
+    );
+
+    homeCelebrationTimeoutRef.current = setTimeout(() => {
+      homeCelebrationTimeoutRef.current = null;
+      setHomeCompletionPreview({ dateKey: completedDateKey, isComplete: true });
+      setHomeCelebrationToken((current) => (current ?? 0) + 1);
+      if (incrementDevStreak) {
+        setDevStreakBoost((current) => current + 1);
+      }
+      setHomeStreakPreview(null);
+      if (consumePending) {
+        setPendingHomeCelebration(null);
+        void removeScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY);
+      }
+    }, 180);
+  }, [animatedDisplayedStreak]);
+
+  useEffect(() => {
+    if (
+      !isFocused
+      || !pendingHomeCelebration
+      || handledCelebrationRef.current === pendingHomeCelebration.sessionLocalId
+    ) {
+      return;
+    }
+
+    const completedSession = sessions.find(
+      (session) => session.localId === pendingHomeCelebration.sessionLocalId
+    );
+    if (!completedSession) return;
+
+    const completedAt = new Date(pendingHomeCelebration.completedAt);
+    const activeSchedule = new Set(
+      getScheduleDaysForDate({ date: completedAt, scheduleDays, scheduleHistory })
+    );
+    const isScheduledCompletion = activeSchedule.size === 0 || activeSchedule.has(completedAt.getDay());
+
+    handledCelebrationRef.current = pendingHomeCelebration.sessionLocalId;
+    if (!isScheduledCompletion) {
+      void removeScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY);
+      setPendingHomeCelebration(null);
+      return;
+    }
+
+    const completedDateKey = format(completedAt, 'yyyy-MM-dd');
+    setAnchorDate(getSundayWeekStart(completedAt));
+    setMilestoneDateKey(completedDateKey);
+    if (streak >= 1 && streak <= 10) {
+      // Reset the hidden home UI while the milestone is covering it so both
+      // transitions are guaranteed to begin only after Continue is pressed.
+      setHomeCompletionPreview({ dateKey: completedDateKey, isComplete: false });
+      setHomeStreakPreview(Math.max(0, animatedDisplayedStreak - 1));
+      setIsDevMilestonePreview(false);
+      setMilestoneStreak(streak);
+      return;
+    }
+
+    playHomeCelebration(completedDateKey);
+  }, [
+    animatedDisplayedStreak,
+    isFocused,
+    pendingHomeCelebration,
+    playHomeCelebration,
+    scheduleDays,
+    scheduleHistory,
+    sessions,
+    streak,
+  ]);
 
   const handleMomentumEnd = (offsetX: number) => {
     const pageIndex = Math.round(offsetX / CAROUSEL_WIDTH);
@@ -195,6 +359,62 @@ export function WeeklyProgressCarousel({
     void pauseStreak(streak);
   };
 
+  const handleDevCompletionTest = () => {
+    const visibleWeekDays = buildWeekProgressDays({
+      anchorDate,
+      scheduleDays,
+      scheduleHistory,
+      sessions,
+    });
+    const targetDay = visibleWeekDays.find((day) => day.isToday)
+      ?? visibleWeekDays.find((day) => day.isScheduled)
+      ?? visibleWeekDays[0];
+    if (!targetDay) return;
+
+    if (completionPreviewTimeoutRef.current) {
+      clearTimeout(completionPreviewTimeoutRef.current);
+    }
+    setDevCompletionPreview({ dateKey: targetDay.dateKey, isComplete: false });
+    completionPreviewTimeoutRef.current = setTimeout(() => {
+      completionPreviewTimeoutRef.current = null;
+      setDevCompletionPreview({ dateKey: targetDay.dateKey, isComplete: true });
+    }, 100);
+  };
+
+  const handleDevMilestoneTest = () => {
+    const visibleWeekDays = buildWeekProgressDays({
+      anchorDate,
+      scheduleDays,
+      scheduleHistory,
+      sessions,
+    });
+    const targetDay = visibleWeekDays.find((day) => day.isToday)
+      ?? visibleWeekDays.find((day) => day.isScheduled)
+      ?? visibleWeekDays[0];
+    if (!targetDay) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    setMilestoneDateKey(targetDay.dateKey);
+    setHomeCompletionPreview({ dateKey: targetDay.dateKey, isComplete: false });
+    setHomeStreakPreview(animatedDisplayedStreak);
+    setIsDevMilestonePreview(true);
+    setMilestoneStreak(nextDevMilestoneStreak);
+    setNextDevMilestoneStreak((current) => current >= 10 ? 1 : current + 1);
+  };
+
+  const handleMilestoneContinue = () => {
+    const completedDateKey = milestoneDateKey;
+    const wasDevPreview = isDevMilestonePreview;
+    setMilestoneStreak(null);
+    setIsDevMilestonePreview(false);
+    if (!completedDateKey) return;
+
+    playHomeCelebration(completedDateKey, {
+      incrementDevStreak: wasDevPreview,
+      consumePending: !wasDevPreview,
+    });
+  };
+
   const renderWeek = ({ item }: { item: WeekPage }) => {
     const weekDays = buildWeekProgressDays({
       anchorDate: item.anchorDate,
@@ -206,58 +426,66 @@ export function WeeklyProgressCarousel({
     return (
       <View style={[styles.weekPage, { width: CAROUSEL_WIDTH }]}>
         <View style={styles.daysRow}>
-          {weekDays.map((day) => {
-            const isComplete = day.completedSessions.length > 0;
+          {weekDays.map((day, index) => {
+            const completionPreview = homeCompletionPreview ?? devCompletionPreview;
+            const isComplete = completionPreview?.dateKey === day.dateKey
+              ? completionPreview.isComplete
+              : day.completedSessions.length > 0;
             const isScheduledPending = day.isScheduled && !isComplete;
 
+            if (!startupRevealComplete) {
+              return <View key={day.dateKey} style={styles.dayAnimationSlot} />;
+            }
+
             return (
-              <Pressable
+              <Reanimated.View
                 key={day.dateKey}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-                  setSelectedDay(day);
-                }}
-                style={styles.dayColumn}
+                entering={buildDayPopIn(index)}
+                style={styles.dayAnimationSlot}
               >
-                <Text
-                  style={[
-                    styles.dayLabel,
-                    { color: day.isToday ? colors.textPrimary : colors.textSecondary },
-                  ]}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+                    setSelectedDay(day);
+                  }}
+                  style={styles.dayColumn}
                 >
-                  {day.dayLabel}
-                </Text>
-                <View
-                  style={[
-                    styles.dayCircle,
-                    {
-                      backgroundColor: isComplete
-                        ? colors.accent
-                        : isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                      borderColor: isScheduledPending
-                        ? day.isMissed ? colors.error : colors.accent
-                        : isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)',
-                      borderStyle: isScheduledPending ? 'dashed' : 'solid',
-                    },
-                    day.isToday && !isComplete && { borderColor: colors.textPrimary },
-                  ]}
-                >
-                  {isComplete ? (
-                    <CheckIcon color={colors.accentForegroundOnFill} size={18} strokeWidth={3} />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.dateLabel,
-                        {
-                          color: day.isMissed ? colors.error : day.isScheduled ? colors.accent : colors.textTertiary,
-                        },
-                      ]}
-                    >
-                      {day.dateLabel}
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
+                  <Text
+                    style={[
+                      styles.dayLabel,
+                      { color: day.isToday ? colors.textPrimary : colors.textSecondary },
+                    ]}
+                  >
+                    {day.dayLabel}
+                  </Text>
+                  <View
+                    style={[
+                      styles.dayCircle,
+                      {
+                        backgroundColor: isComplete
+                          ? colors.accent
+                          : colors.glassBackground,
+                        borderColor: isScheduledPending
+                          ? day.isMissed ? colors.error : colors.accent
+                          : isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)',
+                        borderStyle: isScheduledPending ? 'dashed' : 'solid',
+                      },
+                      day.isToday && !isComplete && { borderColor: colors.textPrimary },
+                    ]}
+                  >
+                    <AnimatedDayCompletion
+                      isComplete={isComplete}
+                      dateLabel={day.dateLabel}
+                      dateColor={day.isMissed ? colors.error : day.isScheduled ? colors.accent : colors.textTertiary}
+                      celebrationKey={
+                        homeCompletionPreview?.dateKey === day.dateKey
+                          ? homeCelebrationToken
+                          : null
+                      }
+                    />
+                  </View>
+                </Pressable>
+              </Reanimated.View>
             );
           })}
         </View>
@@ -270,42 +498,95 @@ export function WeeklyProgressCarousel({
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{headerDateLabel}</Text>
-          {isPro ? (
-            <TourAnchor id={TOUR_ANCHOR_IDS.streakCounter}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={isStreakPaused ? 'Workout streak paused' : 'Open workout streak options'}
-                onPress={handleStreakPress}
-                style={({ pressed }) => [
-                  styles.streakInline,
-                  pressed && styles.streakInlinePressed,
-                ]}
-              >
-                <Text style={[styles.streakText, { color: colors.textPrimary }]}>
-                  {displayedStreak}
-                </Text>
-                <FireIcon
-                  color={isStreakPaused ? colors.textTertiary : '#FF4D4D'}
-                  size={20}
-                  strokeWidth={2.4}
-                />
-              </Pressable>
-            </TourAnchor>
-          ) : (
-            <TourAnchor id={TOUR_ANCHOR_IDS.streakCounter}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Go Pro to view workout streak"
-                onPress={handleWorkoutStreakUpgradePress}
-                style={({ pressed }) => [
-                  styles.streakUpgradeButton,
-                  pressed && styles.streakUpgradeButtonPressed,
-                ]}
-              >
-                <Text style={styles.streakUpgradeText}>Go Pro</Text>
-              </Pressable>
-            </TourAnchor>
-          )}
+          <View style={styles.headerActions}>
+            {__DEV__ && showDevTestControls ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Test streak percentile celebration"
+                  onPress={handleDevMilestoneTest}
+                  style={({ pressed }) => [
+                    styles.streakTestButton,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)',
+                    },
+                    pressed && styles.streakInlinePressed,
+                  ]}
+                >
+                  <Text style={[styles.streakTestText, { color: colors.textSecondary }]}>🔥 Test</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Test completed day animation"
+                  onPress={handleDevCompletionTest}
+                  style={({ pressed }) => [
+                    styles.streakTestButton,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)',
+                    },
+                    pressed && styles.streakInlinePressed,
+                  ]}
+                >
+                  <Text style={[styles.streakTestText, { color: colors.textSecondary }]}>✓ Test</Text>
+                </Pressable>
+              </>
+            ) : null}
+            {isPro ? (
+              <View style={styles.streakControls}>
+                {__DEV__ && showDevTestControls ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Test streak increase"
+                    onPress={() => setDevStreakBoost((current) => current + 1)}
+                    style={({ pressed }) => [
+                      styles.streakTestButton,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                        borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)',
+                      },
+                      pressed && styles.streakInlinePressed,
+                    ]}
+                  >
+                    <Text style={[styles.streakTestText, { color: colors.textSecondary }]}>+1 Test</Text>
+                  </Pressable>
+                ) : null}
+                <TourAnchor id={TOUR_ANCHOR_IDS.streakCounter}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={isStreakPaused ? 'Workout streak paused' : 'Open workout streak options'}
+                    onPress={handleStreakPress}
+                    style={({ pressed }) => [
+                      styles.streakInline,
+                      pressed && styles.streakInlinePressed,
+                    ]}
+                  >
+                    <AnimatedStreakCounter
+                      value={celebrationDisplayedStreak}
+                      isPaused={isStreakPaused}
+                      textStyle={styles.streakText}
+                      celebrationKey={homeCelebrationToken}
+                    />
+                  </Pressable>
+                </TourAnchor>
+              </View>
+            ) : (
+              <TourAnchor id={TOUR_ANCHOR_IDS.streakCounter}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Go Pro to view workout streak"
+                  onPress={handleWorkoutStreakUpgradePress}
+                  style={({ pressed }) => [
+                    styles.streakUpgradeButton,
+                    pressed && styles.streakUpgradeButtonPressed,
+                  ]}
+                >
+                  <Text style={styles.streakUpgradeText}>Go Pro</Text>
+                </Pressable>
+              </TourAnchor>
+            )}
+          </View>
         </View>
         <FlatList
           ref={listRef}
@@ -547,6 +828,12 @@ export function WeeklyProgressCarousel({
           </Pressable>
         </View>
       </BaseModal>
+
+      <StreakPercentileCelebrationModal
+        visible={milestoneStreak !== null}
+        streak={milestoneStreak ?? 1}
+        onContinue={handleMilestoneContinue}
+      />
     </>
   );
 }
@@ -569,6 +856,33 @@ const styles = StyleSheet.create({
   },
   weekPage: {
     paddingVertical: scale(2),
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: scale(6),
+    flexShrink: 1,
+    flexWrap: 'wrap',
+  },
+  streakControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(6),
+  },
+  streakTestButton: {
+    minHeight: scale(26),
+    paddingHorizontal: scale(8),
+    borderRadius: scale(13),
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  streakTestText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(9),
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   streakInline: {
     flexDirection: 'row',
@@ -617,6 +931,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: DAY_GAP,
   },
+  dayAnimationSlot: {
+    flex: 1,
+  },
   dayColumn: {
     alignItems: 'center',
     gap: scale(6),
@@ -634,10 +951,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  dateLabel: {
-    fontSize: moderateScale(12),
-    fontWeight: '800',
   },
   detailStatus: {
     textAlign: 'center',
