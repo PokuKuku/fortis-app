@@ -210,7 +210,7 @@ describe('WeeklyProgressCarousel streak paywall', () => {
 
     await waitFor(() => {
       expect(view.getByText("YOU'RE ON FIRE!")).toBeTruthy();
-      expect(view.getByText('1 DAY')).toBeTruthy();
+      expect(view.getByLabelText('1 day streak')).toBeTruthy();
     });
     expect(view.queryAllByTestId('completed-day-check-glow')).toHaveLength(0);
     expect(view.queryByTestId('streak-number-outgoing')).toBeNull();
@@ -235,7 +235,7 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     );
 
     fireEvent.press(view.getByLabelText('Test streak percentile celebration'));
-    expect(view.getByText('1 DAY')).toBeTruthy();
+    expect(view.getByLabelText('1 day streak')).toBeTruthy();
 
     fireEvent.press(view.getByLabelText('Continue from streak celebration'));
     await waitFor(() => {
@@ -243,7 +243,7 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     });
 
     fireEvent.press(view.getByLabelText('Test streak percentile celebration'));
-    expect(view.getByText('2 DAYS')).toBeTruthy();
+    expect(view.getByLabelText('2 day streak')).toBeTruthy();
 
     fireEvent.press(view.getByLabelText('Continue from streak celebration'));
     const closingModal = view.UNSAFE_getByType(StreakPercentileCelebrationModal);

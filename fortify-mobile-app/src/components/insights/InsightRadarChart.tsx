@@ -10,6 +10,7 @@ import { moderateScale, scale } from '@/src/utils/responsive';
 type InsightRadarChartProps = {
   data: InsightBarPoint[];
   compact?: boolean;
+  highContrast?: boolean;
 };
 
 const VIEWBOX_WIDTH = 320;
@@ -44,7 +45,11 @@ const formatRadarValue = (value: number): string => {
   return `${rounded}`;
 };
 
-export function InsightRadarChart({ data, compact = false }: InsightRadarChartProps) {
+export function InsightRadarChart({
+  data,
+  compact = false,
+  highContrast = false,
+}: InsightRadarChartProps) {
   const { colors, isDark } = useTheme();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const filtered = data.filter((item) => item.value > 0);
@@ -55,6 +60,17 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
   const labelRadius = outerRadius + (compact ? 18 : 24);
   const viewBoxHeight = compact ? 210 : VIEWBOX_HEIGHT;
   const svgHeight = compact ? scale(190) : scale(230);
+  const gridStroke = isDark
+    ? highContrast
+      ? 'rgba(255,255,255,0.18)'
+      : 'rgba(255,255,255,0.14)'
+    : 'rgba(0,0,0,0.12)';
+  const axisStroke = isDark
+    ? highContrast
+      ? 'rgba(255,255,255,0.14)'
+      : 'rgba(255,255,255,0.12)'
+    : 'rgba(0,0,0,0.1)';
+  const labelColor = isDark && highContrast ? 'rgba(255,255,255,0.82)' : colors.textSecondary;
 
   if (axisCount < 3 || maxValue <= 0 || filtered.length === 0) {
     return (
@@ -121,7 +137,7 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
             key={`grid-${index}`}
             points={points}
             fill="none"
-            stroke={isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)'}
+            stroke={gridStroke}
             strokeWidth={1}
           />
         ))}
@@ -135,7 +151,7 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
               y1={centerY}
               x2={edge.x}
               y2={edge.y}
-              stroke={isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}
+              stroke={axisStroke}
               strokeWidth={1}
             />
           );
@@ -145,7 +161,7 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
           points={radarPolygon}
           fill={colors.accentOverlay}
           stroke={colors.accent}
-          strokeWidth={2}
+          strokeWidth={highContrast ? 2.25 : 2}
         />
 
         {radarPoints.map((point, index) => {
@@ -155,7 +171,7 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
               <SvgText
                 x={labelPoint.x}
                 y={labelPoint.y}
-                fill={colors.textSecondary}
+                fill={labelColor}
                 fontSize={11}
                 fontWeight="600"
                 textAnchor={getTextAnchor(Math.cos(point.angle))}
@@ -201,7 +217,7 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
                   strokeWidth={2}
                 />
               )}
-              <Circle cx={point.x} cy={point.y} r={3.5} fill={colors.accent} />
+              <Circle cx={point.x} cy={point.y} r={highContrast ? 3.75 : 3.5} fill={colors.accent} />
             </React.Fragment>
           );
         })}

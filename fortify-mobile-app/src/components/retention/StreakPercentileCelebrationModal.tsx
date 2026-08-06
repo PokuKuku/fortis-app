@@ -85,6 +85,10 @@ type StreakPercentileCelebrationModalProps = {
   onContinue: () => void;
 };
 
+export function shouldUseCompactStreakLayout(width: number, height: number): boolean {
+  return height / Math.max(width, 1) < 1.95;
+}
+
 const FIRE_FRAMES = [
   require('../../../assets/animations/streak-fire/frames/frame-01.png'),
   require('../../../assets/animations/streak-fire/frames/frame-02.png'),
@@ -103,6 +107,7 @@ const FIRE_FRAMES = [
   require('../../../assets/animations/streak-fire/frames/frame-15.png'),
   require('../../../assets/animations/streak-fire/frames/frame-16.png'),
 ];
+const DAY_DIAL_ANIMATION_DURATION = 1250;
 
 function LivingFlame({
   size,
@@ -189,20 +194,145 @@ function ConsistencyArc({
   );
 }
 
+function AnimatedStreakDayCount({
+  value,
+  visible,
+  reduceMotion,
+  compact,
+  textColor,
+  glowColor,
+}: {
+  value: number;
+  visible: boolean;
+  reduceMotion: boolean;
+  compact: boolean;
+  textColor: string;
+  glowColor: string;
+}) {
+  const progress = useRef(new Animated.Value(1)).current;
+  const previousValue = Math.max(0, value - 1);
+
+  useEffect(() => {
+    progress.stopAnimation();
+
+    if (!visible || reduceMotion) {
+      progress.setValue(1);
+      return;
+    }
+
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: DAY_DIAL_ANIMATION_DURATION,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+
+    return () => animation.stop();
+  }, [progress, reduceMotion, value, visible]);
+
+  const outgoingStyle = {
+    opacity: progress.interpolate({
+      inputRange: [0, 0.58, 1],
+      outputRange: [1, 0.18, 0],
+    }),
+    transform: [
+      {
+        translateY: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -scale(13)],
+        }),
+      },
+      {
+        scale: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.9],
+        }),
+      },
+    ],
+  };
+  const incomingStyle = {
+    opacity: progress.interpolate({
+      inputRange: [0, 0.32, 1],
+      outputRange: [0, 0.35, 1],
+    }),
+    transform: [
+      {
+        translateY: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [scale(13), 0],
+        }),
+      },
+      {
+        scale: progress.interpolate({
+          inputRange: [0, 0.68, 0.84, 1],
+          outputRange: [0.9, 1.13, 1.08, 1],
+        }),
+      },
+    ],
+  };
+  const textStyles = [
+    styles.streakValue,
+    compact && styles.streakValueCompact,
+    { color: textColor },
+  ];
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${value} day streak`}
+      style={[
+        styles.streakValueContainer,
+        compact && styles.streakValueContainerCompact,
+      ]}
+    >
+      <View style={styles.streakValueRow}>
+        <View style={styles.streakNumberViewport}>
+          <Animated.Text
+            accessible={false}
+            style={[textStyles, reduceMotion ? undefined : incomingStyle]}
+            testID="streak-day-current"
+          >
+            {value}
+          </Animated.Text>
+          {!reduceMotion ? (
+            <Animated.Text
+              accessible={false}
+              style={[
+                textStyles,
+                styles.streakNumberOutgoing,
+                { textShadowColor: glowColor },
+                outgoingStyle,
+              ]}
+              testID="streak-day-outgoing"
+            >
+              {previousValue}
+            </Animated.Text>
+          ) : null}
+        </View>
+        <Text accessible={false} style={textStyles}>
+          {' '}{value === 1 ? 'DAY' : 'DAYS'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export function StreakPercentileCelebrationModal({
   visible,
   streak,
   onContinue,
 }: StreakPercentileCelebrationModalProps) {
   const { colors, isDark } = useTheme();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const milestone = STREAK_PERCENTILE_MILESTONES[streak] ?? STREAK_PERCENTILE_MILESTONES[10];
   const topLifterPercent = 100 - milestone.percentile;
   const fireEntrance = useRef(new Animated.Value(0)).current;
   const barProgress = useRef(new Animated.Value(0)).current;
   const [displayedTopPercent, setDisplayedTopPercent] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
-  const isCompact = height < 840;
+  const isCompact = shouldUseCompactStreakLayout(width, height);
   const flameSize = scale(isCompact ? 154 : 186);
 
   useEffect(() => {
@@ -299,15 +429,14 @@ export function StreakPercentileCelebrationModal({
                 </Animated.View>
               </View>
 
-              <Text
-                style={[
-                  styles.streakValue,
-                  isCompact && styles.streakValueCompact,
-                  { color: colors.textPrimary },
-                ]}
-              >
-                {streak} {streak === 1 ? 'DAY' : 'DAYS'}
-              </Text>
+              <AnimatedStreakDayCount
+                value={streak}
+                visible={visible}
+                reduceMotion={reduceMotion}
+                compact={isCompact}
+                textColor={colors.textPrimary}
+                glowColor={colors.accent}
+              />
 
               <View style={[styles.percentileMeter, isCompact && styles.percentileMeterCompact]}>
                 <ConsistencyArc
@@ -433,17 +562,40 @@ const styles = StyleSheet.create({
   flameStageCompact: {
     height: scale(145),
   },
+  streakValueContainer: {
+    width: '100%',
+    height: moderateScale(54),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: scale(8),
+    marginBottom: scale(14),
+  },
+  streakValueContainerCompact: {
+    height: moderateScale(45),
+    marginTop: scale(5),
+    marginBottom: scale(9),
+  },
+  streakValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  streakNumberViewport: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
   streakValue: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(45),
     letterSpacing: 1.4,
-    marginTop: scale(8),
-    marginBottom: scale(14),
   },
   streakValueCompact: {
     fontSize: moderateScale(38),
-    marginTop: scale(5),
-    marginBottom: scale(9),
+  },
+  streakNumberOutgoing: {
+    position: 'absolute',
+    right: 0,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: scale(6),
   },
   percentileMeter: {
     width: '100%',

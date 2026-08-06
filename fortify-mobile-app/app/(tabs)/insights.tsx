@@ -62,7 +62,7 @@ const SUMMARY_TEXT_SIZE = moderateScale(15);
 const SUMMARY_LINE_HEIGHT = moderateScale(22);
 const ACTION_BUTTON_HEIGHT = scale(32);
 const ACTION_TEXT_SIZE = moderateScale(13);
-const LIST_PADDING_BOTTOM = scale(120);
+const LIST_PADDING_BOTTOM = scale(184);
 const EMPTY_PADDING_Y = scale(Spacing['3xl']);
 const PULL_TO_REFRESH_THRESHOLD = scale(72);
 
@@ -346,18 +346,21 @@ function InsightCard({
     ? (activeTab === 'volume' ? colors.successOverlay : colors.accentOverlay)
     : undefined;
   const sparklineFillOpacity = sparklineVariant === 'area' ? 1 : undefined;
+  const useDarkRecapTreatment = isWorkoutRecap && isDark;
+  const recapSecondaryText = readableText.secondary;
+  const recapTertiaryText = readableText.tertiary;
 
   const cardTheme = {
-    backgroundColor: colors.glassBackground,
-    borderColor: colors.glassBorder,
+    backgroundColor: useDarkRecapTreatment ? 'rgba(255, 255, 255, 0.1)' : colors.glassBackground,
+    borderColor: useDarkRecapTreatment ? 'rgba(255, 255, 255, 0.16)' : colors.glassBorder,
   };
   const summaryTheme = {
     backgroundColor: colors.glassBackground,
     borderColor: colors.glassBorder,
   };
   const sparklineTheme = {
-    backgroundColor: colors.glassBackground,
-    borderColor: colors.glassBorder,
+    backgroundColor: useDarkRecapTreatment ? 'rgba(0, 0, 0, 0.12)' : colors.glassBackground,
+    borderColor: useDarkRecapTreatment ? 'rgba(255, 255, 255, 0.13)' : colors.glassBorder,
   };
   const pillTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
@@ -368,7 +371,7 @@ function InsightCard({
     <View style={[styles.cardBase, styles.insightCard, cardTheme]}>
       <View style={styles.insightHeader}>
         <View style={styles.insightHeaderRow}>
-          <Text style={[styles.insightRange, { color: readableText.tertiary }]}>
+          <Text style={[styles.insightRange, { color: recapTertiaryText }]}>
             {rangeLabel}
           </Text>
           <TouchableOpacity
@@ -376,7 +379,7 @@ function InsightCard({
             hitSlop={8}
             style={styles.dismissButton}
           >
-            <Text style={[styles.dismissButtonText, { color: readableText.tertiary }]}>Dismiss</Text>
+            <Text style={[styles.dismissButtonText, { color: recapTertiaryText }]}>Dismiss</Text>
           </TouchableOpacity>
         </View>
         {isWeeklyVerdict && (
@@ -401,13 +404,13 @@ function InsightCard({
             <Text
               allowFontScaling={false}
               maxFontSizeMultiplier={1}
-              style={[styles.sparklineLabel, { color: readableText.tertiary }]}
+              style={[styles.sparklineLabel, { color: recapTertiaryText }]}
             >
               Muscle set profile
             </Text>
           </View>
           <View style={styles.recapRadarShell}>
-            <InsightRadarChart data={recapBreakdown} compact />
+            <InsightRadarChart data={recapBreakdown} compact highContrast={useDarkRecapTreatment} />
           </View>
         </View>
       ) : sparkline ? (
@@ -548,7 +551,7 @@ function InsightCard({
 
           return (
             <View key={item.key} style={styles.evidenceRow}>
-              <Text style={[styles.evidenceLabel, { color: readableText.secondary }]}>
+              <Text style={[styles.evidenceLabel, { color: recapSecondaryText }]}>
                 {item.label}
               </Text>
               <View style={styles.evidenceValue}>
@@ -566,25 +569,43 @@ function InsightCard({
         })}
       </View>
 
-      <View style={styles.insightActions}>
+      <View style={[styles.insightActions, isWorkoutRecap && styles.recapActions]}>
         <TouchableOpacity
           style={[
             styles.whyButton,
+            isWorkoutRecap && styles.recapPrimaryAction,
             {
-              backgroundColor: colors.accentOverlay,
+              backgroundColor: useDarkRecapTreatment
+                ? colors.accentOverlayMedium
+                : colors.accentOverlay,
               borderColor: colors.accent,
             },
           ]}
           onPress={() => onWhyPress(insight)}
           activeOpacity={0.8}
         >
-          <Text style={[styles.whyButtonText, { color: colors.accent }]}>Ask Fortify</Text>
+          <Text
+            style={[
+              styles.whyButtonText,
+              { color: colors.accent },
+            ]}
+          >
+            Ask Fortify
+          </Text>
         </TouchableOpacity>
         {isShareableInsight(insight.type) && (
           <TouchableOpacity
             style={[
               styles.shareButton,
-              { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+              isWorkoutRecap && styles.recapSecondaryAction,
+              {
+                backgroundColor: useDarkRecapTreatment
+                  ? 'rgba(255, 255, 255, 0.05)'
+                  : colors.accentOverlayMedium,
+                borderColor: useDarkRecapTreatment
+                  ? 'rgba(255, 255, 255, 0.16)'
+                  : colors.accentBorder,
+              },
             ]}
             onPress={() => onShare(insight)}
             activeOpacity={0.8}
@@ -593,11 +614,18 @@ function InsightCard({
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[styles.viewChartButton, { borderColor: colors.border }, styles.viewChartRight]}
+          style={[
+            styles.viewChartButton,
+            isWorkoutRecap && styles.recapSecondaryAction,
+            {
+              borderColor: useDarkRecapTreatment ? 'rgba(255, 255, 255, 0.16)' : colors.border,
+            },
+            !isWorkoutRecap && styles.viewChartRight,
+          ]}
           onPress={() => onOpenChart(insight)}
           activeOpacity={0.8}
         >
-          <Text style={[styles.viewChartText, { color: readableText.secondary }]}>View chart</Text>
+          <Text style={[styles.viewChartText, { color: recapSecondaryText }]}>View chart</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -1612,6 +1640,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: scale(Spacing.sm),
+  },
+  recapActions: {
+    flexWrap: 'wrap',
+  },
+  recapPrimaryAction: {
+    flexGrow: 1,
+  },
+  recapSecondaryAction: {
+    flexGrow: 1,
   },
   viewChartButton: {
     height: ACTION_BUTTON_HEIGHT,
