@@ -902,6 +902,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     const { programs } = get();
     const original = programs.find((p) => p.id === id);
     if (!original) return null;
+    if (!hasCompleteProgramTree(original)) {
+      set({ error: 'Every program workout must contain at least one exercise' });
+      return null;
+    }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -942,7 +946,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           .select()
           .single();
 
-        if (workoutError || !newWorkout) continue;
+        if (workoutError || !newWorkout) {
+          await supabase.from('workout_programs').delete().eq('id', newProgram.id);
+          set({ error: workoutError?.message || 'Failed to duplicate program workout' });
+          return null;
+        }
 
         // Duplicate exercises
         const resolvedExercises = await resolveExerciseIdsForSupabase(workout.exercises);
@@ -961,7 +969,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           const { error: exercisesError } = await supabase
             .from('program_exercises')
             .insert(exercisesToInsert);
-          if (exercisesError) continue;
+          if (exercisesError) {
+            await supabase.from('workout_programs').delete().eq('id', newProgram.id);
+            set({ error: exercisesError.message });
+            return null;
+          }
         }
 
         duplicatedWorkouts.push({
@@ -1035,6 +1047,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     const templateWorkout = template?.workouts[0];
     if (!template || !templateWorkout) {
       set({ error: 'Template not found' });
+      return false;
+    }
+    if (templateWorkout.exercises.length === 0) {
+      set({ error: 'A program workout must contain at least one exercise' });
       return false;
     }
 
@@ -1132,6 +1148,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           .insert(exercisesToInsert);
 
         if (insertError) {
+          await supabase.from('program_workouts').delete().eq('id', workout.id);
           set({ error: insertError.message });
           return false;
         }
@@ -1151,6 +1168,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Create a new workout template (saved as a single-workout program)
   // Falls back to local storage if Supabase is unavailable
   createWorkoutTemplate: async (name, exercises, options) => {
+    set({ error: null });
+    if (exercises.length === 0) {
+      set({ error: 'A workout template must contain at least one exercise' });
+      return null;
+    }
+
     // Generate unique name to avoid duplicates
     const { programs } = get();
     const templateNames = programs.filter((p) => p.isTemplate).map((p) => p.name);
@@ -1291,6 +1314,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       set({ error: 'One or more templates could not be found' });
       return null;
     }
+    if (templates.some((entry) => !hasCompleteProgramTree(entry.template as Program))) {
+      set({ error: 'Every program workout must contain at least one exercise' });
+      return null;
+    }
 
     const saveLocally = async () => {
       const localId = `local-${Date.now()}`;
@@ -1417,7 +1444,9 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             .insert(exercisesToInsert);
 
           if (exercisesError) {
-            console.warn('Failed to insert program exercises:', exercisesError);
+            await supabase.from('workout_programs').delete().eq('id', program.id);
+            set({ error: exercisesError.message });
+            return null;
           }
         }
       }
@@ -1443,6 +1472,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
     if (payload.workouts.length > MAX_WORKOUTS_PER_PROGRAM) {
       set({ error: `Programs can have at most ${MAX_WORKOUTS_PER_PROGRAM} workouts` });
+      return null;
+    }
+    if (payload.workouts.some((workout) => workout.exercises.length === 0)) {
+      set({ error: 'Every generated workout must contain at least one exercise' });
       return null;
     }
 
@@ -1552,6 +1585,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
     if (templates.some((entry) => !entry.template || !entry.template?.workouts[0])) {
       set({ error: 'One or more templates could not be found' });
+      return null;
+    }
+    if (templates.some((entry) => !hasCompleteProgramTree(entry.template as Program))) {
+      set({ error: 'Every program workout must contain at least one exercise' });
       return null;
     }
 
@@ -1743,6 +1780,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
               .from('program_exercises')
               .insert(exercisesToInsert);
             if (insertExercisesError) {
+              await supabase.from('program_workouts').delete().eq('id', workout.id);
               set({ error: insertExercisesError.message });
               return null;
             }
@@ -1955,6 +1993,16 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return false;
     }
 
+    const workout = program.workouts.find((entry) => entry.id === workoutId);
+    if (!workout || !workout.exercises.some((exercise) => exercise.id === exerciseId)) {
+      set({ error: 'Program exercise not found' });
+      return false;
+    }
+    if (workout.exercises.length <= 1) {
+      set({ error: 'A program workout must contain at least one exercise' });
+      return false;
+    }
+
     const previousWorkouts = program.workouts;
     const updatedWorkouts = program.workouts.map((workout) => {
       if (workout.id !== workoutId) return workout;
@@ -1978,11 +2026,13 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }
 
     try {
-      // Delete the specific exercise by its primary key (much faster than delete-all-reinsert)
-      const { error: deleteError } = await supabase
-        .from('program_exercises')
-        .delete()
-        .eq('id', exerciseId);
+      const { error: deleteError } = await supabase.rpc(
+        'remove_program_workout_exercise',
+        {
+          p_program_workout_id: workoutId,
+          p_program_exercise_id: exerciseId,
+        }
+      );
 
       if (deleteError) {
         set((state) => ({
@@ -2014,6 +2064,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     const workout = program?.workouts.find((entry) => entry.id === workoutId);
     if (!program || !workout) {
       set({ error: 'Program workout not found' });
+      return false;
+    }
+    if (exercises.length === 0) {
+      set({ error: 'A program workout must contain at least one exercise' });
       return false;
     }
 
@@ -2057,10 +2111,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }
 
     try {
-      if (exercises.length === 0) {
-        throw new Error('A program workout must contain at least one exercise');
-      }
-
       const resolvedExercises = await resolveExerciseIdsForSupabase(
         exercises.map((exercise) => ({
           exerciseId: exercise.exerciseId,
@@ -2130,6 +2180,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   updateWorkoutTemplate: async (templateId, name, exercises) => {
     set({ error: null });
+
+    if (exercises.length === 0) {
+      set({ error: 'A workout template must contain at least one exercise' });
+      return null;
+    }
 
     const template = get().programs.find(p => p.id === templateId && p.isTemplate);
     if (!template) {

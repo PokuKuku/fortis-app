@@ -8,9 +8,10 @@ import {
   FlatList,
   Modal,
   ScrollView,
+  Animated as RNAnimated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, Swipeable } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   XMarkIcon,
@@ -83,7 +84,6 @@ export default function CreateProgramScreen() {
     reorderButton: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     },
-    workoutExerciseCount: { color: colors.textSecondary },
     emptyStateText: { color: colors.textSecondary },
     emptyStateSubtext: { color: colors.textSecondary },
     modalOverlay: { backgroundColor: colors.overlayHeavy },
@@ -183,6 +183,7 @@ export default function CreateProgramScreen() {
   const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
   const templatePickerCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const workoutSwipeableRefs = useRef(new Map<string, Swipeable>());
   const hasInitializedEdit = useRef(false);
   const initialSnapshotRef = useRef<{
     name: string;
@@ -555,89 +556,134 @@ export default function CreateProgramScreen() {
 
   // Render workout card
   const renderWorkoutCard = useCallback(({ item, index }: { item: EditorWorkout; index: number }) => {
-    const template = item.templateId ? templateMap.get(item.templateId) : null;
-    const exerciseCount = template?.workouts[0]?.exercises.length || 0;
     const dayNumber = index + 1;
     const canMoveUp = index > 0;
     const canMoveDown = index < workouts.length - 1;
 
+    const handleDelete = () => {
+      workoutSwipeableRefs.current.get(item.id)?.close();
+      handleRemoveWorkout(item.id);
+    };
+
+    const renderDeleteAction = (
+      progress: RNAnimated.AnimatedInterpolation<number>,
+      dragX: RNAnimated.AnimatedInterpolation<number>
+    ) => {
+      const scale = progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.8, 1],
+        extrapolate: 'clamp',
+      });
+
+      const opacity = progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.5, 1],
+        extrapolate: 'clamp',
+      });
+
+      return (
+        <RNAnimated.View
+          style={[
+            styles.swipeDeleteAction,
+            {
+              transform: [{ scale }],
+              opacity,
+            },
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${item.name}`}
+            onPress={handleDelete}
+            style={styles.swipeDeleteActionInner}
+          >
+            <TrashIcon size={18} color={Colors.white} strokeWidth={2} />
+          </Pressable>
+        </RNAnimated.View>
+      );
+    };
+
     return (
       <Animated.View
-        style={[styles.workoutCard, themedStyles.workoutCard]}
+        style={styles.workoutSwipeContainer}
         layout={LinearTransition.duration(250).easing(Easing.inOut(Easing.cubic))}
       >
-        <View style={styles.workoutCardHeader}>
-          <Pressable
-            onPress={() => handleViewWorkoutDetails(item.templateId)}
-            onLongPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              if (templatePickerCloseTimer.current) {
-                clearTimeout(templatePickerCloseTimer.current);
-                templatePickerCloseTimer.current = null;
-              }
-              setActiveWorkoutId(item.id);
-              setTemplateSearchQuery('');
-              setSelectedTemplateIds([]);
-              setIsTemplatePickerClosing(false);
-              setShowTemplatePicker(true);
-            }}
-            delayLongPress={200}
-            style={styles.workoutCardPressable}
-          >
-            <View style={[styles.dayBadge, themedStyles.dayBadge]}>
-              <Text style={[styles.dayBadgeText, themedStyles.dayBadgeText]}>Day {dayNumber}</Text>
+        <Swipeable
+          ref={(ref) => {
+            if (ref) {
+              workoutSwipeableRefs.current.set(item.id, ref);
+            } else {
+              workoutSwipeableRefs.current.delete(item.id);
+            }
+          }}
+          renderRightActions={renderDeleteAction}
+          overshootRight={false}
+          friction={2}
+          rightThreshold={40}
+          containerStyle={styles.workoutSwipeable}
+        >
+          <View style={[styles.workoutCard, themedStyles.workoutCard]}>
+            <View style={styles.workoutCardHeader}>
+              <Pressable
+                onPress={() => handleViewWorkoutDetails(item.templateId)}
+                onLongPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (templatePickerCloseTimer.current) {
+                    clearTimeout(templatePickerCloseTimer.current);
+                    templatePickerCloseTimer.current = null;
+                  }
+                  setActiveWorkoutId(item.id);
+                  setTemplateSearchQuery('');
+                  setSelectedTemplateIds([]);
+                  setIsTemplatePickerClosing(false);
+                  setShowTemplatePicker(true);
+                }}
+                delayLongPress={200}
+                style={styles.workoutCardPressable}
+              >
+                <View style={[styles.dayBadge, themedStyles.dayBadge]}>
+                  <Text style={[styles.dayBadgeText, themedStyles.dayBadgeText]}>Day {dayNumber}</Text>
+                </View>
+                <View style={styles.workoutCardInfo}>
+                  <Text style={[styles.workoutNameText, themedStyles.workoutNameInput]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                </View>
+              </Pressable>
+              <View style={styles.workoutActions}>
+                <Pressable
+                  onPress={() => handleMoveWorkout(item.id, 'up')}
+                  disabled={!canMoveUp}
+                  style={({ pressed }) => [
+                    styles.reorderButton,
+                    themedStyles.reorderButton,
+                    !canMoveUp && styles.reorderButtonDisabled,
+                    pressed && canMoveUp && styles.reorderButtonPressed,
+                  ]}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <ChevronUpIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+                <Pressable
+                  onPress={() => handleMoveWorkout(item.id, 'down')}
+                  disabled={!canMoveDown}
+                  style={({ pressed }) => [
+                    styles.reorderButton,
+                    themedStyles.reorderButton,
+                    !canMoveDown && styles.reorderButtonDisabled,
+                    pressed && canMoveDown && styles.reorderButtonPressed,
+                  ]}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <ChevronDownIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+              </View>
             </View>
-            <View style={styles.workoutCardInfo}>
-              <Text style={[styles.workoutNameText, themedStyles.workoutNameInput]} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={[styles.workoutExerciseCount, themedStyles.workoutExerciseCount]} numberOfLines={1}>
-                {template ? `${exerciseCount} exercises` : 'Template not selected'}
-              </Text>
-            </View>
-          </Pressable>
-          <View style={styles.workoutActions}>
-            <Pressable
-              onPress={() => handleMoveWorkout(item.id, 'up')}
-              disabled={!canMoveUp}
-              style={({ pressed }) => [
-                styles.reorderButton,
-                themedStyles.reorderButton,
-                !canMoveUp && styles.reorderButtonDisabled,
-                pressed && canMoveUp && styles.reorderButtonPressed,
-              ]}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            >
-              <ChevronUpIcon size={16} color={colors.textSecondary} strokeWidth={2} />
-            </Pressable>
-            <Pressable
-              onPress={() => handleMoveWorkout(item.id, 'down')}
-              disabled={!canMoveDown}
-              style={({ pressed }) => [
-                styles.reorderButton,
-                themedStyles.reorderButton,
-                !canMoveDown && styles.reorderButtonDisabled,
-                pressed && canMoveDown && styles.reorderButtonPressed,
-              ]}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            >
-              <ChevronDownIcon size={16} color={colors.textSecondary} strokeWidth={2} />
-            </Pressable>
-            <Pressable
-              onPress={() => handleRemoveWorkout(item.id)}
-              style={({ pressed }) => [
-                styles.deleteButton,
-                pressed && styles.deleteButtonPressed,
-              ]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <TrashIcon size={18} color={Colors.error} strokeWidth={2} />
-            </Pressable>
           </View>
-        </View>
+        </Swipeable>
       </Animated.View>
     );
-  }, [handleMoveWorkout, handleRemoveWorkout, handleViewWorkoutDetails, templateMap, workouts.length, colors, themedStyles]);
+  }, [handleMoveWorkout, handleRemoveWorkout, handleViewWorkoutDetails, workouts.length, colors, themedStyles]);
 
   // Render empty state
   const renderEmptyState = () => (
@@ -1273,7 +1319,25 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  workoutSwipeContainer: {
     marginBottom: Spacing.md,
+  },
+  workoutSwipeable: {
+    overflow: 'visible',
+  },
+  swipeDeleteAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: Spacing.sm,
+  },
+  swipeDeleteActionInner: {
+    width: 44,
+    height: 44,
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   workoutCardHeader: {
     flexDirection: 'row',
@@ -1304,6 +1368,7 @@ const styles = StyleSheet.create({
   },
   workoutNameText: {
     ...Typography.h4,
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   reorderButton: {
@@ -1320,24 +1385,9 @@ const styles = StyleSheet.create({
   reorderButtonDisabled: {
     opacity: 0.4,
   },
-  deleteButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: BorderRadius.md,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
-  deleteButtonPressed: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-  },
   workoutCardInfo: {
     flex: 1,
     minWidth: 0,
-  },
-  workoutExerciseCount: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
   },
   createTemplateButton: {
     flexDirection: 'row',

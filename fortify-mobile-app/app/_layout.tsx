@@ -25,6 +25,7 @@ import { posthog } from '@/src/config/posthog';
 import { WorkoutRetentionCoordinator } from '@/src/components/retention/WorkoutRetentionCoordinator';
 import { OnboardingProgramCoordinator } from '@/src/components/onboarding/OnboardingProgramCoordinator';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { configureStreakFreezeNotificationPresentation } from '@/src/services/streakFreezeNotifications';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -39,6 +40,7 @@ const ONBOARDING_TRANSITION = {
 };
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+configureStreakFreezeNotificationPresentation();
 
 function PostSignUpPaywallPreloader() {
   const { isConfigured, isLoading, preloadPaywalls } = useSuperwall((state) => ({

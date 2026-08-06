@@ -291,6 +291,7 @@ export default function WorkoutDetailScreen() {
         title={workout.name}
         onBack={handleBack}
         rightAction={canEditTemplate ? { label: 'Edit', onPress: handleEdit } : undefined}
+        titleStyle={styles.workoutTitle}
       />
 
       <ScrollView
@@ -309,12 +310,14 @@ export default function WorkoutDetailScreen() {
         )}
 
         {/* Muscle Heatmap Section */}
-        <Animated.View
-          entering={FadeInDown.delay(30).duration(180)}
-          style={styles.section}
-        >
-          <MuscleHeatmap exercises={workout.exercises} gender={bodyType} />
-        </Animated.View>
+        <View style={styles.section}>
+          <MuscleHeatmap
+            exercises={workout.exercises}
+            gender={bodyType}
+            animateEntrance
+            entranceDelay={30}
+          />
+        </View>
 
         {/* Start Workout Button */}
         <Animated.View
@@ -419,6 +422,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  workoutTitle: {
+    fontFamily: 'BankGothicBT-Medium',
   },
   scrollView: {
     flex: 1,

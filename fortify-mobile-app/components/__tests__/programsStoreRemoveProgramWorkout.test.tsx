@@ -115,4 +115,19 @@ describe('programsStore remove workout/exercise', () => {
     expect(updatedExercises[0].id).toBe('local-ex-3');
     expect(updatedExercises[0].orderIndex).toBe(0);
   });
+
+  it('refuses to remove the final exercise from a workout', async () => {
+    const program = buildLocalProgram();
+    useProgramsStore.setState({ programs: [program] });
+
+    const result = await useProgramsStore
+      .getState()
+      .removeExerciseFromProgramWorkout(program.id, 'local-workout-1', 'local-ex-1');
+
+    expect(result).toBe(false);
+    expect(useProgramsStore.getState().programs[0]).toEqual(program);
+    expect(useProgramsStore.getState().error).toBe(
+      'A program workout must contain at least one exercise'
+    );
+  });
 });

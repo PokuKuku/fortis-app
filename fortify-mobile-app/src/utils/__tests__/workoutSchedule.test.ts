@@ -7,6 +7,8 @@ import {
   clampWorkoutScheduleHistoryToActivationDate,
   deriveScheduleDaysFromWorkoutsPerWeek,
   getCompletedWeekdaysForProgram,
+  getFirstMissedScheduledWorkoutDateKey,
+  getLatestScheduledCompletionDateKey,
   getScheduleDaysForDate,
   getScheduledWorkoutDayStreak,
   getWorkoutDayStreak,
@@ -444,6 +446,40 @@ describe('workoutSchedule', () => {
     });
 
     expect(streak).toBe(2);
+  });
+
+  it('finds the first missed scheduled workout after a freeze pass was earned', () => {
+    const sessions = [
+      session('monday', '2026-05-11T12:00:00'),
+      session('friday', '2026-05-15T12:00:00'),
+    ];
+
+    expect(getFirstMissedScheduledWorkoutDateKey({
+      afterDateKey: '2026-05-11',
+      scheduleDays: [1, 3, 5],
+      sessions,
+      today: new Date('2026-05-16T12:00:00'),
+    })).toBe('2026-05-13');
+  });
+
+  it('does not redeem a pass for an already protected missed workout', () => {
+    expect(getFirstMissedScheduledWorkoutDateKey({
+      afterDateKey: '2026-05-11',
+      scheduleDays: [1, 3, 5],
+      sessions: [session('monday', '2026-05-11T12:00:00')],
+      streakPausePeriods: [{ startDateKey: '2026-05-13', endDateKey: '2026-05-13' }],
+      today: new Date('2026-05-14T12:00:00'),
+    })).toBeNull();
+  });
+
+  it('returns the latest completion that occurred on a scheduled workout day', () => {
+    expect(getLatestScheduledCompletionDateKey({
+      scheduleDays: [1, 3, 5],
+      sessions: [
+        session('scheduled-friday', '2026-05-15T12:00:00'),
+        session('off-day-saturday', '2026-05-16T12:00:00'),
+      ],
+    })).toBe('2026-05-15');
   });
 
   it('does not retroactively cover a missed day when the pause starts later', () => {

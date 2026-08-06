@@ -168,6 +168,16 @@ function normalizePersistedStreakPauseState(
       : null,
     streakPausePeriods,
     ...allowance,
+    streakFreezePassAvailable: candidate.streakFreezePassAvailable === true,
+    streakFreezePassEarnedAt: typeof candidate.streakFreezePassEarnedAt === 'string'
+      && !Number.isNaN(new Date(candidate.streakFreezePassEarnedAt).getTime())
+      ? candidate.streakFreezePassEarnedAt
+      : null,
+    streakFreezePassMilestoneDateKey:
+      typeof candidate.streakFreezePassMilestoneDateKey === 'string'
+      && STREAK_DATE_KEY_PATTERN.test(candidate.streakFreezePassMilestoneDateKey)
+        ? candidate.streakFreezePassMilestoneDateKey
+        : null,
     updatedAt: typeof candidate.updatedAt === 'string'
       && !Number.isNaN(new Date(candidate.updatedAt).getTime())
       ? candidate.updatedAt
@@ -384,6 +394,9 @@ interface WorkoutState {
   streakPauseUpdatedAt: string | null;
   streakPauseMonthKey: string;
   streakPausesUsedThisMonth: number;
+  streakFreezePassAvailable: boolean;
+  streakFreezePassEarnedAt: string | null;
+  streakFreezePassMilestoneDateKey: string | null;
   workoutOverlayCount: number;
 
   // Number pad state
@@ -437,6 +450,8 @@ interface WorkoutState {
   dismissFirstWorkoutStreakModal: () => void;
   pauseStreak: (streakCount?: number) => Promise<boolean>;
   resumeStreak: () => Promise<void>;
+  earnStreakFreezePass: (milestoneDateKey: string) => Promise<boolean>;
+  redeemStreakFreezePass: (missedDateKey: string) => Promise<boolean>;
   updateWorkoutName: (name: string) => void;
   updateWorkoutNotes: (notes: string) => void;
   setActiveSessionProgramContext: (programId: string, programWorkoutId?: string) => void;
@@ -645,6 +660,9 @@ export const useWorkoutStore = create<WorkoutState>()(
     streakPauseUpdatedAt: null,
     streakPauseMonthKey: getStreakPauseMonthKey(),
     streakPausesUsedThisMonth: 0,
+    streakFreezePassAvailable: false,
+    streakFreezePassEarnedAt: null,
+    streakFreezePassMilestoneDateKey: null,
     workoutOverlayCount: 0,
     activeNumberPad: null,
     validationErrorsBySet: {},
@@ -1079,6 +1097,14 @@ export const useWorkoutStore = create<WorkoutState>()(
         ...activeSession,
         completedAt: backdatedDate || new Date(),
       };
+      const completedDateKey = completedSession.completedAt
+        ? getStreakDateKey(completedSession.completedAt)
+        : null;
+      const alreadyCompletedWorkoutThatDay = completedDateKey !== null
+        && completedSessions.some((session) => (
+          session.completedAt
+          && getStreakDateKey(session.completedAt) === completedDateKey
+        ));
 
       isStartingWorkout = false; // Reset lock
 
@@ -1114,16 +1140,18 @@ export const useWorkoutStore = create<WorkoutState>()(
         console.warn('Failed to persist completed sessions:', error);
       }
 
-      try {
-        await setScopedItem(
-          PENDING_HOME_WORKOUT_CELEBRATION_KEY,
-          JSON.stringify({
-            sessionLocalId: completedSession.localId,
-            completedAt: completedSession.completedAt?.toISOString(),
-          })
-        );
-      } catch (error) {
-        console.warn('Failed to queue home workout celebration:', error);
+      if (!alreadyCompletedWorkoutThatDay) {
+        try {
+          await setScopedItem(
+            PENDING_HOME_WORKOUT_CELEBRATION_KEY,
+            JSON.stringify({
+              sessionLocalId: completedSession.localId,
+              completedAt: completedSession.completedAt?.toISOString(),
+            })
+          );
+        } catch (error) {
+          console.warn('Failed to queue home workout celebration:', error);
+        }
       }
 
       await get().clearPersistedSession();
@@ -1201,6 +1229,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         streakPauseMonthKey,
         streakPausesUsedThisMonth,
         streakPausePeriods,
+        streakFreezePassAvailable,
+        streakFreezePassEarnedAt,
+        streakFreezePassMilestoneDateKey,
       } = get();
       const allowance = normalizeStreakPauseAllowance({
         monthKey: streakPauseMonthKey,
@@ -1241,6 +1272,9 @@ export const useWorkoutStore = create<WorkoutState>()(
           streakPausePeriods: nextPausePeriods,
           streakPauseMonthKey: nextState.streakPauseMonthKey,
           streakPausesUsedThisMonth: nextState.streakPausesUsedThisMonth,
+          streakFreezePassAvailable,
+          streakFreezePassEarnedAt,
+          streakFreezePassMilestoneDateKey,
           updatedAt,
         });
       } catch (error) {
@@ -1261,6 +1295,11 @@ export const useWorkoutStore = create<WorkoutState>()(
       const streakPausePeriods = get().streakPausePeriods.map((period) => (
         period.endDateKey === null ? { ...period, endDateKey: resumeDateKey } : period
       ));
+      const {
+        streakFreezePassAvailable,
+        streakFreezePassEarnedAt,
+        streakFreezePassMilestoneDateKey,
+      } = get();
       const nextState = {
         isStreakPaused: false,
         streakPausedAt: null,
@@ -1279,11 +1318,96 @@ export const useWorkoutStore = create<WorkoutState>()(
           streakPausePeriods,
           streakPauseMonthKey: nextState.streakPauseMonthKey,
           streakPausesUsedThisMonth: nextState.streakPausesUsedThisMonth,
+          streakFreezePassAvailable,
+          streakFreezePassEarnedAt,
+          streakFreezePassMilestoneDateKey,
           updatedAt: resumedAt,
         });
       } catch (error) {
         console.warn('Failed to save streak pause state:', error);
       }
+    },
+
+    earnStreakFreezePass: async (milestoneDateKey) => {
+      if (!STREAK_DATE_KEY_PATTERN.test(milestoneDateKey)) return false;
+      const current = get();
+      if (
+        current.streakFreezePassAvailable
+        || current.streakFreezePassMilestoneDateKey === milestoneDateKey
+      ) {
+        return false;
+      }
+
+      const earnedAt = new Date().toISOString();
+      set({
+        streakFreezePassAvailable: true,
+        streakFreezePassEarnedAt: earnedAt,
+        streakFreezePassMilestoneDateKey: milestoneDateKey,
+        streakPauseUpdatedAt: earnedAt,
+      });
+
+      try {
+        await persistStreakPauseState({
+          isPaused: current.isStreakPaused,
+          pausedAt: current.streakPausedAt,
+          pausedStreakCount: current.pausedStreakCount,
+          streakPausePeriods: current.streakPausePeriods,
+          streakPauseMonthKey: current.streakPauseMonthKey,
+          streakPausesUsedThisMonth: current.streakPausesUsedThisMonth,
+          streakFreezePassAvailable: true,
+          streakFreezePassEarnedAt: earnedAt,
+          streakFreezePassMilestoneDateKey: milestoneDateKey,
+          updatedAt: earnedAt,
+        });
+      } catch (error) {
+        console.warn('Failed to save earned streak freeze pass:', error);
+      }
+
+      return true;
+    },
+
+    redeemStreakFreezePass: async (missedDateKey) => {
+      if (!STREAK_DATE_KEY_PATTERN.test(missedDateKey)) return false;
+      const current = get();
+      if (!current.streakFreezePassAvailable) return false;
+
+      const todayKey = getStreakDateKey();
+      const isAlreadyProtected = current.streakPausePeriods.some((period) => (
+        missedDateKey >= period.startDateKey
+        && missedDateKey <= (period.endDateKey ?? todayKey)
+      ));
+      if (isAlreadyProtected) return false;
+
+      const redeemedAt = new Date().toISOString();
+      const streakPausePeriods = [
+        ...current.streakPausePeriods,
+        { startDateKey: missedDateKey, endDateKey: missedDateKey },
+      ];
+      set({
+        streakFreezePassAvailable: false,
+        streakFreezePassEarnedAt: null,
+        streakPausePeriods,
+        streakPauseUpdatedAt: redeemedAt,
+      });
+
+      try {
+        await persistStreakPauseState({
+          isPaused: current.isStreakPaused,
+          pausedAt: current.streakPausedAt,
+          pausedStreakCount: current.pausedStreakCount,
+          streakPausePeriods,
+          streakPauseMonthKey: current.streakPauseMonthKey,
+          streakPausesUsedThisMonth: current.streakPausesUsedThisMonth,
+          streakFreezePassAvailable: false,
+          streakFreezePassEarnedAt: null,
+          streakFreezePassMilestoneDateKey: current.streakFreezePassMilestoneDateKey,
+          updatedAt: redeemedAt,
+        });
+      } catch (error) {
+        console.warn('Failed to redeem streak freeze pass:', error);
+      }
+
+      return true;
     },
 
     cancelWorkout: () => {
@@ -2133,6 +2257,9 @@ export const useWorkoutStore = create<WorkoutState>()(
             pausedStreakCount: null,
             streakPausePeriods: [],
             streakPauseUpdatedAt: null,
+            streakFreezePassAvailable: false,
+            streakFreezePassEarnedAt: null,
+            streakFreezePassMilestoneDateKey: null,
             ...normalizeStreakPauseAllowance({}),
           });
           return;
@@ -2150,6 +2277,9 @@ export const useWorkoutStore = create<WorkoutState>()(
           streakPauseMonthKey: resolvedState.streakPauseMonthKey,
           streakPausesUsedThisMonth: resolvedState.streakPausesUsedThisMonth,
           streakPauseUpdatedAt: resolvedState.updatedAt,
+          streakFreezePassAvailable: resolvedState.streakFreezePassAvailable,
+          streakFreezePassEarnedAt: resolvedState.streakFreezePassEarnedAt,
+          streakFreezePassMilestoneDateKey: resolvedState.streakFreezePassMilestoneDateKey,
         });
 
         await persistStreakPauseState(resolvedState);
@@ -2161,6 +2291,9 @@ export const useWorkoutStore = create<WorkoutState>()(
           pausedStreakCount: null,
           streakPausePeriods: [],
           streakPauseUpdatedAt: null,
+          streakFreezePassAvailable: false,
+          streakFreezePassEarnedAt: null,
+          streakFreezePassMilestoneDateKey: null,
           ...normalizeStreakPauseAllowance({}),
         });
       }
@@ -3547,6 +3680,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         streakPauseUpdatedAt: null,
         streakPauseMonthKey: getStreakPauseMonthKey(),
         streakPausesUsedThisMonth: 0,
+        streakFreezePassAvailable: false,
+        streakFreezePassEarnedAt: null,
+        streakFreezePassMilestoneDateKey: null,
         activeNumberPad: null,
         validationErrorsBySet: {},
         validationErrorsTrigger: 0,

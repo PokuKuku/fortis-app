@@ -25,6 +25,16 @@ import {
 } from '@/src/utils/workoutRetention';
 import { getRetentionNotificationIntent } from '@/src/utils/retentionNotificationResponse';
 import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
+import {
+  notifyStreakFreezePassEarned,
+  notifyStreakFreezePassRedeemed,
+} from '@/src/services/streakFreezeNotifications';
+import {
+  getDateKey,
+  getFirstMissedScheduledWorkoutDateKey,
+  getLatestScheduledCompletionDateKey,
+  getScheduledWorkoutDayStreak,
+} from '@/src/utils/workoutSchedule';
 
 export function WorkoutRetentionCoordinator() {
   const { user, profile } = useAuth();
@@ -32,11 +42,19 @@ export function WorkoutRetentionCoordinator() {
   const { sessions, isLoading: historyLoading } = useWorkoutHistorySource({ enabled: Boolean(user) });
   const { exercisesById, loading: exercisesLoading } = useExerciseLookup();
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const streakPausePeriods = useWorkoutStore((state) => state.streakPausePeriods);
+  const streakFreezePassAvailable = useWorkoutStore((state) => state.streakFreezePassAvailable);
+  const streakFreezePassMilestoneDateKey = useWorkoutStore(
+    (state) => state.streakFreezePassMilestoneDateKey
+  );
+  const earnStreakFreezePass = useWorkoutStore((state) => state.earnStreakFreezePass);
+  const redeemStreakFreezePass = useWorkoutStore((state) => state.redeemStreakFreezePass);
   const preferences = useWorkoutRetentionPreferences();
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const handledNotificationResponseIdsRef = useRef(new Set<string>());
   const [pendingWeeklyRecapWeekStart, setPendingWeeklyRecapWeekStart] = useState<Date | null>(null);
   const [weeklyRecap, setWeeklyRecap] = useState<WeeklyRecap | null>(null);
+  const [currentDateKey, setCurrentDateKey] = useState(() => getDateKey(new Date()));
   const retentionDataReady = Boolean(user) && scheduleLoaded && !historyLoading && !exercisesLoading;
 
   const sessionsKey = useMemo(
@@ -47,6 +65,60 @@ export function WorkoutRetentionCoordinator() {
   const scheduleHistoryKey = scheduleHistory
     .map((entry) => `${entry.effectiveDateKey}:${entry.scheduleDays.join(',')}`)
     .join('|');
+  const currentStreak = useMemo(() => getScheduledWorkoutDayStreak({
+    scheduleDays,
+    scheduleHistory,
+    sessions,
+    streakPausePeriods,
+  }), [scheduleDays, scheduleHistory, sessions, streakPausePeriods, currentDateKey]);
+  const latestScheduledCompletionDateKey = useMemo(
+    () => getLatestScheduledCompletionDateKey({ scheduleDays, scheduleHistory, sessions }),
+    [scheduleDays, scheduleHistory, sessions]
+  );
+
+  const reconcileStreakFreezePass = useCallback(async () => {
+    if (!retentionDataReady) return;
+
+    if (
+      currentStreak === 5
+      && latestScheduledCompletionDateKey
+      && !streakFreezePassAvailable
+      && streakFreezePassMilestoneDateKey !== latestScheduledCompletionDateKey
+    ) {
+      const earned = await earnStreakFreezePass(latestScheduledCompletionDateKey);
+      if (earned) {
+        await notifyStreakFreezePassEarned(latestScheduledCompletionDateKey);
+      }
+      return;
+    }
+
+    if (!streakFreezePassAvailable || !streakFreezePassMilestoneDateKey) return;
+    const missedDateKey = getFirstMissedScheduledWorkoutDateKey({
+      afterDateKey: streakFreezePassMilestoneDateKey,
+      scheduleDays,
+      scheduleHistory,
+      sessions,
+      streakPausePeriods,
+    });
+    if (!missedDateKey) return;
+
+    const redeemed = await redeemStreakFreezePass(missedDateKey);
+    if (redeemed) {
+      await notifyStreakFreezePassRedeemed(missedDateKey);
+    }
+  }, [
+    currentStreak,
+    earnStreakFreezePass,
+    latestScheduledCompletionDateKey,
+    redeemStreakFreezePass,
+    retentionDataReady,
+    scheduleDays,
+    scheduleHistory,
+    sessions,
+    streakFreezePassAvailable,
+    streakFreezePassMilestoneDateKey,
+    streakPausePeriods,
+  ]);
 
   const syncNotifications = useCallback(() => {
     if (!preferences.isLoaded) return;
@@ -117,16 +189,32 @@ export function WorkoutRetentionCoordinator() {
   }, [maybeShowWeeklyRecap, sessionsKey, scheduleKey, scheduleHistoryKey]);
 
   useEffect(() => {
+    void reconcileStreakFreezePass();
+  }, [reconcileStreakFreezePass, currentDateKey]);
+
+  useEffect(() => {
+    const now = new Date();
+    const nextDay = new Date(now);
+    nextDay.setHours(24, 0, 1, 0);
+    const timeout = setTimeout(() => {
+      setCurrentDateKey(getDateKey(new Date()));
+    }, Math.max(1000, nextDay.getTime() - now.getTime()));
+    return () => clearTimeout(timeout);
+  }, [currentDateKey]);
+
+  useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       const previous = appStateRef.current;
       appStateRef.current = nextState;
       if ((previous === 'background' || previous === 'inactive') && nextState === 'active') {
+        setCurrentDateKey(getDateKey(new Date()));
         syncNotifications();
         void maybeShowWeeklyRecap();
+        void reconcileStreakFreezePass();
       }
     });
     return () => subscription.remove();
-  }, [maybeShowWeeklyRecap, syncNotifications]);
+  }, [maybeShowWeeklyRecap, reconcileStreakFreezePass, syncNotifications]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {

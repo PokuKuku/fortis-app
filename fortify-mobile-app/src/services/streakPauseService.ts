@@ -9,6 +9,9 @@ export type PersistedStreakPauseState = {
   streakPausePeriods: StreakPausePeriod[];
   streakPauseMonthKey: string;
   streakPausesUsedThisMonth: number;
+  streakFreezePassAvailable: boolean;
+  streakFreezePassEarnedAt: string | null;
+  streakFreezePassMilestoneDateKey: string | null;
   updatedAt: string;
 };
 

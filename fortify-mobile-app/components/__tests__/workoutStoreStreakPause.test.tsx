@@ -6,6 +6,10 @@ import {
 } from '@/src/services/streakPauseService';
 import { removeScopedItem, setActiveScopedStorageUser } from '@/src/utils/scopedStorage';
 import { STREAK_PAUSE_STATE_KEY } from '@/src/constants/storageKeys';
+import {
+  getFirstMissedScheduledWorkoutDateKey,
+  getScheduledWorkoutDayStreak,
+} from '@/src/utils/workoutSchedule';
 
 jest.mock('@/src/services/workoutCompletionNotifications', () => ({
   scheduleWorkoutCompletionNotification: jest.fn(() => Promise.resolve()),
@@ -17,6 +21,16 @@ jest.mock('@/src/services/streakPauseService', () => ({
 }));
 
 describe('workout store streak pause', () => {
+  const completedSession = (localId: string, dateKey: string): WorkoutSession => ({
+    localId,
+    name: 'Scheduled workout',
+    notes: '',
+    startedAt: new Date(`${dateKey}T12:00:00`),
+    completedAt: new Date(`${dateKey}T12:00:00`),
+    exercises: [],
+    isSynced: true,
+  });
+
   beforeEach(() => {
     setActiveScopedStorageUser(null);
     jest.mocked(fetchCloudStreakPauseState).mockResolvedValue(null);
@@ -140,5 +154,83 @@ describe('workout store streak pause', () => {
     }]);
     expect(useWorkoutStore.getState().streakPauseUpdatedAt)
       .toBe('2026-07-04T20:00:00.000Z');
+  });
+
+  it('holds only one earned streak freeze pass at a time', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-10T12:00:00'));
+
+    await expect(useWorkoutStore.getState().earnStreakFreezePass('2026-07-10'))
+      .resolves.toBe(true);
+    await expect(useWorkoutStore.getState().earnStreakFreezePass('2026-07-11'))
+      .resolves.toBe(false);
+
+    expect(useWorkoutStore.getState().streakFreezePassAvailable).toBe(true);
+    expect(useWorkoutStore.getState().streakFreezePassMilestoneDateKey).toBe('2026-07-10');
+  });
+
+  it('redeems the pass into one protected date without re-awarding the same milestone', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-10T12:00:00'));
+    await useWorkoutStore.getState().earnStreakFreezePass('2026-07-10');
+
+    jest.setSystemTime(new Date('2026-07-14T12:00:00'));
+    await expect(useWorkoutStore.getState().redeemStreakFreezePass('2026-07-13'))
+      .resolves.toBe(true);
+
+    expect(useWorkoutStore.getState().streakFreezePassAvailable).toBe(false);
+    expect(useWorkoutStore.getState().streakPausePeriods).toContainEqual({
+      startDateKey: '2026-07-13',
+      endDateKey: '2026-07-13',
+    });
+    await expect(useWorkoutStore.getState().earnStreakFreezePass('2026-07-10'))
+      .resolves.toBe(false);
+  });
+
+  it('preserves five real workouts after redemption and lets the next workout build to six', async () => {
+    const fiveWorkoutSessions = [
+      completedSession('workout-1', '2026-07-06'),
+      completedSession('workout-2', '2026-07-08'),
+      completedSession('workout-3', '2026-07-10'),
+      completedSession('workout-4', '2026-07-13'),
+      completedSession('workout-5', '2026-07-15'),
+    ];
+    const scheduleDays = [1, 3, 5];
+
+    expect(getScheduledWorkoutDayStreak({
+      scheduleDays,
+      sessions: fiveWorkoutSessions,
+      today: new Date('2026-07-16T12:00:00'),
+    })).toBe(5);
+
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-15T12:00:00'));
+    await useWorkoutStore.getState().earnStreakFreezePass('2026-07-15');
+    jest.setSystemTime(new Date('2026-07-18T12:00:00'));
+
+    const missedDateKey = getFirstMissedScheduledWorkoutDateKey({
+      afterDateKey: '2026-07-15',
+      scheduleDays,
+      sessions: fiveWorkoutSessions,
+      today: new Date(),
+    });
+    expect(missedDateKey).toBe('2026-07-17');
+    await useWorkoutStore.getState().redeemStreakFreezePass(missedDateKey as string);
+
+    const protectedPeriods = useWorkoutStore.getState().streakPausePeriods;
+    expect(getScheduledWorkoutDayStreak({
+      scheduleDays,
+      sessions: fiveWorkoutSessions,
+      streakPausePeriods: protectedPeriods,
+      today: new Date(),
+    })).toBe(5);
+
+    expect(getScheduledWorkoutDayStreak({
+      scheduleDays,
+      sessions: [completedSession('workout-6', '2026-07-20'), ...fiveWorkoutSessions],
+      streakPausePeriods: protectedPeriods,
+      today: new Date('2026-07-21T12:00:00'),
+    })).toBe(6);
+    expect(useWorkoutStore.getState().streakFreezePassAvailable).toBe(false);
   });
 });

@@ -56,6 +56,14 @@ const mockGetScopedItem = getScopedItem as jest.MockedFunction<typeof getScopedI
 const mockSetScopedItem = setScopedItem as jest.MockedFunction<typeof setScopedItem>;
 
 describe('programsStore reinstall persistence', () => {
+  const templateExercises = [{
+    exerciseId: 'bench-press',
+    exerciseName: 'Bench Press',
+    sets: 3,
+    reps: '8-10',
+    restSeconds: 120,
+  }];
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockProfile.deleted_default_program_ids = [];
@@ -125,7 +133,7 @@ describe('programsStore reinstall persistence', () => {
   it('adds creations to and removes deletions from the full programs cache', async () => {
     const createdId = await useProgramsStore.getState().createWorkoutTemplate(
       'Cached Workout',
-      []
+      templateExercises
     );
     expect(createdId).toBeTruthy();
 
@@ -149,7 +157,7 @@ describe('programsStore reinstall persistence', () => {
   it('atomically replaces a temporary id in the full programs cache', async () => {
     const localId = await useProgramsStore.getState().createWorkoutTemplate(
       'Template awaiting sync',
-      []
+      templateExercises
     );
     expect(localId).toBeTruthy();
 

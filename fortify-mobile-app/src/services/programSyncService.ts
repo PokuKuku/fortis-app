@@ -185,6 +185,13 @@ async function uploadProgram(
   let createdProgramId: string | null = null;
 
   try {
+    if (
+      program.workouts.length === 0
+      || program.workouts.some((workout) => workout.exercises.length === 0)
+    ) {
+      throw new Error('Programs cannot sync with empty workouts');
+    }
+
     // Insert the program
     const { data: insertedProgram, error: programError } = await supabase
       .from('workout_programs')

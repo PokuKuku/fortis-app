@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { ClockIcon, ScaleIcon, TrophyIcon } from 'react-native-heroicons/outline';
+import * as Haptics from 'expo-haptics';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
 import type { WeightUnit, WorkoutSession, WorkoutSet } from '@/src/types/workout';
@@ -16,6 +16,9 @@ import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { getExerciseById } from '@/src/services/exerciseService';
 import { getModalWidth } from '@/src/utils/responsive';
 import { getSetVolume } from '@/src/utils/workoutVolume';
+import { useProgramsStore } from '@/src/store/programsStore';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 
 // UUID v4 pattern: 8-4-4-4-12 hex characters
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -73,6 +76,17 @@ function formatSetDetails(set: WorkoutSet): string {
   return `${repsText} reps × ${weightText} ${unitLabel}`;
 }
 
+function getRepPrescription(sets: WorkoutSet[], fallback?: string): string {
+  if (fallback?.trim()) return fallback.trim();
+  const reps = sets
+    .map((set) => set.reps)
+    .filter((value): value is number => value !== null && value !== undefined && value > 0);
+  if (reps.length === 0) return '8-12';
+  const min = Math.min(...reps);
+  const max = Math.max(...reps);
+  return min === max ? `${min}` : `${min}-${max}`;
+}
+
 export function WorkoutHistoryDetailModal({
   visible,
   onClose,
@@ -85,10 +99,25 @@ export function WorkoutHistoryDetailModal({
   const { exercisesById } = useExerciseLookup();
   const { bodyweightKg } = useLatestBodyweight();
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
+  const workoutTemplateCount = useProgramsStore((state) => (
+    state.programs.filter((program) => program.isTemplate).length
+  ));
+  const { canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
   const modalStyles = useModalStyles();
 
   // Map of exerciseId -> resolved exercise name (for UUID exercise names)
   const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
+  const [isCreatingWorkout, setIsCreatingWorkout] = useState(false);
+  const [isWorkoutCreated, setIsWorkoutCreated] = useState(false);
+  const [createWorkoutError, setCreateWorkoutError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    setIsCreatingWorkout(false);
+    setIsWorkoutCreated(false);
+    setCreateWorkoutError(null);
+  }, [session?.localId, visible]);
 
   // Resolve UUID exercise names when modal opens
   useEffect(() => {
@@ -232,11 +261,88 @@ export function WorkoutHistoryDetailModal({
     onClose();
   };
 
+  const createWorkoutFromHistory = async (): Promise<boolean> => {
+    if (isCreatingWorkout || isWorkoutCreated) return false;
+    setIsCreatingWorkout(true);
+    setCreateWorkoutError(null);
+
+    try {
+      const exercises = [...session.exercises]
+        .sort((a, b) => a.orderIndex - b.orderIndex)
+        .map((exercise) => {
+          const completedSets = [...exercise.sets]
+            .filter((set) => set.isCompleted)
+            .sort((a, b) => a.orderIndex - b.orderIndex);
+          if (completedSets.length === 0) return null;
+
+          return {
+            exerciseId: exercise.exerciseId,
+            exerciseName: getDisplayName(exercise.exerciseId, exercise.exerciseName),
+            sets: completedSets.length,
+            reps: getRepPrescription(completedSets, exercise.targetReps),
+            restSeconds: completedSets.find((set) => set.restSeconds !== null)?.restSeconds ?? 120,
+            notes: exercise.notes,
+            setDetails: completedSets.map((set) => ({
+              weight: set.weight,
+              reps: set.reps,
+              setType: set.setType,
+            })),
+          };
+        })
+        .filter((exercise): exercise is NonNullable<typeof exercise> => exercise !== null);
+
+      if (exercises.length === 0) {
+        setCreateWorkoutError('This workout has no completed exercises to save.');
+        return false;
+      }
+
+      const templateId = await createWorkoutTemplate(session.name, exercises, {
+        lastPerformedAt: session.completedAt ?? session.startedAt,
+      });
+      if (!templateId) {
+        setCreateWorkoutError('Unable to add this workout. Please try again.');
+        return false;
+      }
+
+      setIsWorkoutCreated(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      return true;
+    } catch (error) {
+      console.warn('Failed to create workout from history:', error);
+      setCreateWorkoutError('Unable to add this workout. Please try again.');
+      return false;
+    } finally {
+      setIsCreatingWorkout(false);
+    }
+  };
+
+  const handleCreateWorkoutPress = async () => {
+    if (isCreatingWorkout || isWorkoutCreated) return;
+    if (canCreateWorkoutTemplate(workoutTemplateCount)) {
+      await createWorkoutFromHistory();
+      return;
+    }
+
+    await runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.workoutLimit,
+        params: {
+          source: 'history_detail',
+          action: 'create_workout_from_history',
+          workoutTemplateCount,
+        },
+      },
+      createWorkoutFromHistory
+    );
+  };
+
   return (
     <BaseModal
       visible={visible}
       onClose={onClose}
       title={session.name}
+      titleStyle={styles.workoutTitle}
+      showCloseButton={false}
       width={getModalWidth(300)}
     >
       {/* Date/Time */}
@@ -245,7 +351,6 @@ export function WorkoutHistoryDetailModal({
       {/* Stats Row */}
       <View style={[styles.statsRow, themedStyles.statsRow]}>
         <View style={styles.stat}>
-          <ClockIcon color={colors.textSecondary} size={16} strokeWidth={2} />
           <Text
             style={[styles.statValue, themedStyles.statValue]}
             numberOfLines={1}
@@ -257,7 +362,6 @@ export function WorkoutHistoryDetailModal({
         </View>
 
         <View style={styles.stat}>
-          <ScaleIcon color={colors.textSecondary} size={16} strokeWidth={2} />
           <Text
             style={[styles.statValue, themedStyles.statValue]}
             numberOfLines={1}
@@ -269,7 +373,6 @@ export function WorkoutHistoryDetailModal({
         </View>
 
         <View style={styles.stat}>
-          <TrophyIcon color={colors.textSecondary} size={16} strokeWidth={2} />
           <Text
             style={[styles.statValue, themedStyles.statValue]}
             numberOfLines={1}
@@ -308,26 +411,52 @@ export function WorkoutHistoryDetailModal({
         })}
       </ScrollView>
 
-      {canRetry && (
-        <View style={[modalStyles.actions, styles.actions]}>
-          {canRetry && (
-            <Pressable
-              onPress={handleRetryPress}
-              style={({ pressed }) => [
-                modalStyles.successButton,
-                pressed && modalStyles.buttonPressed,
-              ]}
-            >
-              <Text style={modalStyles.successButtonText}>Retry sync</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
+      {createWorkoutError ? (
+        <Text style={[styles.createError, { color: colors.error }]}>{createWorkoutError}</Text>
+      ) : null}
+
+      <View style={[modalStyles.actions, styles.actions]}>
+        {canRetry ? (
+          <Pressable
+            onPress={handleRetryPress}
+            style={({ pressed }) => [
+              modalStyles.cancelButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={modalStyles.cancelButtonText}>Retry sync</Text>
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add workout from history"
+          disabled={isCreatingWorkout || isWorkoutCreated}
+          onPress={handleCreateWorkoutPress}
+          style={({ pressed }) => [
+            modalStyles.successButton,
+            (isCreatingWorkout || isWorkoutCreated) && styles.createButtonDisabled,
+            pressed && modalStyles.buttonPressed,
+          ]}
+        >
+          <Text style={modalStyles.successButtonText}>
+            {isWorkoutCreated
+              ? 'Added to Workouts'
+              : isCreatingWorkout
+                ? 'Adding...'
+                : 'Add to Workouts'}
+          </Text>
+        </Pressable>
+      </View>
     </BaseModal>
   );
 }
 
 const styles = StyleSheet.create({
+  workoutTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 0.8,
+  },
   dateTime: {
     fontSize: FontSizes.sm,
     fontWeight: '500',
@@ -349,7 +478,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    justifyContent: 'center',
     minWidth: 0,
   },
   statValue: {
@@ -391,5 +520,14 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: Spacing.lg,
+  },
+  createError: {
+    marginTop: Spacing.sm,
+    textAlign: 'center',
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  createButtonDisabled: {
+    opacity: 0.7,
   },
 });

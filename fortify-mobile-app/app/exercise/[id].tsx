@@ -316,10 +316,15 @@ export default function ExerciseDetailsScreen() {
           <TouchableOpacity onPress={handleBack} style={[styles.backButton, themedStyles.backButton]}>
             <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
           </TouchableOpacity>
+          <Text
+            style={[styles.headerTitle, themedStyles.headerTitle]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {exercise.name}
+          </Text>
+          <View style={styles.headerSpacer} />
         </View>
-        <Text style={[styles.headerTitle, themedStyles.headerTitle]} numberOfLines={3} ellipsizeMode="tail">
-          {exercise.name}
-        </Text>
       </View>
 
       {/* Tabs */}
@@ -653,7 +658,6 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    gap: Spacing.xs,
   },
   headerTopRow: {
     minHeight: 40,
@@ -669,13 +673,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
+    flex: 1,
     fontSize: FontSizes.lg,
     lineHeight: Math.round(FontSizes.lg * 1.25),
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
     color: Colors.textPrimary,
     textAlign: 'center',
-    paddingHorizontal: Spacing.xl,
-    alignSelf: 'stretch',
+    paddingHorizontal: Spacing.sm,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
   },
   tabBar: {
     flexDirection: 'row',

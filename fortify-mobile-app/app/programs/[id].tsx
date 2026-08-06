@@ -608,12 +608,14 @@ export default function ProgramDetailScreen() {
           </Text>
         </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(50).duration(180)}
-          style={styles.section}
-        >
-          <MuscleHeatmap exercises={heatmapExercises} gender={bodyType} />
-        </Animated.View>
+        <View style={styles.section}>
+          <MuscleHeatmap
+            exercises={heatmapExercises}
+            gender={bodyType}
+            animateEntrance
+            entranceDelay={50}
+          />
+        </View>
 
         {/* Start Program Button */}
         <Animated.View

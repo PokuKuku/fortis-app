@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { type Slug } from 'react-native-body-highlighter';
 import { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { bodyFront } from 'react-native-body-highlighter/assets/bodyFront';
 import { bodyBack } from 'react-native-body-highlighter/assets/bodyBack';
 import { bodyFemaleFront } from 'react-native-body-highlighter/assets/bodyFemaleFront';
@@ -33,6 +34,8 @@ interface MuscleHeatmapProps {
   baselineIntensity?: number;
   showLegend?: boolean;
   intensityPalette?: [string, string, string, string, string];
+  animateEntrance?: boolean;
+  entranceDelay?: number;
 }
 
 interface BodyPartData {
@@ -161,6 +164,8 @@ export function MuscleHeatmap({
   baselineIntensity = 0,
   showLegend = false,
   intensityPalette,
+  animateEntrance = false,
+  entranceDelay = 0,
 }: MuscleHeatmapProps) {
   const { colors, isDark } = useTheme();
 
@@ -234,7 +239,12 @@ export function MuscleHeatmap({
         </View>
       ) : null}
       <View style={styles.bodiesContainer}>
-        <View style={styles.bodyWrapper}>
+        <Animated.View
+          entering={animateEntrance
+            ? FadeInDown.delay(entranceDelay).duration(900)
+            : undefined}
+          style={styles.bodyWrapper}
+        >
           <AccentBody
             data={frontData}
             side="front"
@@ -244,8 +254,13 @@ export function MuscleHeatmap({
             baseColor={baseBodyFill}
             border={isDark ? '#333333' : '#cccccc'}
           />
-        </View>
-        <View style={styles.bodyWrapper}>
+        </Animated.View>
+        <Animated.View
+          entering={animateEntrance
+            ? FadeInDown.delay(entranceDelay + 480).duration(900)
+            : undefined}
+          style={styles.bodyWrapper}
+        >
           <AccentBody
             data={backData}
             side="back"
@@ -255,7 +270,7 @@ export function MuscleHeatmap({
             baseColor={baseBodyFill}
             border={isDark ? '#333333' : '#cccccc'}
           />
-        </View>
+        </Animated.View>
       </View>
     </View>
   );

@@ -9,7 +9,7 @@ import {
   DEV_HOME_TEST_CONTROLS_VISIBLE_KEY,
   PENDING_HOME_WORKOUT_CELEBRATION_KEY,
 } from '@/src/constants/storageKeys';
-import { removeScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { getScopedItem, removeScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { saveDevHomeTestControlsVisible } from '@/src/services/devPreferencesService';
 
 const mockRunProFeature = jest.fn();
@@ -104,6 +104,7 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     expect(useWorkoutStore.getState().streakPausesUsedThisMonth).toBe(1);
     expect(getByText('2 left this month')).toBeTruthy();
     expect(getByText('Pauses reset next month.')).toBeTruthy();
+    expect(getByText('Earn at a 5-workout streak')).toBeTruthy();
     expect(getByText('Paused')).toBeTruthy();
   });
 
@@ -221,6 +222,55 @@ describe('WeeklyProgressCarousel streak paywall', () => {
       expect(view.getByTestId('streak-number-outgoing').props.children).toBe(0);
     });
     expect(view.queryAllByTestId('completed-day-check-glow').length).toBeGreaterThan(0);
+  });
+
+  it('does not replay a stale celebration for a second workout on the same day', async () => {
+    mockIsPro = true;
+    const firstCompletedAt = new Date('2026-08-06T09:00:00-04:00');
+    const secondCompletedAt = new Date('2026-08-06T18:00:00-04:00');
+    const sessions = [
+      {
+        localId: 'second-workout',
+        name: 'Second workout',
+        notes: '',
+        startedAt: secondCompletedAt,
+        completedAt: secondCompletedAt,
+        exercises: [],
+        isSynced: false,
+      },
+      {
+        localId: 'first-workout',
+        name: 'First workout',
+        notes: '',
+        startedAt: firstCompletedAt,
+        completedAt: firstCompletedAt,
+        exercises: [],
+        isSynced: false,
+      },
+    ] as any;
+    await setScopedItem(
+      PENDING_HOME_WORKOUT_CELEBRATION_KEY,
+      JSON.stringify({
+        sessionLocalId: 'second-workout',
+        completedAt: secondCompletedAt.toISOString(),
+      })
+    );
+
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[secondCompletedAt.getDay()]}
+          sessions={sessions}
+          isFocused
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    await waitFor(async () => {
+      expect(await getScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY)).toBeNull();
+    });
+    expect(view.queryByTestId('streak-percentile-modal')).toBeNull();
   });
 
   it('cycles the development-only percentile modal preview', async () => {

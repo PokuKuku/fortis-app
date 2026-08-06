@@ -124,6 +124,7 @@ export function WeeklyProgressCarousel({
   const pausedStreakCount = useWorkoutStore(s => s.pausedStreakCount);
   const streakPausesUsedThisMonth = useWorkoutStore(s => s.streakPausesUsedThisMonth);
   const streakPausePeriods = useWorkoutStore(s => s.streakPausePeriods);
+  const streakFreezePassAvailable = useWorkoutStore(s => s.streakFreezePassAvailable);
   const pauseStreak = useWorkoutStore(s => s.pauseStreak);
   const resumeStreak = useWorkoutStore(s => s.resumeStreak);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -276,6 +277,20 @@ export function WeeklyProgressCarousel({
     if (!completedSession) return;
 
     const completedAt = new Date(pendingHomeCelebration.completedAt);
+    const completedDateKey = format(completedAt, 'yyyy-MM-dd');
+    const hasEarlierCompletionThatDay = sessions.some((session) => (
+      session.localId !== completedSession.localId
+      && session.completedAt
+      && format(session.completedAt, 'yyyy-MM-dd') === completedDateKey
+      && session.completedAt.getTime() < completedAt.getTime()
+    ));
+    if (hasEarlierCompletionThatDay) {
+      handledCelebrationRef.current = pendingHomeCelebration.sessionLocalId;
+      void removeScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY);
+      setPendingHomeCelebration(null);
+      return;
+    }
+
     const activeSchedule = new Set(
       getScheduleDaysForDate({ date: completedAt, scheduleDays, scheduleHistory })
     );
@@ -288,7 +303,6 @@ export function WeeklyProgressCarousel({
       return;
     }
 
-    const completedDateKey = format(completedAt, 'yyyy-MM-dd');
     setAnchorDate(getSundayWeekStart(completedAt));
     setMilestoneDateKey(completedDateKey);
     if (streak >= 1 && streak <= 10) {
@@ -784,6 +798,21 @@ export function WeeklyProgressCarousel({
           </Text>
           <Text style={[styles.streakPauseResetText, { color: colors.textTertiary }]}>
             Pauses reset next month.
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.streakPauseAllowanceCard,
+            { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' },
+          ]}
+        >
+          <Text style={[styles.streakInfoLabel, { color: colors.textTertiary }]}>Earned freeze pass</Text>
+          <Text style={[styles.streakInfoValue, { color: colors.textPrimary }]}>
+            {streakFreezePassAvailable ? '1 ready' : 'Earn at a 5-workout streak'}
+          </Text>
+          <Text style={[styles.streakPauseResetText, { color: colors.textTertiary }]}>
+            One pass can protect your next missed scheduled workout.
           </Text>
         </View>
 

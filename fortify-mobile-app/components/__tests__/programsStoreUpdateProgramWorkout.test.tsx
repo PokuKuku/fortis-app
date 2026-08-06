@@ -176,4 +176,34 @@ describe('programsStore updateProgramWorkout', () => {
       'A program workout must contain at least one exercise'
     );
   });
+
+  it('removes an exercise through the guarded database function', async () => {
+    const program = buildProgram();
+    program.workouts[0].exercises.push({
+      id: 'removable-exercise',
+      exerciseId: '44444444-4444-4444-8444-444444444444',
+      exerciseName: 'Lat Pulldown',
+      sets: 3,
+      reps: '8-10',
+      restSeconds: 120,
+      notes: '',
+      orderIndex: 1,
+    });
+    useProgramsStore.setState({ programs: [program] });
+    rpcMock.mockResolvedValue({ data: true, error: null });
+
+    const result = await useProgramsStore.getState().removeExerciseFromProgramWorkout(
+      programId,
+      workoutId,
+      'removable-exercise'
+    );
+
+    expect(result).toBe(true);
+    expect(rpcMock).toHaveBeenCalledWith('remove_program_workout_exercise', {
+      p_program_workout_id: workoutId,
+      p_program_exercise_id: 'removable-exercise',
+    });
+    expect(fromMock).not.toHaveBeenCalled();
+    expect(useProgramsStore.getState().programs[0].workouts[0].exercises).toHaveLength(1);
+  });
 });

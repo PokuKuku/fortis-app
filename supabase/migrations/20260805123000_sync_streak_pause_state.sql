@@ -12,4 +12,4 @@ ALTER TABLE public.profiles
   );
 
 COMMENT ON COLUMN public.profiles.streak_pause_state IS
-  'Account-synced workout streak pause state, including stable protected local date ranges.';
+  'Account-synced workout streak pause state, protected local date ranges, and earned freeze-pass inventory.';
