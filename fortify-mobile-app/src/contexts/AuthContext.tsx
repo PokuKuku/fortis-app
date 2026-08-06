@@ -53,6 +53,7 @@ export interface Profile {
   workouts_per_week?: number | null;
   workout_schedule_days?: number[] | null;
   workout_schedule_history?: WorkoutScheduleHistoryEntry[] | null;
+  streak_pause_state?: Record<string, unknown> | null;
   training_environment?: 'gym' | 'home' | 'hybrid' | null;
   tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never' | null;
   fitness_goal?: 'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent' | null;

@@ -33,8 +33,28 @@ describe('StreakPercentileCelebrationModal', () => {
     );
 
     expect(view.getByText('10 DAYS')).toBeTruthy();
-    expect(view.getByText('TOP 6%')).toBeTruthy();
+    expect(view.getByLabelText('Top 6% of lifters')).toBeTruthy();
+    expect(view.getByText('OF LIFTERS')).toBeTruthy();
     expect(view.getByText('ABSOLUTELY ELITE!')).toBeTruthy();
     expect(view.queryByText('How this is estimated')).toBeNull();
+  });
+
+  it('keeps the flame geometry fixed across streak milestones', () => {
+    const view = render(
+      <ThemeProvider>
+        <StreakPercentileCelebrationModal visible streak={1} onContinue={jest.fn()} />
+      </ThemeProvider>
+    );
+    const dayOneFlameStyle = view.getByLabelText('Animated realistic workout streak flame').props.style;
+
+    view.rerender(
+      <ThemeProvider>
+        <StreakPercentileCelebrationModal visible streak={10} onContinue={jest.fn()} />
+      </ThemeProvider>
+    );
+
+    expect(view.getByLabelText('Animated realistic workout streak flame').props.style).toEqual(
+      dayOneFlameStyle
+    );
   });
 });

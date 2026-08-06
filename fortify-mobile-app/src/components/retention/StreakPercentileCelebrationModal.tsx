@@ -30,7 +30,7 @@ export const STREAK_PERCENTILE_MILESTONES: Record<number, StreakMilestone> = {
   1: {
     percentile: 50,
     headline: "YOU'RE ON FIRE!",
-    message: 'You showed up, put in the work, and your streak is officially alive.',
+    message: 'Your streak is officially live.',
   },
   2: {
     percentile: 58,
@@ -65,19 +65,17 @@ export const STREAK_PERCENTILE_MILESTONES: Record<number, StreakMilestone> = {
   8: {
     percentile: 89,
     headline: 'EIGHT WITHOUT A MISS!',
-    message: 'You are closing in on the top 10%. This streak has serious momentum!',
+    message: 'You are knocking on the door of the top 10%. This streak has serious momentum!',
   },
   9: {
     percentile: 92,
-    badge: 'TOP 8%',
     headline: 'TOP-TIER CONSISTENCY!',
-    message: 'Nine scheduled workouts in a row. Very few lifters stay this locked in!',
+    message: 'Nine scheduled workouts in a row. Only 8% of lifters stay this locked in!',
   },
   10: {
     percentile: 94,
-    badge: 'TOP 6%',
     headline: 'ABSOLUTELY ELITE!',
-    message: 'Ten scheduled workouts without a miss. That is consistency most lifters never reach.',
+    message: 'Ten scheduled workouts without a miss. Only 6% of lifters reach this level of consistency.',
   },
 };
 
@@ -87,8 +85,6 @@ type StreakPercentileCelebrationModalProps = {
   onContinue: () => void;
 };
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-const ARC_LENGTH = 300;
 const FIRE_FRAMES = [
   require('../../../assets/animations/streak-fire/frames/frame-01.png'),
   require('../../../assets/animations/streak-fire/frames/frame-02.png'),
@@ -127,7 +123,7 @@ function LivingFlame({
 
     const frameTimer = setInterval(() => {
       setFrameIndex((current) => (current + 1) % FIRE_FRAMES.length);
-    }, 72);
+    }, 110);
 
     return () => clearInterval(frameTimer);
   }, [active, reduceMotion]);
@@ -147,37 +143,48 @@ function ConsistencyArc({
   percentile,
   fillColor,
   trackColor,
+  compact,
 }: {
   progress: Animated.Value;
   percentile: number;
   fillColor: string;
   trackColor: string;
+  compact: boolean;
 }) {
-  const dashOffset = progress.interpolate({
+  const arcWidth = scale(compact ? 230 : 270);
+  const finalFillWidth = arcWidth * (24 + 202 * percentile / 100) / 250;
+  const fillWidth = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [ARC_LENGTH, ARC_LENGTH * (1 - percentile / 100)],
+    outputRange: [0, finalFillWidth],
   });
 
   return (
-    <View style={styles.arcWrap} testID="streak-percentile-arc">
-      <Svg width="100%" height="100%" viewBox="0 0 250 108">
+    <View
+      style={[styles.arcWrap, compact && styles.arcWrapCompact, { width: arcWidth }]}
+      testID="streak-percentile-arc"
+    >
+      <Svg width="100%" height="100%" viewBox="0 0 250 96">
         <Path
-          d="M24 92 Q125 5 226 92"
+          d="M24 82 Q125 4 226 82"
           fill="none"
           stroke={trackColor}
-          strokeLinecap="round"
-          strokeWidth="10"
-        />
-        <AnimatedPath
-          d="M24 92 Q125 5 226 92"
-          fill="none"
-          stroke={fillColor}
-          strokeDasharray={`${ARC_LENGTH} ${ARC_LENGTH}`}
-          strokeDashoffset={dashOffset as unknown as number}
-          strokeLinecap="round"
-          strokeWidth="10"
+          strokeLinecap="butt"
+          strokeWidth="9"
+          strokeDasharray="16 10"
         />
       </Svg>
+      <Animated.View style={[styles.arcFillClip, { width: fillWidth }]}>
+        <Svg width={arcWidth} height="100%" viewBox="0 0 250 96">
+          <Path
+            d="M24 82 Q125 4 226 82"
+            fill="none"
+            stroke={fillColor}
+            strokeLinecap="butt"
+            strokeWidth="9"
+            strokeDasharray="16 10"
+          />
+        </Svg>
+      </Animated.View>
     </View>
   );
 }
@@ -190,12 +197,13 @@ export function StreakPercentileCelebrationModal({
   const { colors, isDark } = useTheme();
   const { height } = useWindowDimensions();
   const milestone = STREAK_PERCENTILE_MILESTONES[streak] ?? STREAK_PERCENTILE_MILESTONES[10];
+  const topLifterPercent = 100 - milestone.percentile;
   const fireEntrance = useRef(new Animated.Value(0)).current;
   const barProgress = useRef(new Animated.Value(0)).current;
-  const [displayedPercentile, setDisplayedPercentile] = useState(0);
+  const [displayedTopPercent, setDisplayedTopPercent] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
-  const isCompact = height < 740;
-  const flameSize = scale((isCompact ? 150 : 182) + Math.min(10, streak) * 1.2);
+  const isCompact = height < 840;
+  const flameSize = scale(isCompact ? 154 : 186);
 
   useEffect(() => {
     let mounted = true;
@@ -216,12 +224,12 @@ export function StreakPercentileCelebrationModal({
     barProgress.stopAnimation();
     fireEntrance.setValue(reduceMotion ? 1 : 0);
     barProgress.setValue(reduceMotion ? 1 : 0);
-    setDisplayedPercentile(reduceMotion ? milestone.percentile : 0);
+    setDisplayedTopPercent(reduceMotion ? topLifterPercent : 0);
 
     if (reduceMotion) return;
 
     const countListener = barProgress.addListener(({ value }) => {
-      setDisplayedPercentile(Math.round(milestone.percentile * value));
+      setDisplayedTopPercent(Math.round(topLifterPercent * value));
     });
     const entranceAnimation = Animated.parallel([
       Animated.timing(fireEntrance, {
@@ -244,7 +252,7 @@ export function StreakPercentileCelebrationModal({
       entranceAnimation.stop();
       barProgress.removeListener(countListener);
     };
-  }, [barProgress, fireEntrance, milestone.percentile, reduceMotion, visible]);
+  }, [barProgress, fireEntrance, milestone.percentile, reduceMotion, topLifterPercent, visible]);
 
   const fireStyle = useMemo(() => ({
     opacity: fireEntrance,
@@ -284,47 +292,92 @@ export function StreakPercentileCelebrationModal({
         <StainlessSteelPattern />
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
           <View style={[styles.content, isCompact && styles.contentCompact]}>
-            <View style={[styles.flameStage, isCompact && styles.flameStageCompact]}>
-              <Animated.View style={fireStyle} testID="streak-percentile-flame">
-                <LivingFlame size={flameSize} reduceMotion={reduceMotion} active={visible} />
+            <View style={[styles.celebrationStack, isCompact && styles.celebrationStackCompact]}>
+              <View style={[styles.flameStage, isCompact && styles.flameStageCompact]}>
+                <Animated.View style={fireStyle} testID="streak-percentile-flame">
+                  <LivingFlame size={flameSize} reduceMotion={reduceMotion} active={visible} />
+                </Animated.View>
+              </View>
+
+              <Text
+                style={[
+                  styles.streakValue,
+                  isCompact && styles.streakValueCompact,
+                  { color: colors.textPrimary },
+                ]}
+              >
+                {streak} {streak === 1 ? 'DAY' : 'DAYS'}
+              </Text>
+
+              <View style={[styles.percentileMeter, isCompact && styles.percentileMeterCompact]}>
+                <ConsistencyArc
+                  progress={barProgress}
+                  percentile={milestone.percentile}
+                  fillColor={colors.accent}
+                  trackColor={isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'}
+                  compact={isCompact}
+                />
+                <View
+                  accessible
+                  accessibilityLabel={`Top ${topLifterPercent}% of lifters`}
+                  style={styles.percentileValueWrap}
+                >
+                  <Text
+                    style={[
+                      styles.percentileNumber,
+                      isCompact && styles.percentileNumberCompact,
+                      { color: colors.textPrimary },
+                    ]}
+                  >
+                    <Text style={[styles.topPercentPrefix, isCompact && styles.topPercentPrefixCompact]}>
+                      TOP{' '}
+                    </Text>
+                    {displayedTopPercent}%
+                  </Text>
+                  <Text
+                    style={[
+                      styles.percentileLabel,
+                      isCompact && styles.percentileLabelCompact,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    OF LIFTERS
+                  </Text>
+                </View>
+              </View>
+
+              <Animated.View
+                style={[styles.copyBlock, isCompact && styles.copyBlockCompact, copyStyle]}
+              >
+                <View style={[styles.badgeSlot, isCompact && styles.badgeSlotCompact]}>
+                  {milestone.badge ? (
+                    <Text style={[styles.badge, { color: colors.textPrimary }]}>{milestone.badge}</Text>
+                  ) : null}
+                </View>
+                <View style={[styles.headlineSlot, isCompact && styles.headlineSlotCompact]}>
+                  <Text
+                    style={[
+                      styles.headline,
+                      isCompact && styles.headlineCompact,
+                      { color: colors.textPrimary },
+                    ]}
+                  >
+                    {milestone.headline}
+                  </Text>
+                </View>
+                <View style={[styles.messageSlot, isCompact && styles.messageSlotCompact]}>
+                  <Text
+                    style={[
+                      styles.message,
+                      isCompact && styles.messageCompact,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {milestone.message}
+                  </Text>
+                </View>
               </Animated.View>
             </View>
-
-            <Text style={[styles.streakValue, { color: colors.textPrimary }]}>
-              {streak} {streak === 1 ? 'DAY' : 'DAYS'}
-            </Text>
-
-            <View
-              style={[
-                styles.percentileCard,
-                {
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
-                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
-                },
-              ]}
-            >
-              <ConsistencyArc
-                progress={barProgress}
-                percentile={milestone.percentile}
-                fillColor={colors.accent}
-                trackColor={isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'}
-              />
-              <View style={styles.percentileValueWrap}>
-                <Text style={[styles.percentileNumber, { color: colors.textPrimary }]}>
-                  {displayedPercentile}
-                  <Text style={styles.ordinal}>TH</Text>
-                </Text>
-                <Text style={[styles.percentileLabel, { color: colors.textSecondary }]}>PERCENTILE</Text>
-              </View>
-            </View>
-
-            <Animated.View style={[styles.copyBlock, copyStyle]}>
-              {milestone.badge ? (
-                <Text style={[styles.badge, { color: colors.textPrimary }]}>{milestone.badge}</Text>
-              ) : null}
-              <Text style={[styles.headline, { color: colors.textPrimary }]}>{milestone.headline}</Text>
-              <Text style={[styles.message, { color: colors.textSecondary }]}>{milestone.message}</Text>
-            </Animated.View>
 
             <Pressable
               accessibilityRole="button"
@@ -357,11 +410,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingTop: scale(28),
+    paddingTop: scale(75),
     paddingBottom: Spacing.lg,
   },
   contentCompact: {
-    paddingTop: scale(8),
+    paddingTop: scale(32),
+  },
+  celebrationStack: {
+    width: '100%',
+    alignItems: 'center',
+    transform: [{ translateY: scale(60) }],
+  },
+  celebrationStackCompact: {
+    transform: [{ translateY: scale(25) }],
   },
   flameStage: {
     width: scale(210),
@@ -379,54 +440,108 @@ const styles = StyleSheet.create({
     marginTop: scale(8),
     marginBottom: scale(14),
   },
-  percentileCard: {
+  streakValueCompact: {
+    fontSize: moderateScale(38),
+    marginTop: scale(5),
+    marginBottom: scale(9),
+  },
+  percentileMeter: {
     width: '100%',
     maxWidth: scale(330),
-    height: scale(150),
-    borderWidth: 1,
-    borderRadius: BorderRadius.xl,
+    height: scale(132),
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: scale(14),
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.08,
-    shadowRadius: scale(12),
-    elevation: 2,
+    marginTop: scale(2),
+  },
+  percentileMeterCompact: {
+    height: scale(110),
+    marginTop: 0,
   },
   percentileValueWrap: {
     alignItems: 'center',
+    marginTop: scale(-5),
   },
   percentileNumber: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: moderateScale(35),
-    lineHeight: moderateScale(37),
+    fontSize: moderateScale(32),
+    lineHeight: moderateScale(35),
   },
-  ordinal: {
-    fontSize: moderateScale(15),
+  percentileNumberCompact: {
+    fontSize: moderateScale(28),
+    lineHeight: moderateScale(31),
+  },
+  topPercentPrefix: {
+    fontSize: moderateScale(20),
+    letterSpacing: 0.8,
+  },
+  topPercentPrefixCompact: {
+    fontSize: moderateScale(18),
   },
   percentileLabel: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(13),
     letterSpacing: 1.1,
   },
+  percentileLabelCompact: {
+    fontSize: moderateScale(12),
+  },
   arcWrap: {
+    height: scale(86),
+    overflow: 'hidden',
+  },
+  arcWrapCompact: {
+    height: scale(72),
+  },
+  arcFillClip: {
     position: 'absolute',
-    bottom: scale(9),
-    width: scale(250),
-    height: scale(58),
+    top: 0,
+    bottom: 0,
+    left: 0,
+    overflow: 'hidden',
   },
   copyBlock: {
     width: '100%',
     maxWidth: scale(340),
+    height: scale(130),
     alignItems: 'center',
+    marginTop: scale(26),
+  },
+  copyBlockCompact: {
+    height: scale(112),
     marginTop: scale(16),
+  },
+  badgeSlot: {
+    width: '100%',
+    height: scale(24),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeSlotCompact: {
+    height: scale(20),
+  },
+  headlineSlot: {
+    width: '100%',
+    height: scale(38),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headlineSlotCompact: {
+    height: scale(32),
+  },
+  messageSlot: {
+    width: '100%',
+    height: scale(68),
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: scale(8),
+  },
+  messageSlotCompact: {
+    height: scale(60),
+    paddingTop: scale(6),
   },
   badge: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(18),
     letterSpacing: 1.1,
-    marginBottom: scale(3),
   },
   headline: {
     fontFamily: 'BankGothicBT-Medium',
@@ -434,12 +549,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textAlign: 'center',
   },
+  headlineCompact: {
+    fontSize: moderateScale(20),
+    letterSpacing: 0.6,
+  },
   message: {
     fontSize: moderateScale(15),
     fontWeight: '600',
     lineHeight: moderateScale(22),
     textAlign: 'center',
-    marginTop: scale(8),
+  },
+  messageCompact: {
+    fontSize: moderateScale(14),
+    lineHeight: moderateScale(18),
   },
   continueButton: {
     width: '100%',
@@ -449,10 +571,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 'auto',
-    marginBottom: scale(40),
+    marginBottom: scale(38),
   },
   continueButtonCompact: {
-    marginBottom: scale(10),
+    minHeight: scale(50),
+    marginBottom: scale(24),
   },
   continueButtonPressed: {
     opacity: 0.82,

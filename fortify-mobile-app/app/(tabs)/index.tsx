@@ -128,6 +128,7 @@ const PROGRAM_CARD_PADDING_HORIZONTAL = responsiveValue(10, 12, 14);
 const WORKOUT_CARD_PADDING_HORIZONTAL = responsiveValue(8, 10, 12);
 const CARD_PADDING_TOP = responsiveValue(8, 10, 12);
 const CARD_PADDING_BOTTOM = responsiveValue(10, 12, 14);
+const CARD_CONTENT_NUDGE_Y = responsiveValue(2, 3, 3);
 const SECTION_TITLE_SIZE = responsiveValue(18, 20, 22);
 const CARD_TITLE_SIZE = responsiveValue(12, 14, 15);
 const CARD_META_SIZE = responsiveValue(11, 12, 13);
@@ -3312,8 +3313,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
     paddingHorizontal: PROGRAM_CARD_PADDING_HORIZONTAL,
-    paddingTop: CARD_PADDING_TOP,
-    paddingBottom: CARD_PADDING_BOTTOM,
+    paddingTop: CARD_PADDING_TOP + CARD_CONTENT_NUDGE_Y,
+    paddingBottom: CARD_PADDING_BOTTOM - CARD_CONTENT_NUDGE_Y,
     overflow: 'visible',
     height: PROGRAM_CARD_HEIGHT,
   },
@@ -3323,8 +3324,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
     paddingHorizontal: WORKOUT_CARD_PADDING_HORIZONTAL,
-    paddingTop: CARD_PADDING_TOP,
-    paddingBottom: CARD_PADDING_BOTTOM,
+    paddingTop: CARD_PADDING_TOP + CARD_CONTENT_NUDGE_Y,
+    paddingBottom: CARD_PADDING_BOTTOM - CARD_CONTENT_NUDGE_Y,
     overflow: 'visible',
     height: WORKOUT_CARD_HEIGHT,
   },

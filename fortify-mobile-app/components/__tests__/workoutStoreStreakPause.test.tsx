@@ -1,13 +1,31 @@
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { WorkoutSession } from '@/src/types/workout';
+import {
+  fetchCloudStreakPauseState,
+  syncCloudStreakPauseState,
+} from '@/src/services/streakPauseService';
+import { removeScopedItem, setActiveScopedStorageUser } from '@/src/utils/scopedStorage';
+import { STREAK_PAUSE_STATE_KEY } from '@/src/constants/storageKeys';
 
 jest.mock('@/src/services/workoutCompletionNotifications', () => ({
   scheduleWorkoutCompletionNotification: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('@/src/services/streakPauseService', () => ({
+  fetchCloudStreakPauseState: jest.fn(() => Promise.resolve(null)),
+  syncCloudStreakPauseState: jest.fn(() => Promise.resolve()),
+}));
+
 describe('workout store streak pause', () => {
-  afterEach(() => {
+  beforeEach(() => {
+    setActiveScopedStorageUser(null);
+    jest.mocked(fetchCloudStreakPauseState).mockResolvedValue(null);
+  });
+
+  afterEach(async () => {
+    jest.useRealTimers();
     useWorkoutStore.getState().resetStore();
+    await removeScopedItem(STREAK_PAUSE_STATE_KEY);
     jest.clearAllMocks();
   });
 
@@ -72,5 +90,55 @@ describe('workout store streak pause', () => {
 
     expect(useWorkoutStore.getState().isStreakPaused).toBe(false);
     expect(useWorkoutStore.getState().streakPausesUsedThisMonth).toBe(3);
+  });
+
+  it('keeps the pause period after resuming so covered dates remain protected', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-06-29T08:00:00-04:00'));
+
+    await expect(useWorkoutStore.getState().pauseStreak(4)).resolves.toBe(true);
+    expect(useWorkoutStore.getState().streakPausePeriods).toEqual([{
+      startDateKey: '2026-06-29',
+      endDateKey: null,
+    }]);
+
+    jest.setSystemTime(new Date('2026-06-30T08:00:00-04:00'));
+    await useWorkoutStore.getState().resumeStreak();
+
+    expect(useWorkoutStore.getState().streakPausePeriods).toEqual([{
+      startDateKey: '2026-06-29',
+      endDateKey: '2026-06-30',
+    }]);
+    expect(syncCloudStreakPauseState).toHaveBeenLastCalledWith(expect.objectContaining({
+      isPaused: false,
+      streakPausePeriods: [{
+        startDateKey: '2026-06-29',
+        endDateKey: '2026-06-30',
+      }],
+    }));
+  });
+
+  it('hydrates newer streak pause state from the account cloud record', async () => {
+    jest.mocked(fetchCloudStreakPauseState).mockResolvedValue({
+      isPaused: false,
+      pausedAt: null,
+      pausedStreakCount: null,
+      streakPausePeriods: [{
+        startDateKey: '2026-07-04',
+        endDateKey: '2026-07-04',
+      }],
+      streakPauseMonthKey: '2026-07',
+      streakPausesUsedThisMonth: 1,
+      updatedAt: '2026-07-04T20:00:00.000Z',
+    });
+
+    await useWorkoutStore.getState().loadStreakPauseState();
+
+    expect(useWorkoutStore.getState().streakPausePeriods).toEqual([{
+      startDateKey: '2026-07-04',
+      endDateKey: '2026-07-04',
+    }]);
+    expect(useWorkoutStore.getState().streakPauseUpdatedAt)
+      .toBe('2026-07-04T20:00:00.000Z');
   });
 });

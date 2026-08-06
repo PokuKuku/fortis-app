@@ -12,6 +12,11 @@ export type WorkoutScheduleHistoryEntry = {
   scheduleDays: number[];
 };
 
+export type StreakPausePeriod = {
+  startDateKey: string;
+  endDateKey: string | null;
+};
+
 export type WeekProgressDay = {
   date: Date;
   dateKey: string;
@@ -272,9 +277,11 @@ export function getCompletedWeekdaysForProgram(
 
 export function getWorkoutDayStreak({
   sessions,
+  streakPausePeriods = [],
   today = new Date(),
 }: {
   sessions: WorkoutSession[];
+  streakPausePeriods?: StreakPausePeriod[];
   today?: Date;
 }): number {
   const completedDateKeys = new Set(
@@ -285,20 +292,21 @@ export function getWorkoutDayStreak({
 
   let cursor = new Date(today);
   let streak = 0;
-  let inspectedDays = 0;
-  const maxLookbackDays = 370;
 
-  while (inspectedDays < maxLookbackDays) {
-    if (!completedDateKeys.has(getDateKey(cursor))) {
+  while (true) {
+    const cursorKey = getDateKey(cursor);
+    if (
+      !completedDateKeys.has(cursorKey)
+      && !isDateCoveredByStreakPause(cursorKey, streakPausePeriods, today)
+    ) {
       return streak;
     }
 
-    streak += 1;
+    if (completedDateKeys.has(cursorKey)) {
+      streak += 1;
+    }
     cursor = addDays(cursor, -1);
-    inspectedDays += 1;
   }
-
-  return streak;
 }
 
 export function buildWeekProgressDays({
@@ -349,17 +357,19 @@ export function getScheduledWorkoutDayStreak({
   scheduleDays,
   scheduleHistory,
   sessions,
+  streakPausePeriods = [],
   today = new Date(),
 }: {
   scheduleDays: number[];
   scheduleHistory?: WorkoutScheduleHistoryEntry[];
   sessions: WorkoutSession[];
+  streakPausePeriods?: StreakPausePeriod[];
   today?: Date;
 }): number {
   const normalizedSchedule = normalizeWorkoutScheduleDays(scheduleDays);
   const normalizedHistory = normalizeWorkoutScheduleHistory(scheduleHistory);
   if (normalizedSchedule.length === 0 && normalizedHistory.length === 0) {
-    return getWorkoutDayStreak({ sessions, today });
+    return getWorkoutDayStreak({ sessions, streakPausePeriods, today });
   }
 
   const completedDateKeys = new Set(
@@ -371,10 +381,8 @@ export function getScheduledWorkoutDayStreak({
   let cursor = new Date(today);
   const todayKey = getDateKey(today);
   let streak = 0;
-  let inspectedDays = 0;
-  const maxLookbackDays = 370;
 
-  while (inspectedDays < maxLookbackDays) {
+  while (true) {
     const scheduledDays = new Set(
       getScheduleDaysForDate({
         date: cursor,
@@ -390,19 +398,21 @@ export function getScheduledWorkoutDayStreak({
       ) {
         return streak;
       }
-      return getWorkoutDayStreak({ sessions, today });
+      return getWorkoutDayStreak({ sessions, streakPausePeriods, today });
     }
 
     if (!scheduledDays.has(cursor.getDay())) {
       cursor = addDays(cursor, -1);
-      inspectedDays += 1;
       continue;
     }
 
     if (!completedDateKeys.has(cursorKey)) {
       if (cursorKey === todayKey) {
         cursor = addDays(cursor, -1);
-        inspectedDays += 1;
+        continue;
+      }
+      if (isDateCoveredByStreakPause(cursorKey, streakPausePeriods, today)) {
+        cursor = addDays(cursor, -1);
         continue;
       }
       return streak;
@@ -410,8 +420,18 @@ export function getScheduledWorkoutDayStreak({
 
     streak += 1;
     cursor = addDays(cursor, -1);
-    inspectedDays += 1;
   }
+}
 
-  return streak;
+function isDateCoveredByStreakPause(
+  dateKey: string,
+  periods: StreakPausePeriod[],
+  today: Date
+): boolean {
+  const todayKey = getDateKey(today);
+
+  return periods.some((period) => {
+    const endDateKey = period.endDateKey ?? todayKey;
+    return dateKey >= period.startDateKey && dateKey <= endDateKey;
+  });
 }

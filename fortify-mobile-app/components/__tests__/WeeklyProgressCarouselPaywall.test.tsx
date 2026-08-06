@@ -2,6 +2,7 @@ import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { WeeklyProgressCarousel } from '@/src/components/program/WeeklyProgressCarousel';
+import { StreakPercentileCelebrationModal } from '@/src/components/retention/StreakPercentileCelebrationModal';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import {
@@ -243,5 +244,10 @@ describe('WeeklyProgressCarousel streak paywall', () => {
 
     fireEvent.press(view.getByLabelText('Test streak percentile celebration'));
     expect(view.getByText('2 DAYS')).toBeTruthy();
+
+    fireEvent.press(view.getByLabelText('Continue from streak celebration'));
+    const closingModal = view.UNSAFE_getByType(StreakPercentileCelebrationModal);
+    expect(closingModal.props.visible).toBe(false);
+    expect(closingModal.props.streak).toBe(2);
   });
 });

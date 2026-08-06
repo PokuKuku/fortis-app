@@ -123,6 +123,7 @@ export function WeeklyProgressCarousel({
   const streakPausedAt = useWorkoutStore(s => s.streakPausedAt);
   const pausedStreakCount = useWorkoutStore(s => s.pausedStreakCount);
   const streakPausesUsedThisMonth = useWorkoutStore(s => s.streakPausesUsedThisMonth);
+  const streakPausePeriods = useWorkoutStore(s => s.streakPausePeriods);
   const pauseStreak = useWorkoutStore(s => s.pauseStreak);
   const resumeStreak = useWorkoutStore(s => s.resumeStreak);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -140,7 +141,8 @@ export function WeeklyProgressCarousel({
   const [homeCompletionPreview, setHomeCompletionPreview] = useState<DevCompletionPreview | null>(null);
   const [homeStreakPreview, setHomeStreakPreview] = useState<number | null>(null);
   const [pendingHomeCelebration, setPendingHomeCelebration] = useState<PendingHomeCelebration | null>(null);
-  const [milestoneStreak, setMilestoneStreak] = useState<number | null>(null);
+  const [milestoneStreak, setMilestoneStreak] = useState(1);
+  const [isMilestoneVisible, setIsMilestoneVisible] = useState(false);
   const [milestoneDateKey, setMilestoneDateKey] = useState<string | null>(null);
   const [isDevMilestonePreview, setIsDevMilestonePreview] = useState(false);
   const [nextDevMilestoneStreak, setNextDevMilestoneStreak] = useState(1);
@@ -204,8 +206,13 @@ export function WeeklyProgressCarousel({
   );
 
   const streak = useMemo(
-    () => getScheduledWorkoutDayStreak({ scheduleDays, scheduleHistory, sessions }),
-    [scheduleDays, scheduleHistory, sessions]
+    () => getScheduledWorkoutDayStreak({
+      scheduleDays,
+      scheduleHistory,
+      sessions,
+      streakPausePeriods,
+    }),
+    [scheduleDays, scheduleHistory, sessions, streakPausePeriods]
   );
   const displayedStreak = isStreakPaused && pausedStreakCount !== null
     ? pausedStreakCount
@@ -291,6 +298,7 @@ export function WeeklyProgressCarousel({
       setHomeStreakPreview(Math.max(0, animatedDisplayedStreak - 1));
       setIsDevMilestonePreview(false);
       setMilestoneStreak(streak);
+      setIsMilestoneVisible(true);
       return;
     }
 
@@ -399,13 +407,14 @@ export function WeeklyProgressCarousel({
     setHomeStreakPreview(animatedDisplayedStreak);
     setIsDevMilestonePreview(true);
     setMilestoneStreak(nextDevMilestoneStreak);
+    setIsMilestoneVisible(true);
     setNextDevMilestoneStreak((current) => current >= 10 ? 1 : current + 1);
   };
 
   const handleMilestoneContinue = () => {
     const completedDateKey = milestoneDateKey;
     const wasDevPreview = isDevMilestonePreview;
-    setMilestoneStreak(null);
+    setIsMilestoneVisible(false);
     setIsDevMilestonePreview(false);
     if (!completedDateKey) return;
 
@@ -830,8 +839,8 @@ export function WeeklyProgressCarousel({
       </BaseModal>
 
       <StreakPercentileCelebrationModal
-        visible={milestoneStreak !== null}
-        streak={milestoneStreak ?? 1}
+        visible={isMilestoneVisible}
+        streak={milestoneStreak}
         onContinue={handleMilestoneContinue}
       />
     </>

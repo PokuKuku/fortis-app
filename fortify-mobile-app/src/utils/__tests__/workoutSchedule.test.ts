@@ -163,6 +163,29 @@ describe('workoutSchedule', () => {
     expect(streak).toBe(3);
   });
 
+  it('counts scheduled streaks that extend beyond the old 370-day lookback', () => {
+    const today = new Date('2026-08-08T12:00:00');
+    const completedSessions: WorkoutSession[] = [];
+    const cursor = new Date(today);
+    cursor.setDate(cursor.getDate() - 1);
+
+    while (completedSessions.length < 200) {
+      if ([1, 3, 5].includes(cursor.getDay())) {
+        const dateKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        completedSessions.push(session(`session-${dateKey}`, `${dateKey}T12:00:00`));
+      }
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 3, 5],
+      sessions: completedSessions,
+      today,
+    });
+
+    expect(streak).toBe(200);
+  });
+
   it('uses historical schedules so changing days does not rewrite past streak rules', () => {
     const streak = getScheduledWorkoutDayStreak({
       scheduleDays: [2, 4],
@@ -400,6 +423,40 @@ describe('workoutSchedule', () => {
         session('monday', '2026-05-11T12:00:00'),
         session('friday', '2026-05-15T12:00:00'),
       ],
+      today: new Date('2026-05-16T12:00:00'),
+    });
+
+    expect(streak).toBe(1);
+  });
+
+  it('preserves the streak when a pause covers a missed scheduled day', () => {
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 3, 5],
+      sessions: [
+        session('monday', '2026-05-11T12:00:00'),
+        session('friday', '2026-05-15T12:00:00'),
+      ],
+      streakPausePeriods: [{
+        startDateKey: '2026-05-13',
+        endDateKey: '2026-05-13',
+      }],
+      today: new Date('2026-05-16T12:00:00'),
+    });
+
+    expect(streak).toBe(2);
+  });
+
+  it('does not retroactively cover a missed day when the pause starts later', () => {
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 3, 5],
+      sessions: [
+        session('monday', '2026-05-11T12:00:00'),
+        session('friday', '2026-05-15T12:00:00'),
+      ],
+      streakPausePeriods: [{
+        startDateKey: '2026-05-14',
+        endDateKey: '2026-05-14',
+      }],
       today: new Date('2026-05-16T12:00:00'),
     });
 

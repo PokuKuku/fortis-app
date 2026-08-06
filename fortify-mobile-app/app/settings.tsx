@@ -185,7 +185,7 @@ export default function SettingsScreen() {
     BUNDLED_APP_VERSION ??
     Constants.expoConfig?.version ??
     Constants.nativeAppVersion ??
-    '1.2.7';
+    '1.2.8';
   const router = useRouter();
   const exerciseLibraryNavigationRef = useRef(false);
   const { colors, isDark, mode, setMode, accentColor } = useTheme();

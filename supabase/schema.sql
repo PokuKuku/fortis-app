@@ -29,6 +29,10 @@ CREATE TABLE profiles (
   workouts_per_week INTEGER,
   workout_schedule_days SMALLINT[],
   workout_schedule_history JSONB,
+  streak_pause_state JSONB CHECK (
+    streak_pause_state IS NULL
+    OR jsonb_typeof(streak_pause_state) = 'object'
+  ),
   training_environment TEXT CHECK (training_environment IN ('gym', 'home', 'hybrid')),
   tried_other_apps TEXT,
   fitness_goal TEXT,
