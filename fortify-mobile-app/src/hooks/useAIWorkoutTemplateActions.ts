@@ -9,6 +9,7 @@ import { getExerciseById } from '@/src/services/exerciseService';
 import { normalizeAIWorkoutTemplateMetadata } from '@/src/utils/aiWorkoutTemplateMetadata';
 import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import type { Program } from '@/src/types/workout';
 
 interface UseAIWorkoutTemplateActionsOptions {
   messages: AIConversationMessage[];
@@ -34,33 +35,67 @@ export function useAIWorkoutTemplateActions({
   const programs = useProgramsStore((state) => state.programs);
   const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
   const updateWorkoutTemplate = useProgramsStore((state) => state.updateWorkoutTemplate);
+  const setPreviewProgram = useProgramsStore((state) => state.setPreviewProgram);
   const startWorkoutFromPlan = useWorkoutStore((state) => state.startWorkoutFromPlan);
   const isWorkoutActive = useWorkoutStore((state) => state.isWorkoutActive);
   const { canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
 
-  const [previewMessageId, setPreviewMessageId] = useState<string | null>(null);
   const [savingWorkoutMessageId, setSavingWorkoutMessageId] = useState<string | null>(null);
   const [updatingWorkoutMessageId, setUpdatingWorkoutMessageId] = useState<string | null>(null);
   const [startingWorkoutMessageId, setStartingWorkoutMessageId] = useState<string | null>(null);
   const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
 
-  const previewMessage = useMemo(
-    () => messages.find((message) => message.id === previewMessageId) ?? null,
-    [messages, previewMessageId]
-  );
   const savedWorkoutTemplateCount = useMemo(
     () => programs.filter((program) => program.isTemplate).length,
     [programs],
   );
 
   const handleViewWorkoutTemplate = useCallback((message: AIConversationMessage) => {
-    if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
+    const template = message.workoutTemplate;
+    if (!template || !Array.isArray(template.exercises)) {
       return;
     }
+
+    const now = new Date().toISOString();
+    const previewId = `ai-chat-workout-preview-${message.id}`;
+    const previewWorkout: Program = {
+      id: previewId,
+      name: template.name,
+      description: template.description,
+      difficulty: 'intermediate',
+      goal: 'general_fitness',
+      isPublic: false,
+      isDefault: false,
+      isAiCreated: true,
+      isTemplate: true,
+      aiSourceChatId: conversationId ?? null,
+      aiPayloadVersion: 'ai-chat-workout-preview-v1',
+      lastPerformedAt: null,
+      createdBy: 'ai-chat-preview',
+      createdAt: now,
+      updatedAt: now,
+      workouts: [{
+        id: `${previewId}-workout`,
+        name: template.name,
+        dayNumber: 1,
+        exercises: template.exercises.map((exercise, index) => ({
+          id: `${previewId}-exercise-${index + 1}`,
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          restSeconds: exercise.restSeconds,
+          notes: exercise.notes,
+          orderIndex: index,
+        })),
+      }],
+    };
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTemplateSaveError(null);
-    setPreviewMessageId(message.id);
-  }, []);
+    setPreviewProgram(previewWorkout);
+    router.push(`/workouts/${previewId}?preview=ai-chat`);
+  }, [conversationId, router, setPreviewProgram]);
 
   const resolveWorkoutTemplateExercises = useCallback(async (message: AIConversationMessage) => {
     if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
@@ -165,7 +200,6 @@ export function useAIWorkoutTemplateActions({
 
       try {
         await ensureWorkoutTemplateSaved(message);
-        setPreviewMessageId(null);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (saveError) {
         console.warn('Failed to save AI workout template:', saveError);
@@ -241,7 +275,6 @@ export function useAIWorkoutTemplateActions({
 
       await markWorkoutTemplateSaved?.(message.id, updatedTemplateId);
       onWorkoutTemplateSaved?.(message.id, updatedTemplateId);
-      setPreviewMessageId(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       posthog.capture('ai_workout_updated', {
         exercise_count: validExercises.length,
@@ -286,7 +319,6 @@ export function useAIWorkoutTemplateActions({
     }
 
     setTemplateSaveError(null);
-    setPreviewMessageId(null);
     setStartingWorkoutMessageId(message.id);
 
     try {
@@ -322,8 +354,6 @@ export function useAIWorkoutTemplateActions({
   }, [isWorkoutActive, router, savingWorkoutMessageId, startWorkoutFromPlan, startingWorkoutMessageId, updatingWorkoutMessageId]);
 
   return {
-    previewMessage,
-    setPreviewMessageId,
     savingWorkoutMessageId,
     updatingWorkoutMessageId,
     startingWorkoutMessageId,

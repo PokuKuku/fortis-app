@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { hasAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { sendAIMessage } from '@/src/services/aiService';
-import type { AIRequestContext, AIResponse } from '@/src/types/ai';
+import type { AIChatMessage, AIProgramTemplate, AIRequestContext, AIResponse } from '@/src/types/ai';
 import type {
   RealtimeCoachPreferences,
   RealtimeCoachScriptAudio,
@@ -321,4 +321,18 @@ export async function generateVoiceWorkoutTemplate(
     voiceWorkoutOnly: true,
   };
   return sendAIMessage('GENERAL_CHAT', prompt, requestContext);
+}
+
+export async function generateVoiceProgramTemplate(
+  prompt: string,
+  currentProgramTemplate?: AIProgramTemplate | null
+): Promise<AIResponse> {
+  const history: AIChatMessage[] | undefined = currentProgramTemplate
+    ? [{
+        role: 'assistant',
+        content: `Here is the current program: ${currentProgramTemplate.name}.`,
+        programTemplate: currentProgramTemplate,
+      }]
+    : undefined;
+  return sendAIMessage('GENERAL_CHAT', prompt, { generateProgram: true }, history);
 }

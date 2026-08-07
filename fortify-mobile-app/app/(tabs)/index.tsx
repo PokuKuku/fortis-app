@@ -1544,7 +1544,9 @@ export default function ProgramsScreen() {
   const [isNewUserChecklistLoaded, setIsNewUserChecklistLoaded] = useState(false);
   const [isNewUserChecklistModalVisible, setIsNewUserChecklistModalVisible] = useState(false);
   const [isNewUserChecklistCompleteVisible, setIsNewUserChecklistCompleteVisible] = useState(false);
+  const [deferWorkoutStreakCelebration, setDeferWorkoutStreakCelebration] = useState(false);
   const previousNewUserChecklistCompletedCountRef = useRef<number | null>(null);
+  const challengeDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
 
   useEffect(() => {
@@ -1671,6 +1673,17 @@ export default function ProgramsScreen() {
   const reloadNewUserChecklistState = useCallback(async () => {
     try {
       const nextState = await loadNewUserChecklistState(user?.id ?? null);
+      const previousCompletedCount = previousNewUserChecklistCompletedCountRef.current;
+      const nextCompletedCount = getNewUserChecklistCompletedCount(nextState);
+      if (
+        previousCompletedCount !== null
+        && previousCompletedCount < NEW_USER_CHECKLIST_TASKS.length
+        && nextCompletedCount === NEW_USER_CHECKLIST_TASKS.length
+      ) {
+        // Block the streak modal in the same update that completes the challenge,
+        // before the pending workout celebration can be presented on home.
+        setDeferWorkoutStreakCelebration(true);
+      }
       setNewUserChecklistState(nextState);
       setIsNewUserChecklistLoaded(true);
     } catch (error) {
@@ -1718,6 +1731,7 @@ export default function ProgramsScreen() {
       previousCompletedCount < NEW_USER_CHECKLIST_TASKS.length &&
       completedCount === NEW_USER_CHECKLIST_TASKS.length
     ) {
+      setDeferWorkoutStreakCelebration(true);
       setIsNewUserChecklistModalVisible(false);
       setIsNewUserChecklistCompleteVisible(true);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1731,6 +1745,7 @@ export default function ProgramsScreen() {
       NEW_USER_CHECKLIST_EVENT,
       (taskId: unknown) => {
         if (taskId === 'reset') {
+          setDeferWorkoutStreakCelebration(false);
           setIsNewUserChecklistCompleteVisible(false);
           void reloadNewUserChecklistState();
           return;
@@ -1747,6 +1762,25 @@ export default function ProgramsScreen() {
       subscription.remove();
     };
   }, [reloadNewUserChecklistState]);
+
+  useEffect(() => () => {
+    if (challengeDismissTimerRef.current) {
+      clearTimeout(challengeDismissTimerRef.current);
+    }
+  }, []);
+
+  const handleChallengeCompleteClose = useCallback(() => {
+    setIsNewUserChecklistCompleteVisible(false);
+    if (challengeDismissTimerRef.current) {
+      clearTimeout(challengeDismissTimerRef.current);
+    }
+    // Let the native full-screen modal finish dismissing before presenting the
+    // queued streak celebration. This avoids overlapping iOS presentations.
+    challengeDismissTimerRef.current = setTimeout(() => {
+      challengeDismissTimerRef.current = null;
+      setDeferWorkoutStreakCelebration(false);
+    }, 400);
+  }, []);
 
   useEffect(() => {
     void refreshPendingProgramSyncIds();
@@ -2466,6 +2500,7 @@ export default function ProgramsScreen() {
             sessions={historySessions}
             isFocused={isHomeFocused}
             startupRevealComplete={startupRevealComplete}
+            deferMilestoneCelebration={deferWorkoutStreakCelebration}
             onEditSchedule={() => setScheduleEditorVisible(true)}
           />
 
@@ -2754,7 +2789,7 @@ export default function ProgramsScreen() {
 
       <NewUserChecklistCompleteGraffitiModal
         visible={isNewUserChecklistCompleteVisible}
-        onClose={() => setIsNewUserChecklistCompleteVisible(false)}
+        onClose={handleChallengeCompleteClose}
       />
 
       <WorkoutScheduleEditorModal

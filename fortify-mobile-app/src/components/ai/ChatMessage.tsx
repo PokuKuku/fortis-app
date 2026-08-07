@@ -7,7 +7,7 @@
  * - Animated sparkles icon when loading
  */
 
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
   Image,
 } from 'react-native';
 import { formatDistanceToNow } from 'date-fns';
-import ReAnimated, { FadeIn } from 'react-native-reanimated';
+import ReAnimated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import Markdown from 'react-native-markdown-display';
 import * as Haptics from 'expo-haptics';
 import { EyeIcon, CheckIcon } from 'react-native-heroicons/outline';
@@ -26,6 +26,7 @@ import { Typography, FontFamily } from '@/constants/Typography';
 import { AIClarificationOption, AIConversationMessage } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
+import { ChatProgramTemplateCard } from '@/src/components/ai/ChatProgramTemplateCard';
 import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
@@ -33,6 +34,13 @@ import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import type { ExerciseVolumeMeta } from '@/src/utils/workoutVolume';
+import {
+  CHAT_TYPEWRITER_TICK_MS,
+  getChatTypewriterCharactersPerTick,
+  shouldAnimateChatTypewriter,
+} from '@/src/utils/chatTypewriter';
+
+const animatedAssistantMessageIds = new Set<string>();
 
 interface ChatMessageProps {
   message: AIConversationMessage;
@@ -40,6 +48,8 @@ interface ChatMessageProps {
   delay?: number;
   /** Disable when mounting existing conversation history during a mode switch. */
   animateEntrance?: boolean;
+  /** Reveal newly received assistant copy with a short typewriter animation. */
+  animateText?: boolean;
   /** Callback when user taps a clarification option */
   onClarificationSelect?: (option: string | AIClarificationOption) => void;
   onClarificationView?: (option: AIClarificationOption) => void;
@@ -47,10 +57,14 @@ interface ChatMessageProps {
   onAddWorkoutTemplate?: (message: AIConversationMessage) => void;
   onUpdateWorkoutTemplate?: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate?: (message: AIConversationMessage) => void;
+  onAddProgramTemplate?: (message: AIConversationMessage) => void;
+  onOpenProgramTemplate?: (message: AIConversationMessage) => void;
+  onViewProgramTemplate?: (message: AIConversationMessage, workoutIndex?: number) => void;
   isSavingWorkoutTemplate?: boolean;
   isUpdatingWorkoutTemplate?: boolean;
   isStartingWorkoutTemplate?: boolean;
   isStartWorkoutTemplateDisabled?: boolean;
+  isSavingProgramTemplate?: boolean;
   startWorkoutTemplateDisabledLabel?: string;
   tourMessageAnchorId?: string;
   tourWorkoutTemplateAnchorId?: string;
@@ -60,21 +74,27 @@ export function ChatMessage({
   message,
   delay = 0,
   animateEntrance = true,
+  animateText = true,
   onClarificationSelect,
   onClarificationView,
   onViewWorkoutTemplate,
   onAddWorkoutTemplate,
   onUpdateWorkoutTemplate,
   onStartWorkoutTemplate,
+  onAddProgramTemplate,
+  onOpenProgramTemplate,
+  onViewProgramTemplate,
   isSavingWorkoutTemplate = false,
   isUpdatingWorkoutTemplate = false,
   isStartingWorkoutTemplate = false,
   isStartWorkoutTemplateDisabled = false,
+  isSavingProgramTemplate = false,
   startWorkoutTemplateDisabledLabel,
   tourMessageAnchorId,
   tourWorkoutTemplateAnchorId,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
+  const reduceMotion = useReducedMotion();
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const isUser = message.role === 'user';
   const allowTldr = message.intent === 'FORTIS_ANALYST';
@@ -82,6 +102,46 @@ export function ChatMessage({
   const { mainContent, tldr } = !isUser
     ? splitTldrFromContent(message.content, allowTldr)
     : { mainContent: message.content, tldr: null };
+  const mainContentCharacters = useMemo(() => Array.from(mainContent), [mainContent]);
+  const shouldAnimateTextRef = useRef(
+    shouldAnimateChatTypewriter({
+      isAssistant: !isUser,
+      animateText,
+      reduceMotion,
+      contentLength: mainContentCharacters.length,
+      hasAnimated: animatedAssistantMessageIds.has(message.id),
+      createdAt: message.createdAt,
+    })
+  );
+  const [visibleCharacterCount, setVisibleCharacterCount] = useState(
+    shouldAnimateTextRef.current ? 0 : mainContentCharacters.length
+  );
+  const visibleMainContent = shouldAnimateTextRef.current
+    ? mainContentCharacters.slice(0, visibleCharacterCount).join('')
+    : mainContent;
+  const isTyping = shouldAnimateTextRef.current
+    && visibleCharacterCount < mainContentCharacters.length;
+
+  useEffect(() => {
+    if (!shouldAnimateTextRef.current) {
+      setVisibleCharacterCount(mainContentCharacters.length);
+      return;
+    }
+
+    animatedAssistantMessageIds.add(message.id);
+    const charactersPerTick = getChatTypewriterCharactersPerTick(mainContentCharacters.length);
+    const interval = setInterval(() => {
+      setVisibleCharacterCount((current) => {
+        const next = Math.min(mainContentCharacters.length, current + charactersPerTick);
+        if (next >= mainContentCharacters.length) {
+          clearInterval(interval);
+        }
+        return next;
+      });
+    }, CHAT_TYPEWRITER_TICK_MS);
+
+    return () => clearInterval(interval);
+  }, [mainContentCharacters, message.id]);
   const clarificationQuestion = message.clarification?.question?.trim() || null;
   const clarificationOptions = message.clarification?.options ?? [];
   const shouldShowTldr = allowTldr && !isUser && tldr && shouldDisplayTldr(mainContent);
@@ -271,18 +331,20 @@ export function ChatMessage({
               <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
             </TourAnchor>
           ) : <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
+        ) : visibleMainContent.length > 0 ? (
+          <Markdown style={markdownStyles}>{visibleMainContent}</Markdown>
         ) : (
-          <Markdown style={markdownStyles}>{mainContent}</Markdown>
+          <View />
         )}
 
-        {shouldShowTldr && (
+        {!isTyping && shouldShowTldr && (
           <View style={[styles.tldrContainer, themedStyles.tldrContainer]}>
             <Text style={[styles.tldrLabel, themedStyles.tldrLabel]}>TLDR</Text>
             <Text style={[styles.tldrText, themedStyles.tldrText]}>{tldr}</Text>
           </View>
         )}
 
-        {!isUser
+        {!isTyping && !isUser
           && message.workoutTemplate
           && Array.isArray(message.workoutTemplate.exercises)
           && message.workoutTemplate.exercises.length > 0 && (() => {
@@ -308,7 +370,21 @@ export function ChatMessage({
               : templateCard;
           })()}
 
-        {!isUser && mainContent.length > 0 && (
+        {!isTyping && !isUser
+          && message.programTemplate
+          && Array.isArray(message.programTemplate.workouts)
+          && message.programTemplate.workouts.length > 0 && (
+            <ChatProgramTemplateCard
+              template={message.programTemplate}
+              isAdding={isSavingProgramTemplate}
+              isAdded={Boolean(message.savedProgramId)}
+              onAdd={() => onAddProgramTemplate?.(message)}
+              onOpen={() => onOpenProgramTemplate?.(message)}
+              onView={(workoutIndex) => onViewProgramTemplate?.(message, workoutIndex)}
+            />
+          )}
+
+        {!isTyping && !isUser && mainContent.length > 0 && (
           <Text style={[styles.timestamp, themedStyles.timestamp]}>
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </Text>
@@ -320,7 +396,7 @@ export function ChatMessage({
           </Text>
         )}
 
-        {clarificationOptions.length > 0 && (
+        {!isTyping && clarificationOptions.length > 0 && (
           <View style={styles.clarificationOptions}>
             <View style={[styles.clarificationCallout, themedStyles.clarificationCallout]}>
               <Text style={[styles.clarificationCalloutText, themedStyles.clarificationCalloutText]}>

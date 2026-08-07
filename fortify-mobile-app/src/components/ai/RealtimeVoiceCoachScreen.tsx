@@ -24,11 +24,13 @@ import { BorderRadius, IconSizes, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
+import { ChatProgramTemplateCard } from '@/src/components/ai/ChatProgramTemplateCard';
 import { DumbbellVoiceVisualizer } from '@/src/components/ai/DumbbellVoiceVisualizer';
 import {
   type RealtimeCoachDebugStatus,
   type RealtimeCoachPhase,
   type RealtimeTranscriptOverlay,
+  type VoiceProgramMessage,
   type VoiceWorkoutMessage,
 } from '@/src/types/realtimeCoach';
 import type { AIClarificationOption, AIConversationMessage } from '@/src/types/ai';
@@ -43,9 +45,13 @@ interface RealtimeVoiceCoachScreenProps {
   coachAudioLevel: number;
   debugStatus: RealtimeCoachDebugStatus;
   voiceWorkoutMessages: VoiceWorkoutMessage[];
+  voiceProgramMessages: VoiceProgramMessage[];
   isGeneratingVoiceWorkout: boolean;
+  isGeneratingVoiceProgram: boolean;
   voiceWorkoutGenerationError?: string | null;
+  voiceProgramGenerationError?: string | null;
   savingWorkoutMessageId: string | null;
+  savingProgramMessageId: string | null;
   startingWorkoutMessageId: string | null;
   isWorkoutActive: boolean;
   isActive: boolean;
@@ -54,6 +60,7 @@ interface RealtimeVoiceCoachScreenProps {
   isSpeakingCreatorScript?: boolean;
   creatorScriptError?: string | null;
   templateSaveError?: string | null;
+  programSaveError?: string | null;
   onTalkStart: () => void;
   onTalkEnd: () => void;
   onSpeakCreatorScript?: (script: string) => Promise<boolean> | boolean;
@@ -61,8 +68,13 @@ interface RealtimeVoiceCoachScreenProps {
   onAddWorkoutTemplate: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate: (message: AIConversationMessage) => void;
   onDismissWorkoutTemplate: (messageId: string) => void;
+  onAddProgramTemplate: (message: AIConversationMessage) => void;
+  onOpenProgramTemplate: (message: AIConversationMessage) => void;
+  onViewProgramTemplate: (message: AIConversationMessage, workoutIndex?: number) => void;
+  onDismissProgramTemplate: (messageId: string) => void;
   onSelectWorkoutClarification?: (messageId: string, option: string | AIClarificationOption) => boolean;
   onRetryWorkoutGeneration?: () => boolean;
+  onRetryProgramGeneration?: () => boolean;
   interactionMode?: 'push_to_talk' | 'realtime';
   pendingMedia?: AIPendingMedia[];
   onRemovePendingMedia?: (id: string) => void;
@@ -82,6 +94,16 @@ const asConversationMessage = (message: VoiceWorkoutMessage): AIConversationMess
   createdAt: new Date().toISOString(),
   workoutTemplate: message.workoutTemplate,
   savedWorkoutTemplateId: message.savedWorkoutTemplateId ?? null,
+});
+
+const asProgramConversationMessage = (message: VoiceProgramMessage): AIConversationMessage => ({
+  id: message.id,
+  role: 'assistant',
+  intent: 'GENERAL_CHAT',
+  content: message.text,
+  createdAt: new Date().toISOString(),
+  programTemplate: message.programTemplate,
+  savedProgramId: message.savedProgramId ?? null,
 });
 
 const sanitizeVoiceCoachError = (message: string | null | undefined): string | null => {
@@ -117,9 +139,13 @@ export function RealtimeVoiceCoachScreen({
   coachAudioLevel,
   debugStatus,
   voiceWorkoutMessages,
+  voiceProgramMessages,
   isGeneratingVoiceWorkout,
+  isGeneratingVoiceProgram,
   voiceWorkoutGenerationError = null,
+  voiceProgramGenerationError = null,
   savingWorkoutMessageId,
+  savingProgramMessageId,
   startingWorkoutMessageId,
   isWorkoutActive,
   isActive,
@@ -128,6 +154,7 @@ export function RealtimeVoiceCoachScreen({
   isSpeakingCreatorScript = false,
   creatorScriptError = null,
   templateSaveError,
+  programSaveError,
   onTalkStart,
   onTalkEnd,
   onSpeakCreatorScript,
@@ -135,8 +162,13 @@ export function RealtimeVoiceCoachScreen({
   onAddWorkoutTemplate,
   onStartWorkoutTemplate,
   onDismissWorkoutTemplate,
+  onAddProgramTemplate,
+  onOpenProgramTemplate,
+  onViewProgramTemplate,
+  onDismissProgramTemplate,
   onSelectWorkoutClarification,
   onRetryWorkoutGeneration,
+  onRetryProgramGeneration,
   interactionMode = 'push_to_talk',
   pendingMedia = [],
   onRemovePendingMedia,
@@ -203,8 +235,14 @@ export function RealtimeVoiceCoachScreen({
   });
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
+  const displayProgramSaveError = sanitizeVoiceCoachError(programSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
-  const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout || Boolean(voiceWorkoutGenerationError);
+  const hasVoiceCards = voiceWorkoutMessages.length > 0
+    || voiceProgramMessages.length > 0
+    || isGeneratingVoiceWorkout
+    || isGeneratingVoiceProgram
+    || Boolean(voiceWorkoutGenerationError)
+    || Boolean(voiceProgramGenerationError);
   const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -245,7 +283,8 @@ export function RealtimeVoiceCoachScreen({
   }, [normalizedUserLevel, userAudioScaleAnimation]);
 
   useEffect(() => {
-    const currentMessageIds = new Set(voiceWorkoutMessages.map((message) => message.id));
+    const artifactMessages = [...voiceWorkoutMessages, ...voiceProgramMessages];
+    const currentMessageIds = new Set(artifactMessages.map((message) => message.id));
     Object.keys(voiceCardAnimationsRef.current).forEach((messageId) => {
       if (!currentMessageIds.has(messageId)) {
         delete voiceCardAnimationsRef.current[messageId];
@@ -262,7 +301,7 @@ export function RealtimeVoiceCoachScreen({
       return next.size === current.size ? current : next;
     });
 
-    voiceWorkoutMessages.forEach((message) => {
+    artifactMessages.forEach((message) => {
       const cardAnimation = getVoiceCardAnimation(message.id);
       if (animatedVoiceCardIdsRef.current.has(message.id)) return;
       animatedVoiceCardIdsRef.current.add(message.id);
@@ -273,10 +312,10 @@ export function RealtimeVoiceCoachScreen({
         useNativeDriver: true,
       }).start();
     });
-  }, [voiceWorkoutMessages]);
+  }, [voiceProgramMessages, voiceWorkoutMessages]);
 
   useEffect(() => {
-    if (!isGeneratingVoiceWorkout) {
+    if (!isGeneratingVoiceWorkout && !isGeneratingVoiceProgram) {
       pendingWorkoutCardAnimation.setValue(0);
       return;
     }
@@ -287,7 +326,7 @@ export function RealtimeVoiceCoachScreen({
       tension: 115,
       useNativeDriver: true,
     }).start();
-  }, [isGeneratingVoiceWorkout, pendingWorkoutCardAnimation]);
+  }, [isGeneratingVoiceProgram, isGeneratingVoiceWorkout, pendingWorkoutCardAnimation]);
 
   const handleSpeakCreatorScript = () => {
     if (!onSpeakCreatorScript || isSpeakingCreatorScript) return;
@@ -307,7 +346,10 @@ export function RealtimeVoiceCoachScreen({
     setPromptSheetVisible(true);
   };
 
-  const handleDismissVoiceCard = useCallback((messageId: string) => {
+  const handleDismissVoiceCard = useCallback((
+    messageId: string,
+    artifactKind: 'workout' | 'program'
+  ) => {
     if (dismissingVoiceCardIds.has(messageId)) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -334,10 +376,14 @@ export function RealtimeVoiceCoachScreen({
       dismissAnimation.setValue(1);
 
       if (finished) {
-        onDismissWorkoutTemplate(messageId);
+        if (artifactKind === 'program') {
+          onDismissProgramTemplate(messageId);
+        } else {
+          onDismissWorkoutTemplate(messageId);
+        }
       }
     });
-  }, [dismissingVoiceCardIds, onDismissWorkoutTemplate]);
+  }, [dismissingVoiceCardIds, onDismissProgramTemplate, onDismissWorkoutTemplate]);
 
   return (
     <View style={[styles.container, styles.content]}>
@@ -419,6 +465,7 @@ export function RealtimeVoiceCoachScreen({
             </Text>
           ) : null}
           {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
+          {displayProgramSaveError ? <Text style={styles.error}>{displayProgramSaveError}</Text> : null}
           {hasVoiceCards ? (
             <ScrollView
               testID="voice-card-scroll"
@@ -433,9 +480,9 @@ export function RealtimeVoiceCoachScreen({
               nestedScrollEnabled
               showsVerticalScrollIndicator={false}
             >
-              {isGeneratingVoiceWorkout ? (
+              {isGeneratingVoiceWorkout || isGeneratingVoiceProgram ? (
                 <Animated.View
-                  testID="voice-workout-loading-card"
+                  testID={isGeneratingVoiceProgram ? 'voice-program-loading-card' : 'voice-workout-loading-card'}
                   style={[
                     styles.voiceCardShell,
                     {
@@ -465,7 +512,7 @@ export function RealtimeVoiceCoachScreen({
                       numberOfLines={1}
                       style={[styles.pendingWorkoutBuildingTitle, { color: colors.textPrimary }]}
                     >
-                      Building Workout
+                      {isGeneratingVoiceProgram ? 'Building Program' : 'Building Workout'}
                     </Text>
                     <Text
                       allowFontScaling={false}
@@ -477,7 +524,7 @@ export function RealtimeVoiceCoachScreen({
                   </View>
                 </Animated.View>
               ) : null}
-              {!isGeneratingVoiceWorkout && voiceWorkoutGenerationError ? (
+              {!isGeneratingVoiceWorkout && !isGeneratingVoiceProgram && voiceWorkoutGenerationError ? (
                 <View testID="voice-workout-error-card" style={[styles.pendingWorkoutCard, pendingWorkoutCardStyle]}>
                   <Text style={[styles.pendingWorkoutTitle, { color: colors.textPrimary }]}>Workout paused</Text>
                   <Text style={[styles.pendingWorkoutMeta, { color: colors.textSecondary }]}>
@@ -487,6 +534,22 @@ export function RealtimeVoiceCoachScreen({
                     testID="voice-workout-retry-button"
                     accessibilityRole="button"
                     onPress={onRetryWorkoutGeneration}
+                    style={[styles.workoutRetryButton, { backgroundColor: colors.accent }]}
+                  >
+                    <Text style={[styles.workoutRetryButtonText, { color: colors.accentForegroundOnFill }]}>Try again</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {!isGeneratingVoiceWorkout && !isGeneratingVoiceProgram && voiceProgramGenerationError ? (
+                <View testID="voice-program-error-card" style={[styles.pendingWorkoutCard, pendingWorkoutCardStyle]}>
+                  <Text style={[styles.pendingWorkoutTitle, { color: colors.textPrimary }]}>Program paused</Text>
+                  <Text style={[styles.pendingWorkoutMeta, { color: colors.textSecondary }]}>
+                    {voiceProgramGenerationError}
+                  </Text>
+                  <Pressable
+                    testID="voice-program-retry-button"
+                    accessibilityRole="button"
+                    onPress={onRetryProgramGeneration}
                     style={[styles.workoutRetryButton, { backgroundColor: colors.accent }]}
                   >
                     <Text style={[styles.workoutRetryButtonText, { color: colors.accentForegroundOnFill }]}>Try again</Text>
@@ -609,12 +672,85 @@ export function RealtimeVoiceCoachScreen({
                         },
                       ]}
                       onPress={() => {
-                        handleDismissVoiceCard(message.id);
+                        handleDismissVoiceCard(message.id, 'workout');
                       }}
                       disabled={isDismissing}
                       activeOpacity={0.74}
                       accessibilityRole="button"
                       accessibilityLabel="Close workout preview"
+                      accessibilityState={{ disabled: isDismissing }}
+                    >
+                      <XMarkIcon size={Math.max(16, Math.round(IconSizes.sm * viewportScale))} color={colors.textSecondary} strokeWidth={2.2} />
+                    </TouchableOpacity>
+                  </Animated.View>
+                );
+              })}
+              {voiceProgramMessages.map((message) => {
+                const conversationMessage = asProgramConversationMessage(message);
+                const cardAnimation = getVoiceCardAnimation(message.id);
+                const dismissAnimation = getVoiceCardDismissAnimation(message.id);
+                const isDismissing = dismissingVoiceCardIds.has(message.id);
+                return (
+                  <Animated.View
+                    key={message.id}
+                    testID={`voice-card-shell-${message.id}`}
+                    style={[
+                      styles.voiceCardShell,
+                      {
+                        opacity: Animated.multiply(
+                          cardAnimation,
+                          dismissAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 1],
+                            extrapolate: 'clamp',
+                          })
+                        ),
+                        transform: [
+                          {
+                            translateY: cardAnimation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [14, 0],
+                            }),
+                          },
+                          {
+                            scale: cardAnimation.interpolate({
+                              inputRange: [0, 0.7, 1],
+                              outputRange: [0.96, 1.02, 1],
+                            }),
+                          },
+                          {
+                            scale: dismissAnimation.interpolate({
+                              inputRange: [0, 1, 1.035],
+                              outputRange: [0.94, 1, 1.035],
+                              extrapolate: 'clamp',
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <ChatProgramTemplateCard
+                      template={message.programTemplate}
+                      isAdding={savingProgramMessageId === message.id}
+                      isAdded={Boolean(message.savedProgramId)}
+                      onAdd={() => onAddProgramTemplate(conversationMessage)}
+                      onOpen={() => onOpenProgramTemplate(conversationMessage)}
+                      onView={(workoutIndex) => onViewProgramTemplate(conversationMessage, workoutIndex)}
+                    />
+                    <TouchableOpacity
+                      testID={`voice-card-dismiss-${message.id}`}
+                      style={[
+                        styles.voiceCardDismissButton,
+                        {
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.34)' : 'rgba(255,255,255,0.72)',
+                          borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                        },
+                      ]}
+                      onPress={() => handleDismissVoiceCard(message.id, 'program')}
+                      disabled={isDismissing}
+                      activeOpacity={0.74}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close program preview"
                       accessibilityState={{ disabled: isDismissing }}
                     >
                       <XMarkIcon size={Math.max(16, Math.round(IconSizes.sm * viewportScale))} color={colors.textSecondary} strokeWidth={2.2} />

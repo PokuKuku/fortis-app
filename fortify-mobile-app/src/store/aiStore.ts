@@ -20,6 +20,7 @@ import {
   AIRateLimitWindow,
   AIWorkoutTemplate,
   AIWorkoutTemplateExercise,
+  AIProgramTemplate,
   AIImage,
   AIAttachmentDisplay,
 } from '../types/ai';
@@ -330,6 +331,37 @@ const normalizeWorkoutTemplate = (template: unknown): AIWorkoutTemplate | undefi
   };
 };
 
+const normalizeProgramTemplate = (template: unknown): AIProgramTemplate | undefined => {
+  if (!template || typeof template !== 'object') return undefined;
+  const candidate = template as Partial<AIProgramTemplate>;
+  const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+  const workouts = Array.isArray(candidate.workouts)
+    ? candidate.workouts
+        .map((workout) => {
+          const workoutName = typeof workout?.name === 'string' ? workout.name.trim() : '';
+          const exercises = Array.isArray(workout?.exercises)
+            ? workout.exercises
+                .map(normalizeWorkoutTemplateExercise)
+                .filter((exercise): exercise is AIWorkoutTemplateExercise => Boolean(exercise))
+            : [];
+          return workoutName && exercises.length > 0
+            ? { name: workoutName, exercises }
+            : null;
+        })
+        .filter((workout): workout is AIProgramTemplate['workouts'][number] => Boolean(workout))
+    : [];
+
+  if (!name || workouts.length === 0) return undefined;
+  return {
+    name,
+    description: typeof candidate.description === 'string' ? candidate.description.trim() : undefined,
+    difficulty: candidate.difficulty,
+    goal: candidate.goal,
+    durationWeeks: typeof candidate.durationWeeks === 'number' ? candidate.durationWeeks : undefined,
+    workouts,
+  };
+};
+
 const makeRateLimitMessage = (error?: AIError): string => {
   const windowLabel = error?.limitWindow ? RATE_LIMIT_LABELS[error.limitWindow] : null;
   const retryAfter = formatRetryAfter(error?.retryAfterSeconds);
@@ -347,7 +379,12 @@ const buildConversationHistory = (
     .filter((message) => !message.intent || message.intent === intent)
     .filter((message) => message.content.trim().length > 0);
   const trimmed = filtered.slice(0, -1).slice(-MAX_HISTORY_MESSAGES);
-  return trimmed.map((message) => ({ role: message.role, content: message.content }));
+  return trimmed.map((message) => ({
+    role: message.role,
+    content: message.content,
+    workoutTemplate: message.workoutTemplate,
+    programTemplate: message.programTemplate,
+  }));
 };
 
 interface LastFailedMessage {
@@ -383,6 +420,7 @@ interface AIState {
   loadConversation: () => Promise<void>;
   persistConversation: () => Promise<void>;
   markWorkoutTemplateSaved: (messageId: string, templateId: string) => Promise<void>;
+  markProgramSaved: (messageId: string, programId: string) => Promise<void>;
   clearConversation: () => void;
   clearError: () => void;
   resetStore: () => void;
@@ -473,6 +511,9 @@ export const useAIStore = create<AIState>()(
         const workoutTemplate = rawWorkoutTemplate
           ? normalizeWorkoutTemplateForRequest(rawWorkoutTemplate, message, response.type)
           : undefined;
+        const programTemplate = response.type === 'answer'
+          ? normalizeProgramTemplate(response.answer?.programTemplate)
+          : undefined;
 
         const assistantMessage: AIConversationMessage = {
           id: generateId(),
@@ -482,7 +523,9 @@ export const useAIStore = create<AIState>()(
           createdAt: new Date().toISOString(),
           clarification: response.type === 'clarification' ? response.clarification : undefined,
           workoutTemplate,
+          programTemplate,
           savedWorkoutTemplateId: null,
+          savedProgramId: null,
           editableWorkoutTemplateId: null,
           editableWorkoutTemplateName: null,
         };
@@ -492,6 +535,11 @@ export const useAIStore = create<AIState>()(
             exercise_count: workoutTemplate.exercises.length,
           });
           void completeNewUserChecklistTask('ask_ai_for_workout');
+        }
+        if (programTemplate) {
+          posthog.capture('ai_program_generated', {
+            workout_count: programTemplate.workouts.length,
+          });
         }
 
         const finalConversation: AIConversation = {
@@ -678,6 +726,20 @@ export const useAIStore = create<AIState>()(
       };
 
       set({ conversation: nextConversation });
+      await persistConversation();
+    },
+
+    markProgramSaved: async (messageId, programId) => {
+      const { conversation, persistConversation } = get();
+      if (!conversation) return;
+      set({
+        conversation: {
+          ...conversation,
+          messages: conversation.messages.map((message) => (
+            message.id === messageId ? { ...message, savedProgramId: programId } : message
+          )),
+        },
+      });
       await persistConversation();
     },
 

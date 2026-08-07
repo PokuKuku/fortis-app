@@ -106,6 +106,113 @@ describe('useAIStore workout templates', () => {
     expect(assistantMessage?.workoutTemplate).toBeUndefined();
   });
 
+  it('attaches generated programs to assistant messages and marks them saved', async () => {
+    (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
+      type: 'answer',
+      requestId: 'req-program',
+      answer: {
+        text: 'I built a three-day program around your goals and equipment.',
+        citations: [],
+        programTemplate: {
+          name: 'Balanced Strength Program',
+          description: 'A three-day gym program.',
+          difficulty: 'intermediate',
+          goal: 'strength',
+          durationWeeks: 8,
+          workouts: [
+            {
+              name: 'Push',
+              exercises: [
+                {
+                  exerciseId: 'bench-press',
+                  exerciseName: 'Barbell Bench Press',
+                  sets: 4,
+                  reps: '5-8',
+                  restSeconds: 90,
+                },
+              ],
+            },
+            {
+              name: 'Pull',
+              exercises: [
+                {
+                  exerciseId: 'cable-row',
+                  exerciseName: 'Cable Seated Row',
+                  sets: 4,
+                  reps: '6-10',
+                  restSeconds: 90,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    await useAIStore.getState().sendMessage(
+      'GENERAL_CHAT',
+      'Build me an eight-week strength program'
+    );
+
+    const assistantMessage = useAIStore.getState().conversation?.messages[1];
+    expect(assistantMessage?.programTemplate?.name).toBe('Balanced Strength Program');
+    expect(assistantMessage?.programTemplate?.workouts).toHaveLength(2);
+    expect(assistantMessage?.savedProgramId).toBeNull();
+
+    await useAIStore.getState().markProgramSaved(assistantMessage!.id, 'program-123');
+    expect(useAIStore.getState().conversation?.messages[1]?.savedProgramId).toBe('program-123');
+  });
+
+  it('sends the previous program artifact when the user asks for fresh exercises', async () => {
+    const firstProgram = {
+      name: 'Push Pull Legs Program',
+      workouts: [
+        {
+          name: 'Push',
+          exercises: [
+            {
+              exerciseId: 'bench-press',
+              exerciseName: 'Barbell Bench Press',
+              sets: 4,
+              reps: '6-10',
+              restSeconds: 90,
+            },
+          ],
+        },
+      ],
+    };
+    (aiService.sendAIMessage as jest.Mock)
+      .mockResolvedValueOnce({
+        type: 'answer',
+        requestId: 'req-program-first',
+        answer: {
+          text: 'Here is your first program.',
+          citations: [],
+          programTemplate: firstProgram,
+        },
+      })
+      .mockResolvedValueOnce({
+        type: 'error',
+        requestId: 'req-program-fresh',
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'No fresh program could be built.',
+          retryable: true,
+        },
+      });
+
+    await useAIStore.getState().sendMessage('GENERAL_CHAT', 'Make me a push pull legs program');
+    await useAIStore.getState().sendMessage('GENERAL_CHAT', 'Use all fresh exercises with no repeats');
+
+    const secondCallHistory = (aiService.sendAIMessage as jest.Mock).mock.calls[1][3];
+    expect(secondCallHistory).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        programTemplate: firstProgram,
+      }),
+    ]));
+  });
+
   it('renames stale generated workout titles to match a new workout request', async () => {
     (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
       type: 'answer',

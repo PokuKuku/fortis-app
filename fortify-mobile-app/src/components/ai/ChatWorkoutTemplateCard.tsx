@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSizes.base,
-    fontWeight: '700',
+    fontFamily: 'BankGothicBT-Medium',
   },
   meta: {
     fontSize: FontSizes.sm,

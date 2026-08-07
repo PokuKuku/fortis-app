@@ -68,6 +68,8 @@ export type GeneratedProgramPayload = {
   durationWeeks: number;
   workouts: GeneratedProgramWorkout[];
   sourceSpecId: string;
+  sourceType?: 'onboarding' | 'chat';
+  sourceChatId?: string | null;
 };
 
 export const TRAINING_ENVIRONMENT_LABELS: Record<TrainingEnvironment, string> = {

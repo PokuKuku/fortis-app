@@ -21,6 +21,23 @@ const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|reg
 const EXERCISE_COUNT_PATTERN = String.raw`(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)`;
 const WORKOUT_ALTERNATE_REQUEST_REGEX =
   /\b(?:another|different|completely different|new one|new version|alternate|alternative|regenerate|reroll|redo|start over|all new|fresh)\b/i;
+const PROGRAM_REQUEST_REGEX =
+  /\b(?:make|create|build|generate|design|write|plan|give me|need|want|put together)\b[\s\S]{0,120}\b(?:program|weekly training plan|multi[- ]day plan|training split|workout split|\d\s*[- ]?day plan|split)\b/i;
+const PROGRAM_EDIT_REGEX =
+  /\b(?:make|change|turn|convert|switch|update|revise|adjust|modify|redo|regenerate)\b[\s\S]{0,80}\b(?:it|this|that|program|plan|split)\b/i;
+
+export const shouldGenerateProgramFromVoice = (
+  text: string,
+  hasCurrentProgramDraft = false
+): boolean => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  if (/\b(?:do not|don['’]?t|never|stop|cancel)\b[\s\S]{0,60}\b(?:program|plan|split)\b/i.test(normalized)) {
+    return false;
+  }
+  return PROGRAM_REQUEST_REGEX.test(normalized)
+    || (hasCurrentProgramDraft && PROGRAM_EDIT_REGEX.test(normalized));
+};
 
 const WORKOUT_RESIZE_REGEXES = [
   /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,

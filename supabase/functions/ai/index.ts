@@ -42,6 +42,7 @@ const WORKOUT_EDIT_CATALOG_LIMIT = Math.max(
   40,
   Number(Deno.env.get('AI_WORKOUT_EDIT_CATALOG_LIMIT') ?? '120')
 );
+const MAX_WORKOUT_CONTEXT_EXERCISES = 80;
 const MAX_WORKOUT_TEMPLATE_EXERCISES = 13;
 const DEFAULT_MAIN_AI_MODEL = 'gemini-3.1-flash-lite';
 const DEFAULT_OPENAI_FALLBACK_MODEL = 'gpt-4o-mini';
@@ -185,10 +186,13 @@ interface AIRequest {
     voiceWorkoutOnly?: boolean;
     exerciseCatalog?: WorkoutGenerationExerciseCatalogEntry[];
     onboardingProgramSpec?: AIOnboardingProgramSpec;
+    generateProgram?: boolean;
   };
   history?: Array<{
     role: 'user' | 'assistant';
     content: string;
+    workoutTemplate?: AIWorkoutTemplate;
+    programTemplate?: AIProgramTemplate;
   }>;
   image?: AIImage;
   images?: AIImage[];
@@ -221,6 +225,11 @@ interface AIOnboardingProgramSpec {
   scheduleDays: number[];
   durationWeeks: number;
   userName?: string | null;
+  programName?: string | null;
+  splitNames?: string[];
+  equipmentPreferences?: string[];
+  strictEquipment?: boolean;
+  programRequestText?: string;
 }
 
 interface AIProgramTemplateWorkout {
@@ -271,6 +280,12 @@ interface WorkoutGenerationSlot {
 interface WorkoutGenerationPlan {
   focus: string;
   defaultEquipmentMode: 'full-gym' | 'explicit';
+  userPreferences: {
+    trainingEnvironment: TrainingEnvironment;
+    trainingExperience: string | null;
+    goals: unknown[];
+    explicitRequestOverridesPreferences: true;
+  };
   slots: WorkoutGenerationSlot[];
 }
 
@@ -382,6 +397,20 @@ Deno.serve(async (req: Request) => {
     const contextStart = performance.now();
     const context = await assembleContext(supabase, user.id, aiRequest, config);
     logTiming('assembleContext', contextStart);
+
+    if (isChatProgramRequest(aiRequest)) {
+      const programStart = performance.now();
+      const response = await buildChatProgramResponse(
+        supabase,
+        user.id,
+        aiRequest,
+        context,
+        requestId
+      );
+      logTiming('buildChatProgram', programStart);
+      logTiming('total', requestStart);
+      return jsonResponse(response, 200, origin);
+    }
 
     // Call AI provider
     const aiStart = performance.now();
@@ -557,6 +586,9 @@ function validateRequest(body: unknown): string | null {
         return 'onboardingProgramSpec must be an object';
       }
     }
+    if (ctx.generateProgram !== undefined && typeof ctx.generateProgram !== 'boolean') {
+      return 'generateProgram must be a boolean';
+    }
   }
 
   const imageCandidates = images !== undefined ? images : image ? [image] : [];
@@ -703,8 +735,20 @@ const WORKOUT_REQUEST_REGEXES = [
   new RegExp(`\\b${WORKOUT_NOUN_PATTERN}\\b[\\s\\S]{0,40}\\b${EXERCISE_COUNT_PATTERN}\\s+(?:exercise|movement|lift)s?\\b`, 'i'),
   new RegExp(`\\b${WORKOUT_NOUN_PATTERN}\\b\\s*(?:please|now)\\b`, 'i'),
 ];
+const WORKOUT_FOLLOW_UP_CONFIRMATION_REGEX =
+  /\b(?:yes|yeah|yep|sure|do it|build it|make it|create it|build me one|make me one|create one|put it together|that sounds good)\b/i;
+const WORKOUT_BUILD_OFFER_REGEX =
+  /\b(?:want|would you like|should i|can i|i can)[\s\S]{0,100}\b(?:workout|routine|session|plan|template)\b|\b(?:build|make|create|put together)[\s\S]{0,80}\b(?:workout|routine|session|plan|template)\b/i;
+const REFERENTIAL_WORKOUT_CREATION_REGEX =
+  /\b(?:build|make|create|generate|put together)\b[\s\S]{0,30}\b(?:it|that|this|one)\b/i;
+const WORKOUT_CONVERSATION_CONTEXT_REGEX =
+  /\b(?:workout|routine|training session|workout plan|template|exercises?)\b/i;
+const ATHLETIC_PERFORMANCE_REGEX =
+  /\b(?:athletic|athlete|sports?|sport[- ]specific|explosive|explosiveness|agility|combat sports?|mma|boxing|kickboxing|wrestling|grappling|basketball|football|soccer|baseball|softball|volleyball|tennis|hockey|lacrosse|rugby|track|sprinting)\b/i;
 const WORKOUT_ADVICE_REGEX =
   /\b(advice|feedback|suggestions?|recommendations?|tips?)\b/i;
+const WORKOUT_RECOMMENDATION_QUESTION_REGEX =
+  /\b(?:what|which)(?:\s+kind\s+of)?\s+(?:workout|routine|training|session)\b[\s\S]{0,80}\b(?:should|could|would|recommend|best|do)\b|\b(?:what|which)[\s\S]{0,50}\b(?:workout|routine|training|session)\b[\s\S]{0,40}\b(?:should|recommend|best)\b/i;
 const WORKOUT_FEEDBACK_ONLY_REGEX =
   /\b(?:advice|feedback|suggestions?|recommendations?|tips?|review|critique|analy[sz]e|thoughts?|opinion|rate|what do you think|how(?:'s|\s+is|\s+are)[\s\S]{0,80}\b(?:workout|routine|session|template)\b|is (?:it|this|that)\s+(?:good|bad|solid|balanced)|can (?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:it|this|that)\s+be\s+improved|could (?:it|this|that)\s+be\s+better)\b/i;
 const EXPLICIT_WORKOUT_TEMPLATE_CHANGE_REGEX =
@@ -802,7 +846,7 @@ const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
   { regex: /\bmachine(s)?\b/i, equipment: 'machine' },
   { regex: /\bkettlebell(s)?\b/i, equipment: 'kettlebell' },
   { regex: /\bband(s)?\b|\bresistance band(s)?\b/i, equipment: 'band' },
-  { regex: /\bbodyweight\b|\bbody weight\b|\bno equipment\b|\bwithout equipment\b|\bno gear\b|\bno weights?\b/i, equipment: 'body weight' },
+  { regex: /\bbodyweight\b|\bbody weight\b|\bbody[- ]only\b|\busing (?:only )?my body\b|\bbody movements?\b|\bno equipment\b|\bwithout equipment\b|\bno gear\b|\bno weights?\b|\bcalisthenics?\b|\bpilates\b/i, equipment: 'body weight' },
 ];
 
 function shouldGenerateWorkoutTemplate(message: string): boolean {
@@ -821,7 +865,17 @@ function isExplicitNewWorkoutRequest(message: string): boolean {
   return !/\b(?:it|this|that|current|existing)\s+(?:workout|routine|session|template)\b/i.test(message);
 }
 
+function isExplicitNewWorkoutRequestForRequest(request: AIRequest): boolean {
+  return isExplicitNewWorkoutRequest(request.message);
+}
+
 function shouldHandleWorkoutTemplateRequest(request: AIRequest): boolean {
+  // Program creation and follow-up edits have their own multi-workout planner.
+  // Never pre-classify them as a single workout just because the edit uses a
+  // referential phrase such as "make it bodyweight".
+  if (isChatProgramRequest(request)) {
+    return false;
+  }
   if (
     request.context?.currentWorkoutTemplateDraft
     && WORKOUT_FEEDBACK_ONLY_REGEX.test(request.message)
@@ -831,6 +885,20 @@ function shouldHandleWorkoutTemplateRequest(request: AIRequest): boolean {
   }
 
   if (shouldGenerateWorkoutTemplate(request.message)) {
+    return true;
+  }
+
+  const recentAssistantOfferedWorkout = request.history
+    ?.slice(-4)
+    .some((entry) => entry.role === 'assistant' && WORKOUT_BUILD_OFFER_REGEX.test(entry.content));
+  if (recentAssistantOfferedWorkout && WORKOUT_FOLLOW_UP_CONFIRMATION_REGEX.test(request.message)) {
+    return true;
+  }
+
+  const recentConversationMentionsWorkout = request.history
+    ?.slice(-4)
+    .some((entry) => WORKOUT_CONVERSATION_CONTEXT_REGEX.test(entry.content));
+  if (recentConversationMentionsWorkout && REFERENTIAL_WORKOUT_CREATION_REGEX.test(request.message)) {
     return true;
   }
 
@@ -854,6 +922,10 @@ function shouldIncludeTrainingDataForRequest(request: AIRequest): boolean {
     return true;
   }
 
+  if (request.context?.generateProgram) {
+    return true;
+  }
+
   if (shouldHandleWorkoutTemplateRequest(request) && !WORKOUT_FEEDBACK_ONLY_REGEX.test(request.message)) {
     return false;
   }
@@ -866,7 +938,7 @@ function isVoiceWorkoutOnlyRequest(request: AIRequest): boolean {
 }
 
 function getWorkoutTemplateEditRequest(request: AIRequest): ParsedWorkoutEditRequest | null {
-  if (!request.context?.currentWorkoutTemplateDraft || isExplicitNewWorkoutRequest(request.message)) {
+  if (!request.context?.currentWorkoutTemplateDraft || isExplicitNewWorkoutRequestForRequest(request)) {
     return null;
   }
   const parsed = parseWorkoutEditRequest(request.message);
@@ -904,13 +976,42 @@ function getWorkoutTargetText(request: AIRequest, context?: Pick<AIContext, 'avo
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ');
 
-  return inheritedTargetText ? `${request.message} ${inheritedTargetText}` : request.message;
+  const recentConversationText = request.history
+    ?.slice(-4)
+    .map((entry) => entry.content)
+    .filter(Boolean)
+    .join(' ') ?? '';
+  const conversationalTargetText = [request.message, recentConversationText].filter(Boolean).join(' ');
+  if (ATHLETIC_PERFORMANCE_REGEX.test(conversationalTargetText)) {
+    return `full body athletic performance ${conversationalTargetText}`;
+  }
+  if (
+    REFERENTIAL_WORKOUT_CREATION_REGEX.test(request.message)
+    && WORKOUT_CONVERSATION_CONTEXT_REGEX.test(recentConversationText)
+    && extractWorkoutTargetMuscles(conversationalTargetText).length === 0
+  ) {
+    return `${conversationalTargetText} full body`;
+  }
+
+  return inheritedTargetText
+    ? `${request.message} ${inheritedTargetText}`
+    : conversationalTargetText;
+}
+
+function getUserWorkoutConstraintText(request: AIRequest): string {
+  const recentUserMessages = request.history
+    ?.slice(-6)
+    .filter((entry) => entry.role === 'user')
+    .map((entry) => entry.content)
+    .filter(Boolean) ?? [];
+
+  return [...recentUserMessages, request.message].join(' ');
 }
 
 function catalogMusclesInclude(muscles: string[], targets: string[]): boolean {
   if (targets.length === 0) return true;
-  const normalizedMuscles = muscles.map((muscle) => normalizeCatalogLookupValue(muscle));
-  return targets.some((target) => normalizedMuscles.includes(normalizeCatalogLookupValue(target)));
+  const normalizedMuscles = muscles.map(normalizeWorkoutMuscle);
+  return targets.some((target) => normalizedMuscles.includes(normalizeWorkoutMuscle(target)));
 }
 
 function exercisePrimaryMatchesTarget(
@@ -939,6 +1040,20 @@ function extractWorkoutEquipment(message: string): string[] {
 
 type TrainingEnvironment = AIBaseContext['user']['trainingEnvironment'];
 
+function getRequestedTrainingEnvironment(message: string): TrainingEnvironment {
+  if (/\b(at home|home workout|home training|train at home)\b/i.test(message)) return 'home';
+  if (/\b(hybrid workout|hybrid training|home and gym|gym and home)\b/i.test(message)) return 'hybrid';
+  if (/\b(at (?:a|the) gym|gym workout|gym training|full gym)\b/i.test(message)) return 'gym';
+  return null;
+}
+
+function getRequestedTrainingExperience(message: string): string | null {
+  if (/\b(beginner|new lifter|novice|just starting)\b/i.test(message)) return 'beginner';
+  if (/\b(intermediate)\b/i.test(message)) return 'intermediate';
+  if (/\b(advanced|expert lifter)\b/i.test(message)) return 'advanced';
+  return null;
+}
+
 function getDefaultEquipmentForTrainingEnvironment(environment: TrainingEnvironment): string[] {
   if (environment === 'home') {
     return ['body only', 'dumbbell', 'bands', 'kettlebells'];
@@ -951,10 +1066,8 @@ function getWorkoutEquipmentPreferences(message: string, environment: TrainingEn
   if (explicitEquipment.length > 0) {
     return explicitEquipment;
   }
-  if (/\b(at home|home workout|home training)\b/i.test(message)) {
-    return getDefaultEquipmentForTrainingEnvironment('home');
-  }
-  return getDefaultEquipmentForTrainingEnvironment(environment);
+  const requestedEnvironment = getRequestedTrainingEnvironment(message);
+  return getDefaultEquipmentForTrainingEnvironment(requestedEnvironment ?? environment);
 }
 
 function expandExerciseEquipmentQueryValues(equipment: string[]): string[] {
@@ -991,6 +1104,79 @@ function isOnboardingProgramRequest(request: AIRequest): boolean {
   return !!request.context?.onboardingProgramSpec;
 }
 
+const CHAT_PROGRAM_REQUEST_REGEX =
+  /\b(?:make|create|build|generate|design|write|plan|give me|need|want|would like|put together|turn)\b[\s\S]{0,100}\b(?:program|weekly training plan|multi[- ]day plan|training split|workout split|\d\s*[- ]?day plan)\b|\b(?:program|weekly training plan|training split|workout split)\b[\s\S]{0,80}\b(?:make|create|build|generate|design|would like|want)\b/i;
+const CHAT_PROGRAM_SPLIT_REQUEST_REGEX =
+  /\b(?:make|create|build|generate|design|give me|want|need|put together)\b[\s\S]{0,120}\bsplit\b(?=\s*(?:$|[.!?]|for\b|with\b|over\b|using\b))/i;
+const PROGRAM_ALTERNATE_REQUEST_REGEX =
+  /\b(?:another|another one|different one|new one|new version|alternate|alternative|regenerate|reroll|redo|fresh one|fresh exercises?|all new exercises?|different exercises?|no repeats?)\b/i;
+const PROGRAM_MODIFICATION_VERB_REGEX =
+  /\b(?:make|change|turn|convert|switch|update|revise|adjust|modify|redo)\b/i;
+
+function hasRecentProgramArtifact(request: AIRequest): boolean {
+  return (request.history ?? []).slice(-8).some((entry) => (
+    entry.role === 'assistant' && !!entry.programTemplate
+  ));
+}
+
+function isProgramModificationRequest(request: AIRequest): boolean {
+  if (!hasRecentProgramArtifact(request) || !PROGRAM_MODIFICATION_VERB_REGEX.test(request.message)) {
+    return false;
+  }
+
+  return getRequestedProgramSplit(request.message) !== null
+    || extractWorkoutEquipment(request.message).length > 0
+    || getRequestedTrainingEnvironment(request.message) !== null
+    || parseExplicitProgramWorkoutCount(request.message) !== null
+    || parseProgramWorkoutCountRange(request.message) !== null
+    || getChatProgramSport(request.message) !== null
+    || /\b(?:strength|hypertrophy|build muscle|general fitness|conditioning)\b/i.test(request.message);
+}
+
+function isProgramFollowUpConfirmation(request: AIRequest): boolean {
+  if (!hasRecentProgramArtifact(request) || !WORKOUT_FOLLOW_UP_CONFIRMATION_REGEX.test(request.message)) {
+    return false;
+  }
+
+  const recentHistory = (request.history ?? []).slice(-5);
+  const assistantOfferedBuild = recentHistory.some((entry) => (
+    entry.role === 'assistant' && WORKOUT_BUILD_OFFER_REGEX.test(entry.content)
+  ));
+  const userRequestedProgramChange = recentHistory.some((entry) => (
+    entry.role === 'user'
+    && PROGRAM_MODIFICATION_VERB_REGEX.test(entry.content)
+    && (
+      getRequestedProgramSplit(entry.content) !== null
+      || extractWorkoutEquipment(entry.content).length > 0
+      || getRequestedTrainingEnvironment(entry.content) !== null
+    )
+  ));
+
+  return assistantOfferedBuild && userRequestedProgramChange;
+}
+
+function isChatProgramRequest(request: AIRequest): boolean {
+  return request.context?.generateProgram === true
+    || CHAT_PROGRAM_REQUEST_REGEX.test(request.message)
+    || CHAT_PROGRAM_SPLIT_REQUEST_REGEX.test(request.message)
+    || isProgramModificationRequest(request)
+    || isProgramFollowUpConfirmation(request)
+    || (
+      PROGRAM_ALTERNATE_REQUEST_REGEX.test(request.message)
+      && (request.history ?? []).slice(-4).some((entry) => (
+        entry.role === 'assistant'
+        && (!!entry.programTemplate || /\bprogram\b/i.test(entry.content))
+      ))
+    )
+    || (
+      parseExplicitProgramWorkoutCount(request.message) !== null
+      && (request.history ?? []).slice(-3).some((entry) => (
+        entry.role === 'assistant'
+        && /\bhow many days\b[\s\S]{0,80}\bprogram\b|\bprogram\b[\s\S]{0,80}\bhow many days\b/i.test(entry.content)
+      ))
+    );
+}
+
 const ONBOARDING_FOCUS_LABELS: Record<string, string> = {
   balanced: 'Balanced',
   chest: 'Chest',
@@ -1004,6 +1190,9 @@ const ONBOARDING_FOCUS_LABELS: Record<string, string> = {
 
 function getBalancedOnboardingSplitNames(spec: AIOnboardingProgramSpec): string[] {
   const count = Math.min(7, Math.max(1, Math.round(spec.workoutsPerWeek || 3)));
+  if (Array.isArray(spec.splitNames) && spec.splitNames.length === count) {
+    return spec.splitNames;
+  }
   if (count === 1) return ['Full Body'];
   if (count === 2) return ['Upper', 'Lower'];
   if (count === 3) return ['Push', 'Pull', 'Legs'];
@@ -1020,8 +1209,8 @@ function getSpecificOnboardingFocuses(spec: AIOnboardingProgramSpec): string[] {
 
 function getOnboardingWorkoutFocuses(name: string, spec: AIOnboardingProgramSpec): string[] {
   const lower = name.toLowerCase();
-  if (lower.includes('push')) return ['chest', 'shoulders', 'arms'];
-  if (lower.includes('pull')) return ['back', 'arms'];
+  if (lower.includes('push')) return ['chest', 'shoulders', 'triceps'];
+  if (lower.includes('pull')) return ['back', 'biceps', 'forearms', 'rear shoulders'];
   if (lower.includes('upper')) return ['chest', 'back', 'shoulders', 'arms'];
   if (lower.includes('lower') || lower.includes('legs')) return ['legs', 'glutes'];
   const splitFocuses = ['chest', 'back', 'shoulders', 'arms', 'legs', 'glutes', 'core'];
@@ -1041,6 +1230,11 @@ function getOnboardingWorkouts(spec: AIOnboardingProgramSpec): Array<{ name: str
       const splitFocuses = getOnboardingWorkoutFocuses(name, { ...spec, muscleFocuses: ['balanced'] });
       const selectedFocuses = getSpecificOnboardingFocuses(spec);
       if (selectedFocuses.length === 0) return splitFocuses;
+      const normalizedName = normalizeCatalogLookupValue(name);
+      const namedFocuses = selectedFocuses.filter((focus) => (
+        normalizedName.includes(normalizeCatalogLookupValue(ONBOARDING_FOCUS_LABELS[focus] ?? focus))
+      ));
+      if (namedFocuses.length > 0) return namedFocuses;
       const overlappingFocuses = selectedFocuses.filter((focus) => splitFocuses.includes(focus));
       return overlappingFocuses.length > 0 ? [...overlappingFocuses, ...splitFocuses] : splitFocuses;
     })(),
@@ -1048,21 +1242,25 @@ function getOnboardingWorkouts(spec: AIOnboardingProgramSpec): Array<{ name: str
 }
 
 function onboardingFocusMatchesExercise(exercise: WorkoutGenerationExerciseCatalogEntry, focus: string): boolean {
-  const muscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
+  const muscles = exercise.primaryMuscles
     .map((muscle) => normalizeCatalogLookupValue(muscle))
     .join(' ');
-  const name = normalizeCatalogLookupValue(exercise.name);
   const tokenMap: Record<string, string[]> = {
     balanced: [],
     chest: ['chest', 'pectorals'],
     back: ['back', 'lats', 'middle back', 'lower back', 'traps'],
     shoulders: ['shoulders', 'delts', 'deltoids'],
     arms: ['biceps', 'triceps', 'forearms'],
+    biceps: ['biceps'],
+    triceps: ['triceps'],
+    forearms: ['forearms'],
+    'rear shoulders': ['rear delts', 'rear deltoids'],
     legs: ['quadriceps', 'hamstrings', 'calves', 'adductors', 'abductors'],
     glutes: ['glutes'],
     core: ['abdominals', 'abs', 'obliques', 'hip flexors', 'hip_flexors'],
   };
-  return (tokenMap[focus] ?? []).some((token) => muscles.includes(token) || name.includes(token));
+  const tokens = tokenMap[focus] ?? [normalizeCatalogLookupValue(focus)];
+  return tokens.some((token) => token.length > 0 && muscles.includes(token));
 }
 
 function onboardingExerciseAllowedForEnvironment(
@@ -1088,7 +1286,9 @@ function onboardingExercisePenalty(exercise: WorkoutGenerationExerciseCatalogEnt
 }
 
 function onboardingExerciseHasUsableGif(exercise: WorkoutGenerationExerciseCatalogEntry): boolean {
-  return exercise.images.some((image) => /\.gif($|\?)/i.test(image.trim()));
+  return exercise.images.some((image) => (
+    image.trim().startsWith('exercise-gif://') || /\.gif($|\?)/i.test(image.trim())
+  ));
 }
 
 type AIOnboardingCanonicalPreference = {
@@ -1193,6 +1393,160 @@ const AI_ONBOARDING_MOVEMENT_SLOTS: Record<AIOnboardingSlotKey, AIOnboardingMove
   ],
 };
 
+// Common splits use the templates above as strong defaults. These smaller,
+// composable requirements let a request reshape a day instead of forcing every
+// program through one of five complete templates.
+const PROGRAM_FOCUS_MOVEMENT_SLOTS: Record<string, AIOnboardingMovementSlot[]> = {
+  chest: [
+    { id: 'dynamic_chest_press', tokens: ['chest', 'pectorals'], keywords: [/\b(press|push[- ]?up|dip)\b/i], mechanic: 'compound' },
+    { id: 'dynamic_chest_accessory', tokens: ['chest', 'pectorals'], keywords: [/\b(fly|flye|pec deck|crossover|push[- ]?up)\b/i], optional: true },
+  ],
+  back: [
+    { id: 'dynamic_back_row', tokens: ['upper back', 'middle back', 'lats', 'traps'], keywords: [/\b(row|rowing|face pull|reverse fly)\b/i], mechanic: 'compound' },
+    { id: 'dynamic_vertical_pull', tokens: ['lats'], keywords: [/\b(pulldown|pull[- ]?up|chin[- ]?up|pullover)\b/i], optional: true },
+  ],
+  shoulders: [
+    { id: 'dynamic_shoulder_press', tokens: ['shoulders', 'delts'], keywords: [/\b(shoulder press|overhead press|military press|push press)\b/i], mechanic: 'compound' },
+    { id: 'dynamic_shoulder_accessory', tokens: ['shoulders', 'delts', 'rear delts'], keywords: [/\b(lateral raise|side raise|rear delt|face pull|reverse fly)\b/i], optional: true },
+  ],
+  arms: [
+    { id: 'dynamic_biceps', tokens: ['biceps'], keywords: [/\b(curl|biceps)\b/i], mechanic: 'isolation' },
+    { id: 'dynamic_triceps', tokens: ['triceps'], keywords: [/\b(pushdown|triceps?|extension|skullcrusher|dip)\b/i], mechanic: 'isolation' },
+  ],
+  legs: [
+    { id: 'dynamic_knee_dominant', tokens: ['quadriceps', 'quads', 'glutes'], keywords: [/\b(squat|leg press|lunge|split squat|step[- ]?up)\b/i], mechanic: 'compound' },
+    { id: 'dynamic_hip_dominant', tokens: ['hamstrings', 'glutes'], keywords: [/\b(deadlift|romanian|rdl|hip thrust|glute bridge|leg curl)\b/i], mechanic: 'compound' },
+  ],
+  glutes: [
+    { id: 'dynamic_glute_hinge', tokens: ['glutes', 'hamstrings'], keywords: [/\b(hip thrust|glute bridge|deadlift|romanian|rdl|good morning)\b/i], mechanic: 'compound' },
+    { id: 'dynamic_glute_unilateral', tokens: ['glutes', 'quadriceps'], keywords: [/\b(lunge|split squat|step[- ]?up|single[- ]?leg)\b/i], optional: true },
+  ],
+  core: [
+    { id: 'dynamic_core_stability', tokens: ['abs', 'abdominals', 'obliques'], keywords: [/\b(plank|rollout|ab wheel|dead bug|bird dog|carry)\b/i] },
+    { id: 'dynamic_core_rotation', tokens: ['obliques', 'abs', 'abdominals'], keywords: [/\b(rotation|twist|woodchop|pallof)\b/i], optional: true },
+  ],
+};
+
+const PROGRAM_QUALITY_MOVEMENT_SLOTS: Record<string, AIOnboardingMovementSlot> = {
+  power: {
+    id: 'dynamic_power',
+    tokens: ['quadriceps', 'quads', 'glutes', 'hamstrings', 'shoulders', 'delts', 'upper back'],
+    keywords: [/\b(jump|plyo|clean|snatch|swing|push press|thruster|high pull|slam|explosive)\b/i],
+    mechanic: 'compound',
+  },
+  unilateral: {
+    id: 'dynamic_unilateral',
+    tokens: ['quadriceps', 'quads', 'glutes', 'hamstrings', 'chest', 'pectorals', 'lats', 'upper back'],
+    keywords: [/\b(single|one[- ]?arm|one[- ]?leg|alternating|split squat|lunge|step[- ]?up|renegade)\b/i],
+  },
+  rotation: {
+    id: 'dynamic_rotation',
+    tokens: ['obliques', 'abs', 'abdominals', 'shoulders', 'delts'],
+    keywords: [/\b(rotation|twist|woodchop|pallof|landmine)\b/i],
+  },
+  conditioning: {
+    id: 'dynamic_conditioning',
+    tokens: ['quadriceps', 'quads', 'glutes', 'hamstrings', 'shoulders', 'delts', 'abs', 'abdominals'],
+    keywords: [/\b(burpee|swing|thruster|carry|mountain climber|jump|step[- ]?up|clean|snatch)\b/i],
+  },
+  speed: {
+    id: 'dynamic_speed_agility',
+    tokens: ['quadriceps', 'quads', 'glutes', 'hamstrings', 'calves'],
+    keywords: [/\b(jump|bound|hop|skater|lateral|plyo|step[- ]?up)\b/i],
+  },
+};
+
+function cloneProgramMovementSlot(slot: AIOnboardingMovementSlot): AIOnboardingMovementSlot {
+  return {
+    ...slot,
+    tokens: [...slot.tokens],
+    keywords: [...slot.keywords],
+    preferredEquipment: slot.preferredEquipment ? [...slot.preferredEquipment] : undefined,
+  };
+}
+
+function getRequestedProgramQualities(text: string): string[] {
+  const qualities = new Set<string>();
+  if (/\b(power|powerful|explosive|explosiveness|plyometric)\b/i.test(text)) qualities.add('power');
+  if (/\b(unilateral|single[- ]?(?:arm|leg|side)|one[- ]?(?:arm|leg|side))\b/i.test(text)) qualities.add('unilateral');
+  if (/\b(rotation|rotational|anti[- ]?rotation|core stability|trunk stability)\b/i.test(text)) qualities.add('rotation');
+  if (/\b(conditioning|work capacity|metabolic|endurance)\b/i.test(text)) qualities.add('conditioning');
+  if (/\b(speed|agility|quickness)\b/i.test(text)) qualities.add('speed');
+  if (/\b(athletic|athlete|sport[- ]?specific|sports? performance)\b/i.test(text)) {
+    ['power', 'unilateral', 'rotation', 'conditioning'].forEach((quality) => qualities.add(quality));
+  }
+  return Array.from(qualities);
+}
+
+function buildProgramMovementSlots(
+  workoutName: string,
+  focuses: string[],
+  spec: AIOnboardingProgramSpec,
+  workoutIndex: number
+): AIOnboardingMovementSlot[] {
+  const slotKey = getAIOnboardingSlotKey(workoutName);
+  const normalizedName = normalizeCatalogLookupValue(workoutName);
+  const explicitlyNamedCommonDay = slotKey !== 'full_body' || /\bfull body\b/.test(normalizedName);
+  const specificFocuses = getSpecificOnboardingFocuses(spec);
+  const useCommonTemplate = explicitlyNamedCommonDay
+    && !(slotKey === 'full_body' && specificFocuses.length > 0);
+  const slots = useCommonTemplate
+    ? AI_ONBOARDING_MOVEMENT_SLOTS[slotKey].map(cloneProgramMovementSlot)
+    : [];
+
+  const dayFocuses = new Set(focuses);
+  const namedFocuses = specificFocuses.filter((focus) => (
+    normalizedName.includes(normalizeCatalogLookupValue(ONBOARDING_FOCUS_LABELS[focus] ?? focus))
+  ));
+  const focusSource = slotKey === 'full_body'
+    ? namedFocuses.length > 0
+      ? namedFocuses
+      : specificFocuses.length > 0
+        ? [specificFocuses[workoutIndex % specificFocuses.length]]
+        : []
+    : specificFocuses.filter((focus) => dayFocuses.has(focus));
+  focusSource.forEach((focus) => {
+    (PROGRAM_FOCUS_MOVEMENT_SLOTS[focus] ?? []).forEach((slot) => {
+      if (!slots.some((candidate) => candidate.id === slot.id)) {
+        slots.push({
+          ...cloneProgramMovementSlot(slot),
+          optional: useCommonTemplate ? true : slot.optional,
+        });
+      }
+    });
+  });
+
+  const requestText = spec.programRequestText ?? '';
+  const namedQualities = getRequestedProgramQualities(workoutName);
+  const requestedQualities = getRequestedProgramQualities(requestText);
+  const qualitiesForDay = namedQualities.length > 0
+    ? namedQualities
+    : requestedQualities.length > 0
+      ? [requestedQualities[workoutIndex % requestedQualities.length]]
+      : [];
+  qualitiesForDay.forEach((quality) => {
+    const slot = PROGRAM_QUALITY_MOVEMENT_SLOTS[quality];
+    if (slot && !slots.some((candidate) => candidate.id === slot.id)) {
+      slots.push({
+        ...cloneProgramMovementSlot(slot),
+        optional: slot.optional,
+      });
+    }
+  });
+
+  // A custom day may have only one semantic requirement. Add broad, optional
+  // movement coverage so it can still become a complete workout without
+  // turning those defaults into mandatory constraints.
+  if (slots.length < 3) {
+    AI_ONBOARDING_MOVEMENT_SLOTS.full_body.forEach((slot) => {
+      if (slots.length >= 4 || slots.some((candidate) => candidate.id === slot.id)) return;
+      slots.push({ ...cloneProgramMovementSlot(slot), optional: true });
+    });
+  }
+
+  return slots;
+}
+
 function getAIOnboardingCanonicalMatchScore(
   exercise: WorkoutGenerationExerciseCatalogEntry,
   slotId?: string,
@@ -1241,9 +1595,85 @@ function onboardingSlotMatchesExercise(
   exercise: WorkoutGenerationExerciseCatalogEntry,
   slot: AIOnboardingMovementSlot
 ): boolean {
-  const text = normalizeCatalogLookupValue(`${exercise.name} ${exercise.primaryMuscles.join(' ')} ${exercise.secondaryMuscles.join(' ')}`);
-  return slot.keywords.some((pattern) => pattern.test(exercise.name) || pattern.test(text))
-    || slot.tokens.some((token) => text.includes(normalizeCatalogLookupValue(token)));
+  const primaryMuscles = exercise.primaryMuscles
+    .map((muscle) => normalizeCatalogLookupValue(muscle))
+    .join(' ');
+  const primaryMatch = slot.tokens.some((token) => primaryMuscles.includes(normalizeCatalogLookupValue(token)));
+  const movementMatch = slot.keywords.some((pattern) => pattern.test(exercise.name));
+  if (primaryMatch && movementMatch) return true;
+
+  // Rear-delt catalog labels are not always granular, so permit an explicit
+  // rear-delt movement name only when the exercise is primarily a delt movement.
+  return slot.id === 'rear_delt_upper_back'
+    && /\b(face pull|rear delt|reverse fly|reverse pec deck)\b/i.test(exercise.name)
+    && /\b(delt|shoulder)\b/i.test(primaryMuscles);
+}
+
+function onboardingExerciseAllowedForSplit(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  workoutName: string,
+): boolean {
+  const slotKey = getAIOnboardingSlotKey(workoutName);
+  const primary = new Set(exercise.primaryMuscles.map(normalizeWorkoutMuscle));
+  const name = normalizeCatalogLookupValue(exercise.name);
+  const hasPrimary = (...muscles: string[]) => muscles.some((muscle) => primary.has(normalizeWorkoutMuscle(muscle)));
+  const isDeltPrimary = hasPrimary('delts');
+  const isRearDeltMovement = /\b(face pull|rear delt|reverse fly|reverse pec deck)\b/.test(name);
+
+  if (slotKey === 'push') {
+    if (isDeltPrimary) return !isRearDeltMovement;
+    return hasPrimary('pectorals', 'triceps');
+  }
+
+  if (slotKey === 'pull') {
+    if (isDeltPrimary) return isRearDeltMovement;
+    return hasPrimary('lats', 'upper back', 'traps', 'biceps', 'forearms');
+  }
+
+  if (slotKey === 'legs') {
+    if (/\b(clean and press|clean press|bicep curl lunge|curl lunge)\b/.test(name)) return false;
+    return hasPrimary('quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors');
+  }
+
+  if (slotKey === 'upper') {
+    return hasPrimary('pectorals', 'lats', 'upper back', 'traps', 'delts', 'biceps', 'triceps', 'forearms');
+  }
+
+  return true;
+}
+
+function validateOnboardingWorkoutSelection(
+  workoutName: string,
+  selected: WorkoutGenerationExerciseCatalogEntry[],
+  allowedCatalog: WorkoutGenerationExerciseCatalogEntry[],
+  movementSlots: AIOnboardingMovementSlot[],
+): boolean {
+  if (selected.length < 3 || new Set(selected.map((exercise) => exercise.id)).size !== selected.length) {
+    return false;
+  }
+  if (!selected.every((exercise) => onboardingExerciseAllowedForSplit(exercise, workoutName))) {
+    return false;
+  }
+
+  const semanticCandidates = allowedCatalog.filter((exercise) => (
+    scoreExerciseForProgramDay(exercise, workoutName) >= 20
+  ));
+  if (
+    getAIOnboardingSlotKey(workoutName) === 'full_body'
+    && semanticCandidates.length > 0
+  ) {
+    return selected.some((exercise) => scoreExerciseForProgramDay(exercise, workoutName) >= 20);
+  }
+
+  const requiredSlots = movementSlots
+    .filter((slot) => !slot.optional)
+    // Equipment constraints can make a movement genuinely unavailable (for
+    // example, a vertical pull with no bar). Validate every achievable core
+    // pattern without silently introducing equipment the user excluded.
+    .filter((slot) => allowedCatalog.some((exercise) => onboardingSlotMatchesExercise(exercise, slot)));
+  return requiredSlots.every((slot) => (
+    selected.some((exercise) => onboardingSlotMatchesExercise(exercise, slot))
+  ));
 }
 
 function isWeakOnboardingVariant(exercise: WorkoutGenerationExerciseCatalogEntry): boolean {
@@ -1254,12 +1684,13 @@ function scoreOnboardingSlotExercise(
   exercise: WorkoutGenerationExerciseCatalogEntry,
   slot: AIOnboardingMovementSlot,
   focuses: string[],
-  spec: AIOnboardingProgramSpec
+  spec: AIOnboardingProgramSpec,
+  workoutName: string
 ): number {
   const equipment = normalizeCatalogLookupValue(exercise.equipment);
   const usesGymEquipment = ['barbell', 'dumbbell', 'cable', 'machine', 'smith', 'leg press', 'hack squat'].some((item) => equipment.includes(item));
   const usesHomeEquipment = ['body', 'bodyweight', 'body weight', 'dumbbell', 'band', 'kettlebell'].some((item) => equipment.includes(item));
-  let score = scoreOnboardingExercise(exercise, focuses, spec);
+  let score = scoreOnboardingExercise(exercise, focuses, spec, workoutName);
   if (slot.keywords.some((pattern) => pattern.test(exercise.name))) score += 30;
   score += getAIOnboardingCanonicalMatchScore(exercise, slot.id);
   if (slot.preferredEquipment?.some((item) => equipment.includes(item))) score += 10;
@@ -1275,7 +1706,8 @@ function scoreOnboardingSlotExercise(
 function scoreOnboardingExercise(
   exercise: WorkoutGenerationExerciseCatalogEntry,
   focuses: string[],
-  spec: AIOnboardingProgramSpec
+  spec: AIOnboardingProgramSpec,
+  workoutName = ''
 ): number {
   let score = 0;
   focuses.forEach((focus) => {
@@ -1300,8 +1732,50 @@ function scoreOnboardingExercise(
     score += 3;
   }
   score += getAIOnboardingCanonicalMatchScore(exercise);
+  score += scoreExerciseForProgramDay(exercise, workoutName);
   score -= getAIOnboardingObscurePenalty(exercise, spec.trainingEnvironment);
   return score - onboardingExercisePenalty(exercise);
+}
+
+/** Interpret semantic day roles without tying the planner to a specific sport. */
+function scoreExerciseForProgramDay(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  workoutName: string
+): number {
+  const day = normalizeCatalogLookupValue(workoutName);
+  const exerciseText = normalizeCatalogLookupValue([
+    exercise.name,
+    exercise.category,
+    ...exercise.primaryMuscles,
+    ...exercise.secondaryMuscles,
+  ].join(' '));
+  let score = 0;
+
+  if (/\b(unilateral|single side|single limb|one side)\b/.test(day)) {
+    score += /\b(single|one arm|one leg|alternating|split squat|lunge|step up|renegade)\b/.test(exerciseText)
+      ? 34
+      : -5;
+  }
+  if (/\b(core|trunk|stability|rotation)\b/.test(day)) {
+    score += /\b(abs|abdominals|obliques|core|plank|rollout|rotation|twist|woodchop|carry|get up|renegade)\b/.test(exerciseText)
+      ? 34
+      : -3;
+  }
+  if (/\b(power|explosive|speed|plyometric)\b/.test(day)) {
+    score += /\b(jump|plyo|swing|clean|snatch|push press|thruster|high pull|slam|explosive)\b/.test(exerciseText)
+      ? 30
+      : 0;
+  }
+  if (/\b(conditioning|work capacity|endurance|metabolic)\b/.test(day)) {
+    score += /\b(burpee|swing|thruster|clean|snatch|carry|mountain climber|jump|step up|get up)\b/.test(exerciseText)
+      ? 38
+      : -4;
+  }
+  if (/\bstrength|force\b/.test(day) && isCompoundExerciseName(exercise.name)) {
+    score += 12;
+  }
+
+  return score;
 }
 
 function buildOnboardingProgramExercise(
@@ -1322,10 +1796,12 @@ function buildOnboardingProgramExercise(
 
 function buildOnboardingProgramTemplate(
   spec: AIOnboardingProgramSpec,
-  catalog: WorkoutGenerationExerciseCatalogEntry[]
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  avoidExerciseIds = new Set<string>()
 ): AIProgramTemplate | null {
   const firstName = spec.userName?.trim().split(/\s+/)[0];
-  const programName = firstName ? `${firstName}'s Program` : 'Your Program';
+  const requestedProgramName = spec.programName?.trim();
+  const programName = requestedProgramName || (firstName ? `${firstName}'s Program` : 'Your Program');
   const focusLabel = spec.muscleFocuses?.includes('balanced') || !spec.muscleFocuses?.length
     ? 'balanced training'
     : spec.muscleFocuses
@@ -1336,16 +1812,34 @@ function buildOnboardingProgramTemplate(
   const usableCatalog = catalog.filter((exercise) => (
     onboardingExercisePenalty(exercise) < 20 && onboardingExerciseHasUsableGif(exercise)
   ));
+  // Diversity is a program-level concern. A workout may reuse a movement
+  // pattern, but it should not silently clone the exact exercises from a
+  // previous day when viable alternatives exist.
+  const programExerciseUseCount = new Map<string, number>();
+  const workoutSignatures = new Set<string>();
 
   const workouts = splitWorkouts
-    .map((workout) => {
+    .map((workout, workoutIndex) => {
       const { name, focuses } = workout;
+      const movementSlots = buildProgramMovementSlots(name, focuses, spec, workoutIndex);
+      const requestedEquipment = (spec.equipmentPreferences ?? []).map(normalizeEquipmentValue);
       const allowedCatalog = usableCatalog
-        .filter((exercise) => onboardingExerciseAllowedForEnvironment(exercise, spec.trainingEnvironment));
+        .filter((exercise) => !avoidExerciseIds.has(exercise.id))
+        .filter((exercise) => onboardingExerciseAllowedForEnvironment(exercise, spec.trainingEnvironment))
+        .filter((exercise) => (
+          !spec.strictEquipment
+          || requestedEquipment.length === 0
+          || requestedEquipment.includes(normalizeEquipmentValue(exercise.equipment))
+        ))
+        .filter((exercise) => onboardingExerciseAllowedForSplit(exercise, name));
       const eligibleCatalog = allowedCatalog
         .filter((exercise) => focuses.some((focus) => onboardingFocusMatchesExercise(exercise, focus)));
       const ranked = eligibleCatalog
-        .map((exercise) => ({ exercise, score: scoreOnboardingExercise(exercise, focuses, spec) }))
+        .map((exercise) => ({
+          exercise,
+          score: scoreOnboardingExercise(exercise, focuses, spec, name)
+            - ((programExerciseUseCount.get(exercise.id) ?? 0) * 1000),
+        }))
         .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
       const selected: WorkoutGenerationExerciseCatalogEntry[] = [];
       const selectedGroups = new Set<string>();
@@ -1367,14 +1861,10 @@ function buildOnboardingProgramTemplate(
           .filter((exercise) => onboardingSlotMatchesExercise(exercise, slot))
           .map((exercise) => ({
             exercise,
-            canonicalScore: getAIOnboardingCanonicalMatchScore(exercise, slot.id),
-            score: scoreOnboardingSlotExercise(exercise, slot, focuses, spec),
+            score: scoreOnboardingSlotExercise(exercise, slot, focuses, spec, name)
+              - ((programExerciseUseCount.get(exercise.id) ?? 0) * 1000),
         }))
-        .sort((a, b) =>
-          b.canonicalScore - a.canonicalScore
-          || b.score - a.score
-          || a.exercise.name.localeCompare(b.exercise.name)
-        );
+        .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
         const winner = candidates.find(({ exercise }) => !isWeakOnboardingVariant(exercise))?.exercise
           ?? candidates[0]?.exercise;
         if (winner && slot.optional && isWeakOnboardingVariant(winner)) {
@@ -1395,10 +1885,19 @@ function buildOnboardingProgramTemplate(
         }
       };
 
-      AI_ONBOARDING_MOVEMENT_SLOTS[getAIOnboardingSlotKey(name)]
+      // A named day such as "unilateral + core" or "power + conditioning"
+      // must express that role in its exercises. Reserve up to two positions
+      // for the best role matches, then use movement slots to round it out.
+      if (getAIOnboardingSlotKey(name) === 'full_body') {
+        addRankedExercises(
+          ranked.filter(({ exercise }) => scoreExerciseForProgramDay(exercise, name) >= 20).slice(0, 2)
+        );
+      }
+
+      movementSlots
         .filter((slot) => !slot.optional)
         .forEach((slot) => addSlotExercise(slot));
-      AI_ONBOARDING_MOVEMENT_SLOTS[getAIOnboardingSlotKey(name)]
+      movementSlots
         .filter((slot) => slot.optional)
         .forEach((slot) => addSlotExercise(slot));
       addRankedExercises(ranked);
@@ -1410,14 +1909,28 @@ function buildOnboardingProgramTemplate(
         }
       }
 
+      if (!validateOnboardingWorkoutSelection(name, selected, allowedCatalog, movementSlots)) {
+        return null;
+      }
+
+      const signature = selected.map((exercise) => exercise.id).sort().join('|');
+      if (workoutSignatures.has(signature)) return null;
+      workoutSignatures.add(signature);
+      selected.forEach((exercise) => {
+        programExerciseUseCount.set(
+          exercise.id,
+          (programExerciseUseCount.get(exercise.id) ?? 0) + 1
+        );
+      });
+
       return {
         name,
         exercises: selected.map((exercise, index) => buildOnboardingProgramExercise(exercise, index, spec)),
       };
     })
-    .filter((workout) => workout.exercises.length > 0);
+    .filter((workout): workout is NonNullable<typeof workout> => workout !== null && workout.exercises.length > 0);
 
-  if (workouts.length === 0) {
+  if (workouts.length !== splitWorkouts.length) {
     return null;
   }
 
@@ -1426,7 +1939,7 @@ function buildOnboardingProgramTemplate(
     description: `${spec.durationWeeks || 8}-week ${focusLabel} plan built for ${spec.trainingEnvironment} training.`,
     difficulty: spec.liftingExperience === 'advanced'
       ? 'advanced'
-      : spec.liftingExperience === 'none'
+      : spec.liftingExperience === 'none' || spec.liftingExperience === 'beginner'
         ? 'beginner'
         : 'intermediate',
     goal: spec.fitnessGoal === 'improve_strength'
@@ -1489,6 +2002,432 @@ async function buildOnboardingProgramResponse(
   };
 }
 
+const PROGRAM_COUNT_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+};
+
+function parseProgramWorkoutCount(text: string, fallback: number): number {
+  const match = text.match(
+    /\b(1|2|3|4|5|6|7|one|two|three|four|five|six|seven)\s*(?:[- ]?day|days?\s+per\s+week|times?\s+per\s+week|x\s*(?:a|per)?\s*week)/i
+  );
+  const raw = match?.[1]?.toLowerCase();
+  const parsed = raw ? Number(raw) || PROGRAM_COUNT_WORDS[raw] : fallback;
+  return Math.min(7, Math.max(1, Math.round(parsed || 3)));
+}
+
+function parseExplicitProgramWorkoutCount(text: string): number | null {
+  const match = text.match(
+    /\b(1|2|3|4|5|6|7|one|two|three|four|five|six|seven)\s*(?:[- ]?day|days?\s+per\s+week|times?\s+per\s+week|x\s*(?:a|per)?\s*week)/i
+  );
+  const raw = match?.[1]?.toLowerCase();
+  if (!raw) return null;
+  return Math.min(7, Math.max(1, Number(raw) || PROGRAM_COUNT_WORDS[raw] || 1));
+}
+
+function parseProgramWorkoutCountRange(text: string): { min: number; max: number } | null {
+  const match = text.match(
+    /\b([1-7]|one|two|three|four|five|six|seven)\s*(?:-|–|—|to|through)\s*([1-7]|one|two|three|four|five|six|seven)\s*(?:[- ]?days?|times?\s+per\s+week|x\s*(?:a|per)?\s*week)/i
+  );
+  if (!match) return null;
+  const parseValue = (value: string) => Number(value) || PROGRAM_COUNT_WORDS[value.toLowerCase()] || 0;
+  const first = parseValue(match[1]);
+  const second = parseValue(match[2]);
+  if (!first || !second || first === second) return null;
+  return { min: Math.min(first, second), max: Math.max(first, second) };
+}
+
+type RequestedProgramSplit = {
+  label: string;
+  defaultWorkoutCount: number;
+  namesForCount: (count: number) => string[];
+};
+
+function getRequestedProgramSplit(text: string): RequestedProgramSplit | null {
+  if (
+    /\bupper\s*[/, +&-]?\s*lower\b|\bupper lower\b/i.test(text)
+    || (/\bupper body\b/i.test(text) && /\blower body\b/i.test(text))
+  ) {
+    return {
+      label: 'upper/lower',
+      defaultWorkoutCount: 4,
+      namesForCount: (count) => {
+        if (count === 1) return ['Full Body'];
+        if (count === 2) return ['Upper', 'Lower'];
+        if (count === 3) return ['Upper', 'Lower', 'Full Body'];
+        return ['Upper A', 'Lower A', 'Upper B', 'Lower B', 'Full Body', 'Upper C', 'Lower C'].slice(0, count);
+      },
+    };
+  }
+  if (/\bpush\s*[/, +&-]?\s*pull\s*[/, +&-]?\s*legs\b|\bppl\b/i.test(text)) {
+    return {
+      label: 'push/pull/legs',
+      defaultWorkoutCount: 3,
+      namesForCount: (count) => (
+        ['Push A', 'Pull A', 'Legs A', 'Push B', 'Pull B', 'Legs B', 'Full Body']
+          .slice(0, count)
+          .map((name) => count <= 3 ? name.replace(' A', '') : name)
+      ),
+    };
+  }
+  if (/\bfull[ -]?body\b/i.test(text)) {
+    return {
+      label: 'full-body',
+      defaultWorkoutCount: 3,
+      namesForCount: (count) => Array.from({ length: count }, (_, index) => (
+        count === 1 ? 'Full Body' : `Full Body ${String.fromCharCode(65 + index)}`
+      )),
+    };
+  }
+  return null;
+}
+
+function parseProgramDurationWeeks(text: string): number {
+  const match = text.match(/\b(4|5|6|7|8|9|10|11|12|13|14|15|16)\s*[- ]?weeks?\b/i);
+  return match ? Number(match[1]) : 8;
+}
+
+function getChatProgramMuscleFocuses(text: string): string[] {
+  const focuses = new Set<string>();
+  const patterns: Array<[RegExp, string]> = [
+    [/\b(?:chest|pecs?)\b/i, 'chest'],
+    [/\b(?:back|lats?|traps?)\b/i, 'back'],
+    [/\b(?:shoulders?|delts?)\b/i, 'shoulders'],
+    [/\b(?:arms?|biceps?|triceps?)\b/i, 'arms'],
+    [/\b(?:legs?|quads?|hamstrings?|calves)\b/i, 'legs'],
+    [/\bglutes?\b/i, 'glutes'],
+    [/\b(?:core|abs?)\b/i, 'core'],
+  ];
+  patterns.forEach(([pattern, focus]) => {
+    if (pattern.test(text)) focuses.add(focus);
+  });
+  if (/\b(?:balanced|full body|push\s*[/, -]\s*pull\s*[/, -]\s*legs|ppl|upper\s*[/, -]\s*lower)\b/i.test(text)) {
+    return ['balanced'];
+  }
+  return focuses.size > 0 ? Array.from(focuses) : ['balanced'];
+}
+
+function getChatProgramGoal(text: string, storedGoal?: string | null): string | null {
+  if (/\b(?:strength|stronger|powerlifting)\b/i.test(text)) return 'improve_strength';
+  if (/\b(?:build muscle|muscle gain|hypertrophy|size|bodybuilding)\b/i.test(text)) return 'build_muscle';
+  if (/\b(?:athletic|performance|conditioning|sport|basketball|football|soccer|mma|boxing)\b/i.test(text)) {
+    return 'general_fitness';
+  }
+  return storedGoal ?? null;
+}
+
+function getChatProgramName(
+  text: string,
+  goal: string | null,
+  requestedSplit?: RequestedProgramSplit | null
+): string | null {
+  if (requestedSplit?.label === 'upper/lower') return 'Upper Lower Program';
+  if (requestedSplit?.label === 'push/pull/legs') return 'Push Pull Legs Program';
+  if (requestedSplit?.label === 'full-body') return 'Full Body Program';
+  const sport = getChatProgramSport(text);
+  if (sport) return `${toWorkoutTitleCase(sport)} Performance Program`;
+  if (goal === 'improve_strength') return 'Strength Program';
+  if (goal === 'build_muscle') return 'Hypertrophy Program';
+  return null;
+}
+
+function getChatProgramSport(text: string): string | null {
+  return [
+    'basketball', 'football', 'soccer', 'baseball', 'volleyball', 'tennis',
+    'hockey', 'lacrosse', 'rugby', 'mma', 'boxing', 'wrestling',
+  ].find((candidate) => new RegExp(`\\b${candidate}\\b`, 'i').test(text)) ?? null;
+}
+
+function buildRepeatedProgramDayNames(labels: string[], count: number): string[] {
+  const bases = Array.from({ length: count }, (_, index) => labels[index % labels.length]);
+  const totals = new Map<string, number>();
+  bases.forEach((base) => totals.set(base, (totals.get(base) ?? 0) + 1));
+  const seen = new Map<string, number>();
+  return bases.map((base) => {
+    if ((totals.get(base) ?? 0) === 1) return base;
+    const occurrence = seen.get(base) ?? 0;
+    seen.set(base, occurrence + 1);
+    return `${base} ${String.fromCharCode(65 + occurrence)}`;
+  });
+}
+
+function getChatDefaultSplitNames(
+  count: number,
+  sport: string | null,
+  muscleFocuses: string[] = [],
+  requestText = ''
+): string[] {
+  if (sport) {
+    const sportTemplates = [
+      'Strength & Power',
+      'Unilateral Strength & Core',
+      'Power & Conditioning',
+      'Upper Strength',
+      'Lower Strength',
+      'Speed & Agility',
+      'Full Body Recovery',
+    ];
+    return sportTemplates.slice(0, count);
+  }
+
+  const qualityLabels: Record<string, string> = {
+    power: 'Power',
+    unilateral: 'Unilateral Strength',
+    rotation: 'Rotation & Core',
+    conditioning: 'Conditioning',
+    speed: 'Speed & Agility',
+  };
+  const requestedQualityLabels = getRequestedProgramQualities(requestText)
+    .map((quality) => qualityLabels[quality])
+    .filter((label): label is string => !!label);
+  if (requestedQualityLabels.length > 0) {
+    return buildRepeatedProgramDayNames(requestedQualityLabels, count);
+  }
+
+  const focusLabels = muscleFocuses
+    .filter((focus) => focus !== 'balanced')
+    .map((focus) => ONBOARDING_FOCUS_LABELS[focus] ?? toWorkoutTitleCase(focus));
+  if (focusLabels.length > 0) {
+    return buildRepeatedProgramDayNames(
+      focusLabels.map((label) => `${label} Focus`),
+      count
+    );
+  }
+
+  if (count === 1) return ['Full Body'];
+  if (count === 2) return ['Upper', 'Lower'];
+  if (count === 3) return ['Full Body A', 'Full Body B', 'Full Body C'];
+  if (count === 4) return ['Upper A', 'Lower A', 'Upper B', 'Lower B'];
+  return ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body A', 'Full Body B'].slice(0, count);
+}
+
+async function generateProgramChatIntroduction(
+  request: AIRequest,
+  programTemplate: AIProgramTemplate
+): Promise<string> {
+  const systemPrompt = `You are Fortis, a sharp and personable training partner.
+
+The app has already built and validated a structured program. Write the brief chat message that naturally hands that program to the user.
+
+Rules:
+- Respond to the user's actual wording and conversational context instead of using a stock template.
+- Write one or two short, natural sentences in a single short paragraph.
+- Sound confident, specific, and human. Use contractions when natural.
+- Do not list workouts or exercises; the program card shows those details.
+- Do not recite metadata such as the number of days, training environment, experience, or goal unless it directly answers something the user asked.
+- Do not use phrases such as "shaped around your goal and experience", "respects your setup", or "based on your onboarding answers".
+- Never mention internal rules, fallbacks, validation, implementation details, or previous debugging issues.
+- Return only the chat message with no heading, markdown, or JSON.`;
+  const userMessage = `The user's latest message was: ${JSON.stringify(request.message)}
+
+The generated program is named ${JSON.stringify(programTemplate.name)}. Its workout names are: ${programTemplate.workouts
+    .map((workout) => workout.name)
+    .join(', ')}.`;
+  const text = (await callModelText(request, systemPrompt, userMessage, {
+    maxTokens: 120,
+    temperature: 0.75,
+  })).trim();
+  if (!text) {
+    throw new Error('AI program introduction was empty');
+  }
+  return text;
+}
+
+async function buildChatProgramResponse(
+  supabase: SupabaseClient,
+  userId: string,
+  request: AIRequest,
+  context: AIContext,
+  requestId: string
+): Promise<unknown> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name,workouts_per_week,workout_schedule_days,fitness_goal')
+    .eq('id', userId)
+    .maybeSingle();
+  const conversationText = [
+    ...(request.history ?? []).slice(-8).map((entry) => entry.content),
+    request.message,
+  ].join(' ');
+  const userConversationText = [
+    ...(request.history ?? [])
+      .slice(-8)
+      .filter((entry) => entry.role === 'user')
+      .map((entry) => entry.content),
+    request.message,
+  ].join(' ');
+  const isDirectProgramRequest = CHAT_PROGRAM_REQUEST_REGEX.test(request.message)
+    || CHAT_PROGRAM_SPLIT_REQUEST_REGEX.test(request.message);
+  const isAlternateProgramRequest = PROGRAM_ALTERNATE_REQUEST_REGEX.test(request.message);
+  const isReferentialProgramRequest = (
+    /\b(?:it|that|this|of it|the same)\b/i.test(request.message)
+    || isAlternateProgramRequest
+  )
+    && (request.history?.length ?? 0) > 0;
+  const shouldUseConversationContext = isReferentialProgramRequest || !isDirectProgramRequest;
+  const programRequestText = shouldUseConversationContext ? userConversationText : request.message;
+  const currentRequestSport = getChatProgramSport(request.message);
+  const conversationSport = getChatProgramSport(conversationText);
+  const sport = currentRequestSport ?? (shouldUseConversationContext ? conversationSport : null);
+  const currentEquipmentPreferences = extractWorkoutEquipment(request.message);
+  const conversationEquipmentPreferences = extractWorkoutEquipment(conversationText);
+  const equipmentPreferences = currentEquipmentPreferences.length > 0
+    ? currentEquipmentPreferences
+    : shouldUseConversationContext ? conversationEquipmentPreferences : [];
+  const hasExplicitEquipmentConstraint = equipmentPreferences.length > 0;
+  const requestedSplitFromRequest = getRequestedProgramSplit(request.message);
+  const requestedSplit = requestedSplitFromRequest
+    ?? (shouldUseConversationContext ? getRequestedProgramSplit(conversationText) : null);
+  const contextualWorkoutCountRange = parseProgramWorkoutCountRange(programRequestText);
+  if (!parseExplicitProgramWorkoutCount(request.message) && contextualWorkoutCountRange) {
+    const options = Array.from(
+      { length: contextualWorkoutCountRange.max - contextualWorkoutCountRange.min + 1 },
+      (_, index) => `${contextualWorkoutCountRange.min + index} days`
+    );
+    return {
+      type: 'clarification',
+      requestId,
+      clarification: {
+        question: `How many days per week should I use for this program—${options.join(', ')}?`,
+        options,
+      },
+    };
+  }
+  const explicitWorkoutCount = parseExplicitProgramWorkoutCount(request.message)
+    ?? (shouldUseConversationContext
+      ? parseExplicitProgramWorkoutCount(userConversationText)
+      : null);
+  const profileWorkoutCount = typeof profile?.workouts_per_week === 'number'
+    ? profile.workouts_per_week
+    : null;
+  const workoutsPerWeek = explicitWorkoutCount
+    ?? requestedSplit?.defaultWorkoutCount
+    ?? profileWorkoutCount;
+  if (!workoutsPerWeek) {
+    return {
+      type: 'clarification',
+      requestId,
+      clarification: {
+        question: 'How many days per week should I use for this program?',
+        options: ['3 days', '4 days', '5 days'],
+      },
+    };
+  }
+  const storedSchedule = Array.isArray(profile?.workout_schedule_days)
+    ? profile.workout_schedule_days.filter(
+        (day): day is number => Number.isInteger(day) && day >= 0 && day <= 6
+      )
+    : [];
+  const defaultSchedule = [1, 3, 5, 0, 2, 4, 6];
+  const scheduleDays = (storedSchedule.length >= workoutsPerWeek ? storedSchedule : defaultSchedule)
+    .slice(0, workoutsPerWeek);
+  const trainingEnvironment = getRequestedTrainingEnvironment(request.message)
+    ?? (currentEquipmentPreferences.map(normalizeEquipmentValue).includes('bodyweight') ? 'home' : null)
+    ?? (shouldUseConversationContext ? getRequestedTrainingEnvironment(conversationText) : null)
+    ?? context.user.trainingEnvironment
+    ?? 'gym';
+  const liftingExperience = getRequestedTrainingExperience(request.message)
+    ?? (shouldUseConversationContext ? getRequestedTrainingExperience(conversationText) : null)
+    ?? context.user.trainingExperience;
+  const profileFitnessGoal = typeof profile?.fitness_goal === 'string' ? profile.fitness_goal : null;
+  const fitnessGoal = getChatProgramGoal(
+    request.message,
+    shouldUseConversationContext
+      ? getChatProgramGoal(conversationText, profileFitnessGoal)
+      : profileFitnessGoal
+  );
+  const bodyweightOnly = equipmentPreferences.length === 1
+    && normalizeEquipmentValue(equipmentPreferences[0]) === 'bodyweight';
+  const programContextText = shouldUseConversationContext ? userConversationText : request.message;
+  const muscleFocuses = getChatProgramMuscleFocuses(programContextText);
+  const spec: AIOnboardingProgramSpec = {
+    id: `chat-${requestId}`,
+    trainingEnvironment,
+    muscleFocuses,
+    fitnessGoal,
+    liftingExperience,
+    workoutsPerWeek,
+    scheduleDays,
+    durationWeeks: parseProgramDurationWeeks(shouldUseConversationContext ? conversationText : request.message),
+    userName: typeof profile?.full_name === 'string' ? profile.full_name : null,
+    programName: bodyweightOnly && !requestedSplit && !sport
+      ? 'Bodyweight Program'
+      : getChatProgramName(
+          currentRequestSport ? request.message : conversationText,
+          fitnessGoal,
+          requestedSplit
+        ),
+    splitNames: requestedSplit?.namesForCount(workoutsPerWeek)
+      ?? getChatDefaultSplitNames(
+        workoutsPerWeek,
+        sport,
+        muscleFocuses,
+        programContextText
+      ),
+    equipmentPreferences,
+    strictEquipment: hasExplicitEquipmentConstraint,
+    programRequestText: shouldUseConversationContext ? userConversationText : request.message,
+  };
+  const previousProgramTemplate = isAlternateProgramRequest
+    ? [...(request.history ?? [])].reverse().find((entry) => entry.programTemplate)?.programTemplate
+    : undefined;
+  const previousProgramExerciseIds = new Set(
+    (Array.isArray(previousProgramTemplate?.workouts) ? previousProgramTemplate.workouts : [])
+      .flatMap((workout) => (
+      (Array.isArray(workout.exercises) ? workout.exercises : [])
+        .map((exercise) => exercise.exerciseId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    ))
+  );
+  const providedCatalog = sanitizeProvidedWorkoutExerciseCatalog(request.context?.exerciseCatalog);
+  let catalog = providedCatalog;
+  let programTemplate = catalog.length > 0
+    ? buildOnboardingProgramTemplate(spec, catalog, previousProgramExerciseIds)
+    : null;
+
+  if (!programTemplate || programTemplate.workouts.length !== workoutsPerWeek) {
+    const expandedCatalog = await fetchWorkoutExerciseCatalog(
+      supabase,
+      `${request.message} full body workout`,
+      { broadSearch: true, trainingEnvironment }
+    );
+    const mergedCatalog = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
+    [...providedCatalog, ...expandedCatalog].forEach((exercise) => {
+      if (!mergedCatalog.has(exercise.id)) mergedCatalog.set(exercise.id, exercise);
+    });
+    catalog = Array.from(mergedCatalog.values());
+    programTemplate = buildOnboardingProgramTemplate(spec, catalog, previousProgramExerciseIds);
+  }
+
+  if (!programTemplate || programTemplate.workouts.length !== workoutsPerWeek) {
+    return {
+      type: 'error',
+      requestId,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'I couldn’t build that program from your exercise library yet.',
+        retryable: true,
+      },
+    };
+  }
+  const introduction = await generateProgramChatIntroduction(request, programTemplate);
+
+  return {
+    type: 'answer',
+    requestId,
+    answer: {
+      text: introduction,
+      citations: [],
+      programTemplate,
+    },
+  };
+}
+
 async function assembleContext(
   supabase: SupabaseClient,
   userId: string,
@@ -1498,7 +2437,7 @@ async function assembleContext(
   const hasInsightId = !!request.context?.insightId;
   const needsTrainingData = shouldIncludeTrainingDataForRequest(request);
   const periodWeeks = request.context?.periodWeeks || (needsTrainingData ? 12 : config.defaultContextWeeks);
-  const isExplicitNewWorkout = isExplicitNewWorkoutRequest(request.message);
+  const isExplicitNewWorkout = isExplicitNewWorkoutRequestForRequest(request);
   const parsedTemplateEdit = getWorkoutTemplateEditRequest(request);
   const isTemplateEdit = !!parsedTemplateEdit;
 
@@ -1570,14 +2509,44 @@ async function assembleContext(
 
   if (shouldHandleWorkoutTemplateRequest(request)) {
     const workoutTargetText = getWorkoutTargetText(request, context);
-    const providedExerciseCatalog = sanitizeProvidedWorkoutExerciseCatalog(
+    const rawProvidedExerciseCatalog = sanitizeProvidedWorkoutExerciseCatalog(
       request.context?.exerciseCatalog
     );
+    const requestedEnvironment = getRequestedTrainingEnvironment(workoutTargetText)
+      ?? context.user.trainingEnvironment;
+    const environmentConstrainedCatalog = rawProvidedExerciseCatalog.filter((entry) => (
+      equipmentAllowedForTrainingEnvironment(
+        entry,
+        requestedEnvironment,
+        requestHasExplicitEquipment(workoutTargetText)
+      )
+    ));
+    const providedExerciseCatalog = environmentConstrainedCatalog.length >= 8
+      ? environmentConstrainedCatalog
+      : rawProvidedExerciseCatalog;
+    const requestedTargetMuscles = Array.from(new Set(
+      extractWorkoutTargetMuscles(workoutTargetText).map(normalizeWorkoutMuscle)
+    ));
+    const providedPrimaryMuscles = new Set(
+      providedExerciseCatalog.flatMap((entry) => entry.primaryMuscles.map(normalizeWorkoutMuscle))
+    );
+    const providedCatalogMissesTarget = requestedTargetMuscles.some(
+      (muscle) => !providedPrimaryMuscles.has(muscle)
+    );
+    const explicitExerciseRequestText = request.message;
+    const explicitExercisePhrases = extractExplicitExercisePhrases(explicitExerciseRequestText);
+    const providedCatalogMissesExplicitExercise = explicitExercisePhrases.length > 0
+      && findExplicitlyRequestedExercises(explicitExerciseRequestText, providedExerciseCatalog).length
+        < explicitExercisePhrases.length;
     context.exerciseCatalog = await withContextCache(
       buildCacheKey(
         'workout-catalog',
         userId,
-        providedExerciseCatalog.length > 0 ? 'provided' : 'server',
+        providedExerciseCatalog.length > 0
+          ? providedCatalogMissesTarget || providedCatalogMissesExplicitExercise
+            ? 'provided-augmented'
+            : 'provided'
+          : 'server',
         isTemplateEdit ? 'edit-targeted' : 'targeted',
         extractWorkoutTargetMuscles(workoutTargetText).join(','),
         extractWorkoutEquipment(workoutTargetText).join(','),
@@ -1592,24 +2561,46 @@ async function assembleContext(
         workoutTargetText,
         request.message
       ),
-      () => providedExerciseCatalog.length > 0
-        ? Promise.resolve(providedExerciseCatalog)
-        : isTemplateEdit && request.context?.currentWorkoutTemplateDraft && parsedTemplateEdit
-        ? fetchWorkoutEditExerciseCatalog(
-            supabase,
-            request.message,
-            request.context.currentWorkoutTemplateDraft,
-            parsedTemplateEdit
-          )
-        : fetchWorkoutExerciseCatalog(supabase, workoutTargetText, {
-            trainingEnvironment: context.user.trainingEnvironment,
-            excludeExerciseIds: request.context?.avoidWorkoutTemplateDraft?.exercises
-              ?.map((exercise) => exercise.exerciseId)
-              .filter((id): id is string => typeof id === 'string' && id.length > 0),
-          })
+      async () => {
+        if (
+          providedExerciseCatalog.length > 0
+          && !providedCatalogMissesTarget
+          && !providedCatalogMissesExplicitExercise
+        ) {
+          return providedExerciseCatalog;
+        }
+
+        const serverCatalog = isTemplateEdit
+          && request.context?.currentWorkoutTemplateDraft
+          && parsedTemplateEdit
+          ? await fetchWorkoutEditExerciseCatalog(
+              supabase,
+              request.message,
+              request.context.currentWorkoutTemplateDraft,
+              parsedTemplateEdit
+            )
+            : await fetchWorkoutExerciseCatalog(supabase, workoutTargetText, {
+              trainingEnvironment: requestedEnvironment,
+              excludeExerciseIds: request.context?.avoidWorkoutTemplateDraft?.exercises
+                ?.map((exercise) => exercise.exerciseId)
+                .filter((id): id is string => typeof id === 'string' && id.length > 0),
+            });
+
+        if (providedExerciseCatalog.length === 0) {
+          return serverCatalog;
+        }
+
+        // Keep the server-selected target coverage at the front so a large,
+        // stale client catalog cannot crowd the missing muscle group back out.
+        const mergedCatalog = new Map(
+          serverCatalog.map((entry) => [entry.id, entry] as const)
+        );
+        providedExerciseCatalog.forEach((entry) => mergedCatalog.set(entry.id, entry));
+        return Array.from(mergedCatalog.values()).slice(0, MAX_WORKOUT_CONTEXT_EXERCISES);
+      }
     );
     if (!isTemplateEdit) {
-      context.workoutPlan = buildWorkoutGenerationPlan(workoutTargetText);
+      context.workoutPlan = buildWorkoutGenerationPlan(workoutTargetText, context.user);
     }
   }
 
@@ -1671,7 +2662,7 @@ function sanitizeProvidedWorkoutExerciseCatalog(
   }
 
   const catalog = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
-  value.slice(0, 240).forEach((item) => {
+  value.slice(0, MAX_WORKOUT_CONTEXT_EXERCISES).forEach((item) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
       return;
     }
@@ -1702,6 +2693,9 @@ function sanitizeProvidedWorkoutExerciseCatalog(
       images: Array.isArray(row.images)
         ? row.images.filter((image): image is string => typeof image === 'string')
         : [],
+      level: typeof row.level === 'string' ? row.level : null,
+      mechanic: typeof row.mechanic === 'string' ? row.mechanic : null,
+      force: typeof row.force === 'string' ? row.force : null,
       canonicalId: typeof row.canonicalId === 'string' ? row.canonicalId : null,
       canonicalKey: typeof row.canonicalKey === 'string' ? row.canonicalKey : null,
       isCurated: typeof row.isCurated === 'boolean' ? row.isCurated : true,
@@ -1724,12 +2718,16 @@ async function fetchWorkoutExerciseCatalog(
   } = {}
 ): Promise<WorkoutGenerationExerciseCatalogEntry[]> {
   const targetMuscles = extractWorkoutTargetMuscles(message);
+  const effectiveTrainingEnvironment = getRequestedTrainingEnvironment(message)
+    ?? options.trainingEnvironment
+    ?? null;
   const equipmentPreferences = getWorkoutEquipmentPreferences(
     message,
-    options.trainingEnvironment ?? null
+    effectiveTrainingEnvironment
   );
   const excludedExerciseIds = new Set(options.excludeExerciseIds ?? []);
   const catalog = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
+  const explicitExercisePhrases = extractExplicitExercisePhrases(message);
 
   const addRows = (rows: WorkoutExerciseCatalogRow[] | null | undefined) => {
     rows?.forEach((row) => {
@@ -1744,6 +2742,7 @@ async function fetchWorkoutExerciseCatalog(
   const loadRows = async (options: {
     muscles?: string[];
     equipment?: string[];
+    nameToken?: string;
     limit: number;
   }) => {
     let query = supabase
@@ -1754,8 +2753,12 @@ async function fetchWorkoutExerciseCatalog(
       .order('name', { ascending: true })
       .limit(options.limit);
 
+    if (options.nameToken) {
+      query = query.ilike('name', `%${options.nameToken}%`);
+    }
+
     if (options.muscles && options.muscles.length > 0) {
-      const muscleFilter = options.muscles.join(',');
+      const muscleFilter = expandWorkoutMuscleQueryValues(options.muscles).join(',');
       query = query.or(
         `primary_muscles.ov.{${muscleFilter}},secondary_muscles.ov.{${muscleFilter}}`
       );
@@ -1808,8 +2811,24 @@ async function fetchWorkoutExerciseCatalog(
     return Array.from(catalog.values());
   }
 
+  const explicitNameTokens = Array.from(new Set(
+    explicitExercisePhrases.flatMap((phrase) => tokenizeSearchText(phrase))
+  )).filter((token) => token.length >= 3).slice(0, 8);
+  for (const token of explicitNameTokens) {
+    await loadRows({ nameToken: token, limit: 40 });
+  }
+
   if (targetMuscles.length > 0 && equipmentPreferences.length > 0) {
     await loadRows({ muscles: targetMuscles, equipment: equipmentPreferences, limit: 80 });
+  }
+
+  const canonicalTargets = Array.from(new Set(targetMuscles.map(normalizeWorkoutMuscle)));
+  if (canonicalTargets.length > 1) {
+    await Promise.all(canonicalTargets.map((muscle) => loadRows({
+      muscles: [muscle],
+      equipment: equipmentPreferences.length > 0 ? equipmentPreferences : undefined,
+      limit: 30,
+    })));
   }
 
   if (catalog.size < 18 && targetMuscles.length > 0) {
@@ -1838,16 +2857,42 @@ async function fetchWorkoutExerciseCatalog(
   // keeps a focused workout focused even when the library has few matches.
   const scopedValues = targetMuscles.length > 0 ? targetScopedValues : values;
 
-  if (!requestHasExplicitEquipment(message) && options.trainingEnvironment === 'home') {
+  let environmentScopedValues = scopedValues;
+  const hasExplicitEquipment = requestHasExplicitEquipment(message);
+  if (!hasExplicitEquipment && effectiveTrainingEnvironment === 'home') {
     const homeValues = scopedValues.filter((entry) =>
       equipmentAllowedForTrainingEnvironment(entry, 'home', false)
     );
     if (homeValues.length >= 8) {
-      return homeValues.slice(0, 80);
+      environmentScopedValues = homeValues;
     }
   }
 
-  return scopedValues.slice(0, 80);
+  const rankedValues = environmentScopedValues
+    .map((entry) => ({
+      entry,
+      score: scoreCatalogExercise(entry, targetMuscles, equipmentPreferences),
+    }))
+    .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+  const balanced = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
+  findExplicitlyRequestedExercises(message, environmentScopedValues)
+    .forEach((entry) => balanced.set(entry.id, entry));
+  if (canonicalTargets.length > 1) {
+    const perTargetLimit = Math.max(
+      2,
+      Math.floor(MAX_WORKOUT_CONTEXT_EXERCISES / canonicalTargets.length)
+    );
+    canonicalTargets.forEach((target) => {
+      rankedValues
+        .filter(({ entry }) => entry.primaryMuscles.map(normalizeWorkoutMuscle).includes(target))
+        .slice(0, perTargetLimit)
+        .forEach(({ entry }) => balanced.set(entry.id, entry));
+    });
+  }
+  rankedValues.forEach(({ entry }) => {
+    if (balanced.size < MAX_WORKOUT_CONTEXT_EXERCISES) balanced.set(entry.id, entry);
+  });
+  return Array.from(balanced.values()).slice(0, MAX_WORKOUT_CONTEXT_EXERCISES);
 }
 
 async function fetchWorkoutEditExerciseCatalog(
@@ -2144,13 +3189,22 @@ async function callAIProvider(
 
   const requiresWorkoutTemplate =
     shouldHandleWorkoutTemplateRequest(request) && Boolean(context.exerciseCatalog?.length);
+  const modelRequest = requiresWorkoutTemplate
+    ? {
+        ...request,
+        context: {
+          ...request.context,
+          exerciseCatalog: context.exerciseCatalog,
+        },
+      }
+    : request;
   const systemPrompt = buildAnswerPrompt(context, request.intent, {
     voiceWorkoutOnly,
     strictWorkoutTemplate: requiresWorkoutTemplate,
   });
   const userMessage = buildUserMessage(request, context);
 
-  const responseText = await callModelText(request, systemPrompt, userMessage, {
+  const responseText = await callModelText(modelRequest, systemPrompt, userMessage, {
     maxTokens: AI_MAX_TOKENS,
     temperature: 0.2,
     responseFormat: requiresWorkoutTemplate ? 'workout_template' : undefined,
@@ -2161,6 +3215,26 @@ async function callAIProvider(
     request,
     context
   );
+  if (requiresWorkoutTemplate && isWorkoutTemplateUnavailableResponse(parsed)) {
+    console.warn('[AI] Structured workout failed validation; retrying model selection', { requestId });
+    const retryPrompt = `${systemPrompt}
+
+CORRECTION REQUIRED:
+- The previous structured workout failed validation against the request.
+- Re-read the user's request and choose a new valid set of catalog exercises.
+- Include explicitly requested exercises when available, cover distinct requested muscle and movement roles, honor the requested exercise count and duration, and avoid overusing one movement family.
+- Return the required JSON workout template only; do not explain the correction.`;
+    const retryText = await callModelText(modelRequest, retryPrompt, userMessage, {
+      maxTokens: AI_MAX_TOKENS,
+      temperature: 0.15,
+      responseFormat: 'workout_template',
+    });
+    return sanitizeWorkoutTemplateResponse(
+      parseModelResponse(retryText, requestId, request.intent),
+      request,
+      context
+    );
+  }
   if (shouldRetryInsightResponse(parsed, request.intent, context)) {
     console.warn('[AI] Insight response too short or missing sections; retrying with strict format', {
       requestId,
@@ -2769,6 +3843,18 @@ function buildAnswerPrompt(
   intent: AIIntent,
   options: { strictInsight?: boolean; voiceWorkoutOnly?: boolean; strictWorkoutTemplate?: boolean } = {}
 ): string {
+  const workoutConversationGuidance = !context.exerciseCatalog?.length
+    ? `
+- Treat exploratory training messages as conversation, even when the user mentions workouts, exercises, or a desired outcome.
+- If the user is unsure what kind of training to do, respond with useful high-level direction first and ask at most one natural follow-up question when it would help personalize the next step.
+- When offering to build a workout next, make it one direct yes/no question about building the structured workout. Do not combine that offer with another choice.
+- When the user asks what workout or training they should do, end by directly asking whether they want you to build that workout for them.
+- When the user asks what type of program would suit them, answer the question first in short paragraphs. Do not generate a program yet; end by asking whether they want you to build the recommended program.
+- Mentioning the word "program" is not permission to generate one. Only attach a program template after an explicit create/build/generate request or an affirmative reply to your offer.
+- Write conversational coaching in 2-4 short paragraphs with no more than 2-3 sentences per paragraph. Avoid one dense block of text and avoid numbered lists unless the user asks for a list.
+- Do not output a rigid numbered workout with sets, reps, and rest until the user explicitly asks you to build or generate one.
+- Never turn an exploratory training question into a workout-generation failure. You can discuss an approach and offer to build the structured workout next.`
+    : '';
   const workoutTemplateGuidance = context.exerciseCatalog?.length
     ? `
 - Only include an "answer.workoutTemplate" object when the user explicitly asks you to create, generate, build, or revise a workout template.
@@ -2777,6 +3863,10 @@ function buildAnswerPrompt(
 - Build exactly one single-session workout template, not a multi-day program.
 - Make the workout coherent: compounds before isolations, 4-13 exercises, or the explicit exercise count when the user asks for one, plus sensible set/rep schemes and realistic rest times.
 - Prefer exercises that match the requested body part, equipment, and experience level.
+- Treat SEMANTIC REQUEST as authoritative. It contains the model-interpreted artifact action, focus, target muscles, explicit exercises, equipment, sport, goal, requested count/duration, and any other requirements. Do not replace those constraints with a generic split or body-part fallback.
+- Plan the session semantically before selecting IDs: identify the distinct movement roles the request calls for, then choose the best matching real catalog exercise for each role.
+- If multiple target muscles are present, give each available primary-muscle role meaningful coverage instead of letting the whole workout collapse onto one muscle.
+- If explicitExercises names a movement that exists in the catalog, include it. For requests such as fresh, another, or regenerate, respect AVOID WORKOUT DRAFT and choose genuinely different movements.
 - For focused body-part workouts, choose exercises whose primary muscles match the requested focus. Do not use exercises where that focus is only secondary unless the catalog has too few primary matches.
 - Use the user's training environment for equipment assumptions when no equipment is specified: gym means full gym, home means bodyweight/dumbbells/bands/kettlebells, hybrid means gym-quality choices unless the user asks for home. If training environment is unknown, assume full gym.
 - For normal single-session workout requests, infer reasonable defaults and generate the workout. Do not ask follow-up questions for routine missing details like equipment, duration, exercise count, sets, or reps.
@@ -2785,7 +3875,8 @@ function buildAnswerPrompt(
 - Prefer standard canonical/curated exercises over obscure variants. Avoid assisted, beginner, Smith-machine, rehab, stretching, and cardio variants unless the user asks for them.
 - Do not invent exercise IDs, names, or equipment.
 - Do not include exercise notes.
-- Keep "answer.text" concise and refer to the generated workout naturally.
+- Keep "answer.text" concise, specific to the user's stated goal, and refer to the generated workout naturally.
+- Avoid stock acknowledgements such as "I built a [focus] workout with [count] exercises." Sound like a sharp training partner handing over something intentionally chosen for this request.
 - When returning "answer.workoutTemplate", do not list exercises, sets, reps, rest times, or a full outline in "answer.text"; the app card displays those details.
 - For workout template responses, "answer.text" should be one short sentence and should not include a TLDR line.
 - If CURRENT WORKOUT DRAFT is provided and the user's message is feedback or a requested change, revise that same draft instead of starting over.
@@ -2848,6 +3939,7 @@ VISUAL COACHING MODE:
 - Never claim access to data that is not in the supplied context.
 - Never provide medical advice. If injury, pain, symptoms, or a diagnosis is mentioned, suggest a healthcare professional.
 ${FORTIS_VOICE_GUIDANCE}
+${workoutConversationGuidance}
 ${workoutTemplateGuidance}
 
 USER PREFERENCES:
@@ -2880,6 +3972,7 @@ CORE PRINCIPLES:
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
 - Do not include routine health-advice or medical-advice disclaimers. Only mention medical limitations when the user describes pain, injury, symptoms, diagnosis, or asks for medical guidance.
 ${FORTIS_VOICE_GUIDANCE}
+${workoutConversationGuidance}
 ${workoutTemplateGuidance}
 
 USER PREFERENCES:
@@ -2952,6 +4045,7 @@ CORE PRINCIPLES:
 - Never fabricate or imply user data that isn't in the provided context.
 - If you provide general guidance, make it clear it's general guidance.
 ${FORTIS_VOICE_GUIDANCE}
+${workoutConversationGuidance}
 - Do not refer to yourself as a coach.
 - Be concise but useful. Prioritize actionable information and clear evidence.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
@@ -3056,11 +4150,22 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
   }
 
   if (context.exerciseCatalog && context.exerciseCatalog.length > 0) {
-    message += `\n\n--- EXERCISE CATALOG ---\n${compactJson(context.exerciseCatalog)}`;
+    const modelExerciseCatalog = context.exerciseCatalog.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      primaryMuscles: entry.primaryMuscles,
+      secondaryMuscles: entry.secondaryMuscles,
+      equipment: entry.equipment,
+      level: entry.level ?? null,
+      mechanic: entry.mechanic ?? null,
+      force: entry.force ?? null,
+    }));
+    message += `\n\n--- EXERCISE CATALOG ---\n${compactJson(modelExerciseCatalog)}`;
   }
 
   if (context.workoutPlan) {
     message += `\n\n--- WORKOUT STRUCTURE TO FILL ---\n${compactJson(context.workoutPlan)}`;
+    message += `\n\n--- WORKOUT PLANNING PRIORITY ---\nTreat the user's explicit request as the highest-priority constraint. Use saved preferences for unspecified details. Build a coherent session with distinct movement roles and realistic exercise ordering; do not repeatedly select one muscle or near-identical movement just because it matches the broad request.`;
   }
 
   if (context.currentWorkoutTemplateDraft) {
@@ -3343,6 +4448,58 @@ function normalizeCatalogLookupValue(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+const WORKOUT_MUSCLE_ALIASES: Record<string, string> = {
+  abdominal: 'abs',
+  abdominals: 'abs',
+  chest: 'pectorals',
+  pec: 'pectorals',
+  pecs: 'pectorals',
+  pectoral: 'pectorals',
+  quadriceps: 'quads',
+  shoulder: 'delts',
+  shoulders: 'delts',
+  deltoid: 'delts',
+  deltoids: 'delts',
+  'front delts': 'delts',
+  'side delts': 'delts',
+  'rear delts': 'delts',
+  oblique: 'abs',
+  obliques: 'abs',
+  'hip flexor': 'abs',
+  'hip flexors': 'abs',
+  'middle back': 'upper back',
+  'lower back': 'spine',
+};
+
+function normalizeWorkoutMuscle(value: string): string {
+  const normalized = normalizeCatalogLookupValue(value);
+  return WORKOUT_MUSCLE_ALIASES[normalized] ?? normalized;
+}
+
+function expandWorkoutMuscleQueryValues(muscles: string[]): string[] {
+  const values = new Set<string>();
+
+  muscles.forEach((muscle) => {
+    const canonical = normalizeWorkoutMuscle(muscle);
+    values.add(muscle);
+    values.add(canonical);
+
+    if (canonical === 'delts') {
+      ['shoulders', 'front_delts', 'side_delts', 'rear_delts'].forEach((value) => values.add(value));
+    } else if (canonical === 'upper back') {
+      ['upper_back', 'middle back', 'middle_back'].forEach((value) => values.add(value));
+    } else if (canonical === 'pectorals') {
+      values.add('chest');
+    } else if (canonical === 'quads') {
+      values.add('quadriceps');
+    } else if (canonical === 'abs') {
+      ['abdominals', 'obliques', 'hip flexors', 'hip_flexors'].forEach((value) => values.add(value));
+    }
+  });
+
+  return Array.from(values);
+}
+
 function clampInteger(value: unknown, min: number, max: number, fallback: number): number {
   const parsed = typeof value === 'number'
     ? value
@@ -3378,7 +4535,10 @@ function sanitizeReps(value: unknown): string {
 function sanitizeWorkoutTemplate(
   rawTemplate: unknown,
   catalog: WorkoutGenerationExerciseCatalogEntry[],
-  options: { preserveUnknownExercises?: boolean } = {}
+  options: {
+    preserveUnknownExercises?: boolean;
+    minimumExerciseCount?: number;
+  } = {}
 ): AIWorkoutTemplate | null {
   if (!rawTemplate || typeof rawTemplate !== 'object') {
     return null;
@@ -3465,7 +4625,8 @@ function sanitizeWorkoutTemplate(
     });
   });
 
-  if (sanitizedExercises.length < 3) {
+  const minimumExerciseCount = Math.max(0, options.minimumExerciseCount ?? 3);
+  if (sanitizedExercises.length < minimumExerciseCount) {
     return null;
   }
 
@@ -3487,13 +4648,23 @@ function sanitizeWorkoutTemplate(
   };
 }
 
-function buildWorkoutTemplateAnswerText(template: AIWorkoutTemplate): string {
-  const focus = template.focus?.trim() || template.name || 'strength';
-  const duration = template.estimatedDurationMinutes
-    ? ` and it should take about ${template.estimatedDurationMinutes} minutes`
-    : '';
+function buildWorkoutTemplateAnswerText(
+  modelText: unknown,
+  template: AIWorkoutTemplate
+): string {
+  const naturalReply = sanitizeShortText(modelText, 220);
+  const includesCardDetails = naturalReply
+    ? /(?:^|\n)\s*\d+[.)]\s+\S|\b(?:sets?|reps?|rest seconds?)\b/i.test(naturalReply)
+    : false;
+  if (naturalReply && !includesCardDetails) {
+    return naturalReply;
+  }
 
-  return `I built a ${focus.toLowerCase()} workout with ${template.exercises.length} exercises${duration}.`;
+  const duration = template.estimatedDurationMinutes
+    ? ` It should fit into about ${template.estimatedDurationMinutes} minutes.`
+    : '';
+  const focus = template.focus?.trim().toLowerCase() || 'the goal you gave me';
+  return `This one keeps the session centered on ${focus}, with enough variety to make every movement count.${duration}`;
 }
 
 function areWorkoutTemplatesEquivalent(
@@ -3571,6 +4742,12 @@ function workoutTemplateMissesPrimaryTarget(
   });
 }
 
+function isWorkoutTemplateUnavailableResponse(response: unknown): boolean {
+  if (!response || typeof response !== 'object') return false;
+  const record = response as { type?: unknown; error?: { code?: unknown } };
+  return record.type === 'error' && record.error?.code === 'WORKOUT_TEMPLATE_UNAVAILABLE';
+}
+
 function sanitizeWorkoutTemplateResponse(
   response: unknown,
   request: AIRequest,
@@ -3612,14 +4789,8 @@ function sanitizeWorkoutTemplateResponse(
     },
   });
 
-  const hasTextWorkoutOutline = () => {
-    const text = typeof record.answer?.text === 'string'
-      ? record.answer.text
-      : typeof record.clarification?.question === 'string'
-        ? record.clarification.question
-        : '';
-    return /\bexercises?\s*:/i.test(text)
-      || (/\b(?:sets?|reps?|rest)\b/i.test(text) && /(?:^|\n)\s*\d+[.)]\s+\S/m.test(text));
+  const formatExploratoryWorkoutReply = (value: unknown): unknown => {
+    return typeof value === 'string' ? value.trim() : value;
   };
 
   const stripWorkoutTemplate = () => {
@@ -3627,7 +4798,10 @@ function sanitizeWorkoutTemplateResponse(
       const { workoutTemplate: _ignored, ...restAnswer } = record.answer;
       return {
         ...record,
-        answer: restAnswer,
+        answer: {
+          ...restAnswer,
+          text: formatExploratoryWorkoutReply(restAnswer.text),
+        },
       };
     }
 
@@ -3643,12 +4817,8 @@ function sanitizeWorkoutTemplateResponse(
   };
 
   if (!shouldIncludeTemplate) {
-    // Never show a generated, numbered workout as plain chat text; it must be a card.
-    if (hasTextWorkoutOutline()) {
-      return templateUnavailableResponse(
-        typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
-      );
-    }
+    // Exploratory coaching stays conversational. A template card is introduced
+    // only after the user explicitly asks the assistant to build one.
     return stripWorkoutTemplate();
   }
 
@@ -3663,7 +4833,9 @@ function sanitizeWorkoutTemplateResponse(
     context.exerciseCatalog,
     { preserveUnknownExercises: true }
   );
-  const parsedEditRequest = currentDraft ? parseWorkoutEditRequest(request.message) : null;
+  const parsedEditRequest = currentDraft
+    ? parseWorkoutEditRequest(request.message)
+    : null;
   const deterministicEdit = currentDraft && parsedEditRequest && parsedEditRequest.action !== 'unknown'
     ? resolveWorkoutTemplateEdit(request.message, currentDraft, context.exerciseCatalog)
     : null;
@@ -3681,17 +4853,6 @@ function sanitizeWorkoutTemplateResponse(
     };
   }
 
-  if (record.type !== 'answer' || !record.answer) {
-    return templateUnavailableResponse(
-      typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
-    );
-  }
-
-  const sanitizedTemplate = sanitizeWorkoutTemplate(
-    record.answer.workoutTemplate,
-    context.exerciseCatalog
-  );
-
   if (shouldUseDeterministicEdit) {
     return {
       ...record,
@@ -3703,20 +4864,67 @@ function sanitizeWorkoutTemplateResponse(
     };
   }
 
-  if (!sanitizedTemplate) {
+  const requestId = typeof record.requestId === 'string'
+    ? record.requestId
+    : crypto.randomUUID();
+  const sanitizedTemplate = sanitizeWorkoutTemplate(
+    record.answer?.workoutTemplate,
+    context.exerciseCatalog,
+    { minimumExerciseCount: context.workoutPlan ? 0 : 3 }
+  );
+  const repairableTemplate = sanitizedTemplate ?? (context.workoutPlan
+    ? {
+        name: `${context.workoutPlan.focus} Workout`,
+        description: `A ${context.workoutPlan.focus.toLowerCase()} workout built for your current goal.`,
+        focus: context.workoutPlan.focus,
+        estimatedDurationMinutes: 45,
+        exercises: [],
+      }
+    : null);
+
+  if (!repairableTemplate) {
+    return templateUnavailableResponse(
+      requestId
+    );
+  }
+  const normalizedTemplate = normalizeWorkoutTemplateForRequest(repairableTemplate, request);
+  const composedTemplate = context.workoutPlan
+    ? groundWorkoutTemplateToPlan(
+        normalizedTemplate,
+        context.workoutPlan,
+        context.exerciseCatalog,
+        isExplicitNewWorkoutRequestForRequest(request)
+          ? request.message
+          : getWorkoutTargetText(request, context),
+        getUserWorkoutConstraintText(request)
+      )
+    : normalizedTemplate;
+  if (!composedTemplate) {
+    console.warn('[AI] Workout composition grounding failed', {
+      focus: context.workoutPlan?.focus ?? null,
+      slots: context.workoutPlan?.slots.map((slot) => ({
+        id: slot.id,
+        targetMuscles: slot.targetMuscles,
+      })) ?? [],
+      catalogSize: context.exerciseCatalog.length,
+      catalogPrimaryMuscles: Array.from(new Set(
+        context.exerciseCatalog.flatMap((entry) => entry.primaryMuscles.map(normalizeWorkoutMuscle))
+      )),
+      sanitizedExerciseCount: sanitizedTemplate?.exercises.length ?? 0,
+    });
     return templateUnavailableResponse(
       typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
     );
   }
-  const normalizedTemplate = normalizeWorkoutTemplateForRequest(sanitizedTemplate, request);
-  if (workoutTemplateUsesAvoidedExercises(normalizedTemplate, context.avoidWorkoutTemplateDraft)) {
+  if (workoutTemplateUsesAvoidedExercises(composedTemplate, context.avoidWorkoutTemplateDraft)) {
     return templateUnavailableResponse(
       typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
     );
   }
   if (
-    workoutTemplateMissesPrimaryTarget(
-      normalizedTemplate,
+    !context.workoutPlan
+    && workoutTemplateMissesPrimaryTarget(
+      composedTemplate,
       context.exerciseCatalog,
       extractWorkoutTargetMuscles(getWorkoutTargetText(request, context))
     )
@@ -3727,13 +4935,14 @@ function sanitizeWorkoutTemplateResponse(
   }
 
   return {
-    ...record,
+    type: 'answer',
+    requestId,
     answer: {
-      ...record.answer,
+      citations: Array.isArray(record.answer?.citations) ? record.answer.citations : [],
       text: currentDraft
-        ? record.answer.text
-        : buildWorkoutTemplateAnswerText(normalizedTemplate),
-      workoutTemplate: normalizedTemplate,
+        ? record.answer?.text ?? buildWorkoutTemplateReplyText(request)
+        : buildWorkoutTemplateAnswerText(record.answer?.text, composedTemplate),
+      workoutTemplate: composedTemplate,
     },
   };
 }
@@ -4081,6 +5290,46 @@ function parseWorkoutEditRequests(message: string): ParsedWorkoutEditRequest[] {
 
 function parseWorkoutEditRequest(message: string): ParsedWorkoutEditRequest {
   return parseWorkoutEditRequests(message)[0] ?? { action: 'unknown' };
+}
+
+function extractExplicitExercisePhrases(message: string): string[] {
+  const phrases = new Set<string>();
+  const patterns = [
+    /\b(?:with|including|include|includes|featuring|built around|centered (?:on|around))\s+([^.!?]+)/gi,
+    /\b(?:add|use|perform)\s+([^.!?]+)/gi,
+  ];
+  patterns.forEach((pattern) => {
+    for (const match of message.matchAll(pattern)) {
+      const captured = match[1]
+        ?.replace(/\b(?:to|so (?:i|we)|because|for the purpose of)\b[\s\S]*$/i, '')
+        .trim();
+      if (!captured) continue;
+      captured.split(/\s*(?:,|\band\b|\bplus\b)\s*/i)
+        .map((phrase) => phrase.replace(/^(?:some|a|an|the)\s+/i, '').trim())
+        .filter((phrase) => phrase.length >= 3)
+        .forEach((phrase) => phrases.add(phrase));
+    }
+  });
+  return Array.from(phrases).filter((phrase) => {
+    const tokens = tokenizeSearchText(phrase);
+    const onlyEquipment = tokens.length <= 2 && extractWorkoutEquipment(phrase).length > 0;
+    return !onlyEquipment && !/^(?:exercises?|movements?|workout|routine)$/i.test(phrase);
+  });
+}
+
+function findExplicitlyRequestedExercises(
+  message: string,
+  catalog: WorkoutGenerationExerciseCatalogEntry[]
+): WorkoutGenerationExerciseCatalogEntry[] {
+  const selected = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
+  extractExplicitExercisePhrases(message).forEach((phrase) => {
+    const winner = catalog
+      .map((entry) => ({ entry, score: scoreSearchCandidate(phrase, entry) }))
+      .filter(({ score }) => score >= 80)
+      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))[0]?.entry;
+    if (winner) selected.set(winner.id, winner);
+  });
+  return Array.from(selected.values());
 }
 
 function scoreSearchCandidate(
@@ -4745,11 +5994,11 @@ function resolveWorkoutTemplateEdit(
 
 function inferWorkoutFocusLabel(message: string): string {
   const normalized = message.toLowerCase();
+  if (/\bfull body\b/.test(normalized)) return 'Full Body';
   if (/\bpush\b/.test(normalized)) return 'Push';
   if (/\bpull\b/.test(normalized)) return 'Pull';
   if (/\blegs?\b|\blower body\b/.test(normalized)) return 'Lower Body';
   if (/\bupper body\b/.test(normalized)) return 'Upper Body';
-  if (/\bfull body\b/.test(normalized)) return 'Full Body';
   if (/\bchest\b/.test(normalized)) return 'Chest';
   if (/\bback\b/.test(normalized)) return 'Back';
   if (/\blats?\b/.test(normalized)) return 'Lats';
@@ -4807,7 +6056,7 @@ function normalizeWorkoutTemplateForRequest(
   request: AIRequest
 ): AIWorkoutTemplate {
   const requestedFocus = inferWorkoutFocusLabel(request.message);
-  const explicitNewWorkout = isExplicitNewWorkoutRequest(request.message);
+  const explicitNewWorkout = isExplicitNewWorkoutRequestForRequest(request);
   const hasRequestedFocus =
     requestedFocus !== 'Strength'
     && extractWorkoutTargetMuscles(request.message).length > 0;
@@ -4860,10 +6109,12 @@ function isVariantAllowedByRequest(message: string): boolean {
 }
 
 function isAssistedOrRegressionVariant(entry: WorkoutGenerationExerciseCatalogEntry): boolean {
-  const text = normalizedExerciseText(entry);
+  const text = [entry.name, entry.slug, entry.equipment, entry.category, ...(entry.aliases ?? [])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
   return /\b(assisted|beginner|band assisted|counterbalanced|chair assisted|negative)\b/i.test(text)
-    || normalizeEquipmentValue(entry.equipment) === 'assisted'
-    || entry.level === 'beginner';
+    || normalizeEquipmentValue(entry.equipment) === 'assisted';
 }
 
 function isLowValueWorkoutVariant(entry: WorkoutGenerationExerciseCatalogEntry): boolean {
@@ -4895,7 +6146,10 @@ function getExerciseFamily(entry: WorkoutGenerationExerciseCatalogEntry): string
   if (/\b(lateral raise|side raise)\b/.test(text)) return 'lateral-raise';
   if (/\b(curl)\b/.test(text)) return 'biceps-curl';
   if (/\b(pushdown|tricep|skullcrusher|extension)\b/.test(text)) return 'triceps';
-  if (/\b(crunch|sit-up|sit up|ab wheel|plank|leg raise|hanging knee)\b/.test(text)) return 'core';
+  if (/\b(plank|ab wheel|rollout)\b/.test(text)) return 'core-anti-extension';
+  if (/\b(crunch|sit-up|sit up)\b/.test(text)) return 'core-flexion';
+  if (/\b(leg raise|knee raise|hanging knee)\b/.test(text)) return 'core-leg-raise';
+  if (/\b(twist|woodchop|pallof|rotation)\b/.test(text)) return 'core-rotation';
   if (entry.canonicalKey) return `canonical-${entry.canonicalKey}`;
   if (entry.canonicalId) return `canonical-${entry.canonicalId}`;
   return normalizeCatalogLookupValue(entry.name);
@@ -4906,10 +6160,10 @@ function getCanonicalGroup(entry: WorkoutGenerationExerciseCatalogEntry): string
 }
 
 function muscleMatches(entry: WorkoutGenerationExerciseCatalogEntry, muscles: string[]): number {
-  const primary = entry.primaryMuscles.map((muscle) => normalizeCatalogLookupValue(muscle));
-  const secondary = entry.secondaryMuscles.map((muscle) => normalizeCatalogLookupValue(muscle));
+  const primary = entry.primaryMuscles.map(normalizeWorkoutMuscle);
+  const secondary = entry.secondaryMuscles.map(normalizeWorkoutMuscle);
   return muscles.reduce((score, muscle) => {
-    const normalized = normalizeCatalogLookupValue(muscle);
+    const normalized = normalizeWorkoutMuscle(muscle);
     if (primary.includes(normalized)) return score + 8;
     if (secondary.includes(normalized)) return score + 1;
     return score;
@@ -4946,7 +6200,7 @@ function buildSlot(
   return {
     id,
     label,
-    targetMuscles,
+    targetMuscles: Array.from(new Set(targetMuscles.map(normalizeWorkoutMuscle))),
     keywords,
     preferredEquipment: options.preferredEquipment,
     mechanic: options.mechanic,
@@ -4957,13 +6211,26 @@ function buildSlot(
   };
 }
 
-function buildBaseWorkoutGenerationPlan(message: string): WorkoutGenerationPlan {
+function buildBaseWorkoutGenerationPlan(
+  message: string,
+  user: AIBaseContext['user']
+): WorkoutGenerationPlan {
   const focus = inferWorkoutFocusLabel(message);
   const explicitEquipment = requestHasExplicitEquipment(message);
   const fullGym = !explicitEquipment;
+  const effectiveTrainingEnvironment = getRequestedTrainingEnvironment(message)
+    ?? user.trainingEnvironment;
+  const effectiveTrainingExperience = getRequestedTrainingExperience(message)
+    ?? user.trainingExperience;
 
   const common = {
     defaultEquipmentMode: explicitEquipment ? 'explicit' as const : 'full-gym' as const,
+    userPreferences: {
+      trainingEnvironment: effectiveTrainingEnvironment,
+      trainingExperience: effectiveTrainingExperience,
+      goals: user.goals,
+      explicitRequestOverridesPreferences: true as const,
+    },
   };
 
   if (focus === 'Back' || focus === 'Pull') {
@@ -5267,16 +6534,34 @@ function buildBaseWorkoutGenerationPlan(message: string): WorkoutGenerationPlan 
     };
   }
 
+  const genericTargets = Array.from(new Set(
+    extractWorkoutTargetMuscles(message).map(normalizeWorkoutMuscle)
+  )).slice(0, 6);
+  const genericSlotCount = genericTargets.length > 0
+    ? Math.max(4, Math.min(6, genericTargets.length * 2))
+    : 0;
+
   return {
     focus,
     ...common,
-    slots: extractWorkoutTargetMuscles(message).slice(0, 6).map((muscle, index) =>
-      buildSlot(`target-${index}`, `${toWorkoutTitleCase(muscle)} exercise`, [muscle], [muscle], {
-        sets: index < 2 ? 4 : 3,
-        reps: index < 2 ? '6-10' : '10-15',
-        restSeconds: index < 2 ? 90 : 60,
-      })
-    ),
+    slots: Array.from({ length: genericSlotCount }, (_, index) => {
+      const muscle = genericTargets[index % genericTargets.length];
+      const isPrimaryMovement = index < genericTargets.length;
+      return buildSlot(
+        `target-${index}`,
+        `${toWorkoutTitleCase(muscle)} ${isPrimaryMovement ? 'primary movement' : 'accessory'}`,
+        [muscle],
+        [],
+        {
+          mechanic: isPrimaryMovement ? 'compound' : index >= Math.ceil(genericSlotCount / 2)
+            ? 'isolation'
+            : undefined,
+          sets: isPrimaryMovement ? 4 : 3,
+          reps: isPrimaryMovement ? '6-10' : '10-15',
+          restSeconds: isPrimaryMovement ? 90 : 60,
+        }
+      );
+    }),
   };
 }
 
@@ -5358,8 +6643,55 @@ function applyRequestedExerciseCountToPlan(
   };
 }
 
-function buildWorkoutGenerationPlan(message: string): WorkoutGenerationPlan {
-  return applyRequestedExerciseCountToPlan(buildBaseWorkoutGenerationPlan(message), message);
+function applyUserProgrammingPreferences(
+  plan: WorkoutGenerationPlan,
+  message: string
+): WorkoutGenerationPlan {
+  if (/\b\d+\s*(?:sets?|reps?)\b|\b(?:sets?|reps?)\s*(?:of\s*)?\d+\b/i.test(message)) {
+    return plan;
+  }
+
+  const goalsText = compactJson(plan.userPreferences.goals).toLowerCase();
+  const experience = normalizeCatalogLookupValue(
+    plan.userPreferences.trainingExperience ?? ''
+  );
+  const explicitlyStrengthFocused = /\b(strength|powerlifting|get stronger)\b/i.test(message);
+  const explicitlyHypertrophyFocused = /\b(hypertrophy|build muscle|muscle growth|bodybuilding)\b/i.test(message);
+  const strengthFocused = explicitlyStrengthFocused
+    || (!explicitlyHypertrophyFocused && /strength|improve[_ ]strength|get stronger/.test(goalsText));
+  const newerLifter = /\b(none|new|beginner|novice)\b/.test(experience);
+
+  return {
+    ...plan,
+    slots: plan.slots.map((slot) => {
+      const strengthPrescription = strengthFocused && slot.mechanic === 'compound'
+        ? {
+            sets: Math.max(slot.sets, 4),
+            reps: '4-8',
+            restSeconds: Math.max(slot.restSeconds, 120),
+          }
+        : {};
+      const experiencePrescription = newerLifter
+        ? { sets: Math.min(strengthPrescription.sets ?? slot.sets, 3) }
+        : {};
+      return {
+        ...slot,
+        ...strengthPrescription,
+        ...experiencePrescription,
+      };
+    }),
+  };
+}
+
+function buildWorkoutGenerationPlan(
+  message: string,
+  user: AIBaseContext['user']
+): WorkoutGenerationPlan {
+  const preferenceAwarePlan = applyUserProgrammingPreferences(
+    buildBaseWorkoutGenerationPlan(message, user),
+    message
+  );
+  return applyRequestedExerciseCountToPlan(preferenceAwarePlan, message);
 }
 
 function scoreCatalogExercise(
@@ -5369,11 +6701,11 @@ function scoreCatalogExercise(
 ): number {
   let score = 0;
   const entryName = entry.name.toLowerCase();
-  const muscles = entry.primaryMuscles.map((muscle) => normalizeCatalogLookupValue(muscle));
-  const secondaryMuscles = entry.secondaryMuscles.map((muscle) => normalizeCatalogLookupValue(muscle));
+  const muscles = entry.primaryMuscles.map(normalizeWorkoutMuscle);
+  const secondaryMuscles = entry.secondaryMuscles.map(normalizeWorkoutMuscle);
 
   targetMuscles.forEach((muscle) => {
-    const normalized = normalizeCatalogLookupValue(muscle);
+    const normalized = normalizeWorkoutMuscle(muscle);
     if (muscles.includes(normalized)) {
       score += 8;
     } else if (secondaryMuscles.includes(normalized)) {
@@ -5417,7 +6749,8 @@ function scoreSlotCandidate(
   slot: WorkoutGenerationSlot,
   message: string,
   selected: WorkoutGenerationExerciseCatalogEntry[],
-  trainingEnvironment: TrainingEnvironment
+  trainingEnvironment: TrainingEnvironment,
+  trainingExperience: string | null = null
 ): number {
   const explicitEquipment = normalizeRequestedEquipment(message);
   const variantAllowed = isVariantAllowedByRequest(message);
@@ -5432,7 +6765,12 @@ function scoreSlotCandidate(
   }
 
   const sameFamilyCount = selectedFamilies.filter((item) => item === family).length;
-  const maxFamilyCount = family === 'row' ? 2 : 1;
+  const expandsRequestedCount = slot.id.includes('-extra-') || slot.id.startsWith('target-');
+  const maxFamilyCount = expandsRequestedCount
+    ? Number.POSITIVE_INFINITY
+    : ['row', 'horizontal-press', 'biceps-curl', 'triceps'].includes(family)
+      ? 2
+      : 1;
   if (sameFamilyCount >= maxFamilyCount) {
     return Number.NEGATIVE_INFINITY;
   }
@@ -5481,12 +6819,17 @@ function scoreSlotCandidate(
     score += 1.5;
   }
 
-  if (entry.level === 'intermediate') {
+  const normalizedExperience = normalizeCatalogLookupValue(trainingExperience ?? '');
+  if (/\b(none|new|beginner|novice)\b/.test(normalizedExperience)) {
+    if (entry.level === 'beginner') score += 3;
+    if (entry.level === 'expert') score -= 8;
+  } else if (/\b(advanced|expert)\b/.test(normalizedExperience)) {
+    if (entry.level === 'expert') score += 2;
+    if (entry.level === 'beginner') score -= 1;
+  } else if (entry.level === 'intermediate') {
     score += 1;
   } else if (entry.level === 'expert') {
-    score -= 0.5;
-  } else if (entry.level === 'beginner' && !variantAllowed) {
-    score -= 2;
+    score -= 1;
   }
 
   if (selected.length > 0 && selectedEquipment.filter((item) => item === entryEquipment).length >= 2) {
@@ -5500,6 +6843,203 @@ function scoreSlotCandidate(
   }
 
   return score;
+}
+
+function slotHasPrimaryMuscleMatch(
+  entry: WorkoutGenerationExerciseCatalogEntry,
+  slot: WorkoutGenerationSlot
+): boolean {
+  const primary = entry.primaryMuscles.map(normalizeWorkoutMuscle);
+  return slot.targetMuscles.some((muscle) => primary.includes(normalizeWorkoutMuscle(muscle)));
+}
+
+function selectBestExerciseForSlot(
+  slot: WorkoutGenerationSlot,
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  message: string,
+  selected: WorkoutGenerationExerciseCatalogEntry[],
+  trainingEnvironment: TrainingEnvironment,
+  trainingExperience: string | null,
+  preferredExerciseIds: Set<string>,
+  usedExerciseIds: Set<string>
+): WorkoutGenerationExerciseCatalogEntry | null {
+  const candidates = catalog
+    .filter((entry) => !usedExerciseIds.has(entry.id))
+    .filter((entry) => slotHasPrimaryMuscleMatch(entry, slot))
+    .map((entry) => ({
+      entry,
+      score: scoreSlotCandidate(
+        entry,
+        slot,
+        message,
+        selected,
+        trainingEnvironment,
+        trainingExperience
+      ) + (preferredExerciseIds.has(entry.id) ? 3 : 0),
+    }))
+    .filter(({ score }) => Number.isFinite(score))
+    .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+
+  return candidates[0]?.entry ?? null;
+}
+
+function workoutTemplateCoversPlan(
+  template: AIWorkoutTemplate,
+  plan: WorkoutGenerationPlan,
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  message: string
+): boolean {
+  const catalogById = new Map(catalog.map((entry) => [entry.id, entry]));
+  const remaining = template.exercises
+    .map((exercise) => catalogById.get(exercise.exerciseId))
+    .filter((entry): entry is WorkoutGenerationExerciseCatalogEntry => !!entry);
+  const selected: WorkoutGenerationExerciseCatalogEntry[] = [];
+  const requiredSlots = plan.slots.filter((item) => !item.optional);
+  const optionalSlots = plan.slots.filter((item) => item.optional);
+  if (remaining.length < requiredSlots.length || remaining.length > plan.slots.length) {
+    return false;
+  }
+
+  for (const slot of requiredSlots) {
+    const ranked = remaining
+      .filter((entry) => slotHasPrimaryMuscleMatch(entry, slot))
+      .map((entry) => ({
+        entry,
+        score: scoreSlotCandidate(
+          entry,
+          slot,
+          message,
+          selected,
+          plan.userPreferences.trainingEnvironment,
+          plan.userPreferences.trainingExperience
+        ),
+      }))
+      .filter(({ score }) => Number.isFinite(score))
+      .sort((a, b) => b.score - a.score);
+    const match = ranked[0]?.entry;
+    if (!match) return false;
+    selected.push(match);
+    remaining.splice(remaining.findIndex((entry) => entry.id === match.id), 1);
+  }
+
+  for (const slot of optionalSlots) {
+    if (remaining.length === 0) break;
+    const matchIndex = remaining.findIndex((entry) => (
+      slotHasPrimaryMuscleMatch(entry, slot)
+      && Number.isFinite(scoreSlotCandidate(
+        entry,
+        slot,
+        message,
+        selected,
+        plan.userPreferences.trainingEnvironment,
+        plan.userPreferences.trainingExperience
+      ))
+    ));
+    if (matchIndex >= 0) {
+      selected.push(remaining[matchIndex]);
+      remaining.splice(matchIndex, 1);
+    }
+  }
+
+  return remaining.length === 0;
+}
+
+function groundWorkoutTemplateToPlan(
+  template: AIWorkoutTemplate,
+  plan: WorkoutGenerationPlan,
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  message: string,
+  explicitExerciseRequestText = message
+): AIWorkoutTemplate | null {
+  const explicitlyRequestedEntries = findExplicitlyRequestedExercises(
+    explicitExerciseRequestText,
+    catalog
+  );
+  const templateExerciseIds = new Set(template.exercises.map((exercise) => exercise.exerciseId));
+  const templateIncludesExplicitExercises = explicitlyRequestedEntries.every((entry) => (
+    templateExerciseIds.has(entry.id)
+  ));
+  if (
+    templateIncludesExplicitExercises
+    && workoutTemplateCoversPlan(template, plan, catalog, message)
+  ) {
+    return template;
+  }
+
+  const templateExerciseById = new Map(
+    template.exercises.map((exercise) => [exercise.exerciseId, exercise])
+  );
+  const preferredExerciseIds = new Set(templateExerciseById.keys());
+  const selectedEntries: WorkoutGenerationExerciseCatalogEntry[] = [];
+  const selectedExercises: AIWorkoutTemplateExercise[] = [];
+  const usedExerciseIds = new Set<string>();
+  const coveredSlotIds = new Set<string>();
+  const targetExerciseCount = Math.max(3, plan.slots.length || template.exercises.length);
+
+  explicitlyRequestedEntries.forEach((entry) => {
+    const generatedExercise = templateExerciseById.get(entry.id);
+    selectedEntries.push(entry);
+    usedExerciseIds.add(entry.id);
+    selectedExercises.push(generatedExercise ?? {
+      exerciseId: entry.id,
+      exerciseName: entry.name,
+      sets: 3,
+      reps: '6-10',
+      restSeconds: 90,
+    });
+
+    const coveredSlot = plan.slots
+      .filter((slot) => !coveredSlotIds.has(slot.id) && slotHasPrimaryMuscleMatch(entry, slot))
+      .map((slot) => ({
+        slot,
+        score: scoreSlotCandidate(
+          entry,
+          slot,
+          message,
+          [],
+          plan.userPreferences.trainingEnvironment,
+          plan.userPreferences.trainingExperience
+        ),
+      }))
+      .filter(({ score }) => Number.isFinite(score))
+      .sort((a, b) => b.score - a.score)[0]?.slot;
+    if (coveredSlot) coveredSlotIds.add(coveredSlot.id);
+  });
+
+  for (const slot of plan.slots) {
+    if (coveredSlotIds.has(slot.id) || selectedExercises.length >= targetExerciseCount) continue;
+    const entry = selectBestExerciseForSlot(
+      slot,
+      catalog,
+      message,
+      selectedEntries,
+      plan.userPreferences.trainingEnvironment,
+      plan.userPreferences.trainingExperience,
+      preferredExerciseIds,
+      usedExerciseIds
+    );
+    if (!entry) {
+      if (slot.optional) continue;
+      return null;
+    }
+
+    const generatedExercise = templateExerciseById.get(entry.id);
+    selectedEntries.push(entry);
+    usedExerciseIds.add(entry.id);
+    selectedExercises.push(generatedExercise ?? {
+      exerciseId: entry.id,
+      exerciseName: entry.name,
+      sets: slot.sets,
+      reps: slot.reps,
+      restSeconds: slot.restSeconds,
+    });
+  }
+
+  if (selectedExercises.length < 3) return null;
+  return {
+    ...template,
+    exercises: selectedExercises,
+  };
 }
 
 function formatAnswerText(text: string, intent: AIIntent): string {

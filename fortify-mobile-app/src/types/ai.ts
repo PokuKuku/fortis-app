@@ -21,6 +21,7 @@ export interface AIRequestContext {
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
   avoidWorkoutTemplateDraft?: AIWorkoutTemplate;
   voiceWorkoutOnly?: boolean;
+  generateProgram?: boolean;
   exerciseCatalog?: AIExerciseCatalogEntry[];
   onboardingProgramSpec?: {
     id: string;
@@ -48,6 +49,9 @@ export interface AIExerciseCatalogEntry {
   equipment: string;
   category: string;
   images: string[];
+  level?: string | null;
+  mechanic?: string | null;
+  force?: string | null;
   canonicalId?: string | null;
   canonicalKey?: string | null;
   isCurated?: boolean;
@@ -57,6 +61,8 @@ export interface AIExerciseCatalogEntry {
 export interface AIChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  workoutTemplate?: AIWorkoutTemplate;
+  programTemplate?: AIProgramTemplate;
 }
 
 export interface AIRequest {
@@ -192,7 +198,9 @@ export interface AIConversationMessage {
   createdAt: string;
   clarification?: AIClarification;
   workoutTemplate?: AIWorkoutTemplate;
+  programTemplate?: AIProgramTemplate;
   savedWorkoutTemplateId?: string | null;
+  savedProgramId?: string | null;
   editableWorkoutTemplateId?: string | null;
   editableWorkoutTemplateName?: string | null;
   attachments?: AIAttachmentDisplay[];

@@ -105,6 +105,7 @@ export function useProgram(id: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const storePrograms = useProgramsStore((state) => state.programs);
+  const previewProgram = useProgramsStore((state) => state.previewProgram);
   const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
@@ -138,13 +139,15 @@ export function useProgram(id: string | undefined) {
       return;
     }
 
-    const foundProgram = storePrograms.find((entry) => entry.id === id && !entry.isTemplate);
+    const foundProgram = previewProgram?.id === id
+      ? previewProgram
+      : storePrograms.find((entry) => entry.id === id && !entry.isTemplate);
     const shouldRecover = foundProgram?.isAiCreated && foundProgram.workouts.length === 0;
     if (!shouldRecover || emptyProgramRecoveryIdRef.current === id) return;
 
     emptyProgramRecoveryIdRef.current = id;
     void fetchPrograms({ force: true });
-  }, [fetchPrograms, id, storePrograms]);
+  }, [fetchPrograms, id, previewProgram, storePrograms]);
 
   useEffect(() => {
     let isMounted = true;
@@ -159,7 +162,9 @@ export function useProgram(id: string | undefined) {
 
       try {
         setLoading(true);
-        const foundProgram = storePrograms.find((p) => p.id === id && !p.isTemplate);
+        const foundProgram = previewProgram?.id === id
+          ? previewProgram
+          : storePrograms.find((p) => p.id === id && !p.isTemplate);
         if (foundProgram) {
           // OPTIMIZATION: If this is a deletion-only update (exercises/workouts removed),
           // skip expensive reconversion and just filter existing data.
@@ -257,7 +262,7 @@ export function useProgram(id: string | undefined) {
     return () => {
       isMounted = false;
     };
-  }, [id, storePrograms, completedSessions, volumeContext]);
+  }, [id, previewProgram, storePrograms, completedSessions, volumeContext]);
 
   const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
@@ -510,6 +515,7 @@ export function useWorkout(id: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const programs = useProgramsStore((state) => state.programs);
+  const previewProgram = useProgramsStore((state) => state.previewProgram);
   const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
 
   useEffect(() => {
@@ -530,7 +536,11 @@ export function useWorkout(id: string | undefined) {
       try {
         setLoading(true);
 
-        for (const program of programs) {
+        const availablePrograms = previewProgram
+          ? [previewProgram, ...programs]
+          : programs;
+
+        for (const program of availablePrograms) {
           const foundWorkout = program.workouts.find((w) => w.id === id);
           if (foundWorkout) {
           const converted = await convertProgramWorkoutToDetail(
@@ -546,7 +556,7 @@ export function useWorkout(id: string | undefined) {
           }
         }
 
-        const template = programs.find((p) => p.id === id && p.isTemplate);
+        const template = availablePrograms.find((p) => p.id === id && p.isTemplate);
         if (template && template.workouts[0]) {
           const converted = await convertProgramWorkoutToDetail(
             template.workouts[0],
@@ -582,7 +592,7 @@ export function useWorkout(id: string | undefined) {
     return () => {
       isMounted = false;
     };
-  }, [id, programs]);
+  }, [id, previewProgram, programs]);
 
   const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 

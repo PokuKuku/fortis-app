@@ -318,6 +318,7 @@ export const mergeFetchedProgramsWithLocal = (
 interface ProgramsState {
   // Data
   programs: Program[];
+  previewProgram: Program | null;
   pendingProgramSyncIds: string[];
   syncingProgramSyncIds: string[];
 
@@ -419,6 +420,7 @@ interface ProgramsState {
   ) => Promise<string | null>;
   updateLastPerformed: (id: string) => Promise<void>;
   clearError: () => void;
+  setPreviewProgram: (program: Program | null) => void;
 
   // Local persistence
   loadLocalPrograms: () => Promise<void>;
@@ -674,6 +676,7 @@ const buildProgramWorkoutFromTemplate = (
 export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Initial state
   programs: [],
+  previewProgram: null,
   pendingProgramSyncIds: [],
   syncingProgramSyncIds: [],
   isLoading: false,
@@ -1514,8 +1517,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       isDefault: false,
       isAiCreated: true,
       isTemplate: false,
-      aiSourceChatId: null,
-      aiPayloadVersion: `onboarding-program:${payload.sourceSpecId}`,
+      aiSourceChatId: payload.sourceChatId ?? null,
+      aiPayloadVersion: `${payload.sourceType ?? 'onboarding'}-program:${payload.sourceSpecId}`,
       lastPerformedAt: null,
       createdBy: 'local',
       createdAt: now,
@@ -2636,6 +2639,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   resetStore: () => {
     set({
       programs: [],
+      previewProgram: null,
       pendingProgramSyncIds: [],
       syncingProgramSyncIds: [],
       isLoading: false,
@@ -2644,6 +2648,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       error: null,
     });
   },
+
+  setPreviewProgram: (program) => set({ previewProgram: program }),
 }));
 
 // ============================================

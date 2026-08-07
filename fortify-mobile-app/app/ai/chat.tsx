@@ -41,7 +41,6 @@ import {
   AIClarificationOption,
   AIIntent,
   AIConversationMessage,
-  AIRequestContext,
   AIWorkoutTemplate,
   AIPendingMedia,
 } from '@/src/types/ai';
@@ -49,11 +48,11 @@ import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { AIConnectionErrorCard } from '@/src/components/ai/AIConnectionErrorCard';
-import { AIWorkoutPreviewModal } from '@/src/components/ai/AIWorkoutPreviewModal';
 import { CustomScenarioSheet } from '@/src/components/ai/CustomScenarioSheet';
 import { RealtimeVoiceCoachScreen } from '@/src/components/ai/RealtimeVoiceCoachScreen';
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { useAIWorkoutTemplateActions } from '@/src/hooks/useAIWorkoutTemplateActions';
+import { useAIProgramTemplateActions } from '@/src/hooks/useAIProgramTemplateActions';
 import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
 import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -73,7 +72,10 @@ import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { AI_CONNECTION_INTERRUPTED_MESSAGE } from '@/src/services/aiService';
-import { shouldGenerateWorkoutFromVoice } from '@/src/utils/realtimeCoach';
+import {
+  inferPendingAIArtifact,
+  type AIPendingArtifactKind,
+} from '@/src/utils/aiPendingArtifact';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -86,33 +88,6 @@ const LOADING_MESSAGES = [
   "Tip: Ask AI for a weekly training summary or recent PRs.",
   "Tip: Use AI chat to spot volume trends and muscle balance.",
 ];
-
-const COACHING_QUESTION_REGEX =
-  /\b(how do i|how to|what('?s| is) the proper way to|show me how to|teach me how to|tips for|form for)\b/i;
-const WORKOUT_GENERATION_REGEX =
-  /\b(?:(make|create|build|generate|regenerate|reroll|redo|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workouts?|routines?|sessions?|templates?|training(?:\s+(?:day|session|workout))?)\b/i;
-const WORKOUT_EDIT_REGEX =
-  /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
-// Voice transcription occasionally hears "add" as "as". Keep the active
-// workout attached for an exercise-position request so the edge function can
-// safely revise the card instead of replying with general coaching text.
-const WORKOUT_POSITION_EDIT_REGEX =
-  /\b(?:(?:add|include|insert|put in|put|bring in)\s+|as\s+).+?\s+(?:as|to be)\s+(?:the\s+)?(?:first|last)\s+(?:exercise|movement|lift)\b/i;
-const WORKOUT_RESIZE_REGEXES = [
-  /\b(?:add|include|insert|put in|put|bring in)\s+(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+(?:more|additional|extra))?(?:\s+(?:exercise|movement|lift)s?)?\b/i,
-  /\b(?:remove|take out|exclude|drop|delete)\s+(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+(?:more|additional|extra))?(?:\s+(?:exercise|movement|lift)s?)?\b/i,
-  /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
-  /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b[\s\S]{0,30}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
-  /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
-];
-const CURRENT_WORKOUT_REFERENCE_REGEX =
-  /\b(?:it|this|that|current|existing)\s+(?:workout|routine|session|template)\b/i;
-const PRONOUN_REFERENCE_REGEX =
-  /\b(?:it|this|that)\b/i;
-const WORKOUT_COMMENTARY_REGEX =
-  /\b(?:review|look at|check|critique|analyze|comment|thoughts|think|opinion|feedback|rate|improve|better|good|bad|balanced|how(?:'s|\s+is|\s+are))\b/i;
-const WORKOUT_ALTERNATE_REQUEST_REGEX =
-  /\b(?:another|different|completely different|new one|new version|alternate|alternative|regenerate|reroll|redo|start over|all new|fresh)\b/i;
 
 // Animated sparkles for loading indicator
 function AnimatedLoadingSparkles() {
@@ -164,59 +139,6 @@ function AnimatedLoadingSparkles() {
 // Detailed analyst formatting is reserved for the explicit Ask Fortify action on insights.
 const inferIntentFromMessage = (_message: string): AIIntent => 'GENERAL_CHAT';
 
-const shouldAttachWorkoutDraft = (message: string): boolean => {
-  const normalized = message.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  if (COACHING_QUESTION_REGEX.test(normalized)) {
-    return false;
-  }
-
-  // A request for a new workout must not be interpreted as an edit of the last card.
-  if (WORKOUT_GENERATION_REGEX.test(normalized) && !CURRENT_WORKOUT_REFERENCE_REGEX.test(normalized)) {
-    return false;
-  }
-
-  if (PRONOUN_REFERENCE_REGEX.test(normalized) && WORKOUT_COMMENTARY_REGEX.test(normalized)) {
-    return true;
-  }
-
-  return WORKOUT_EDIT_REGEX.test(normalized)
-    || WORKOUT_POSITION_EDIT_REGEX.test(normalized)
-    || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized));
-};
-
-const shouldAttachWorkoutAvoidanceDraft = (message: string): boolean => {
-  const normalized = message.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  if (!WORKOUT_ALTERNATE_REQUEST_REGEX.test(normalized)) {
-    return false;
-  }
-
-  return WORKOUT_GENERATION_REGEX.test(normalized)
-    || /\b(?:it|this|that|workout|routine|session|template|exercises?)\b/i.test(normalized);
-};
-
-const buildWorkoutRequestContext = (
-  message: string,
-  currentWorkoutTemplateDraft: AIWorkoutTemplate | undefined
-): AIRequestContext | undefined => {
-  if (currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)) {
-    return { currentWorkoutTemplateDraft };
-  }
-
-  if (currentWorkoutTemplateDraft && shouldAttachWorkoutAvoidanceDraft(message)) {
-    return { avoidWorkoutTemplateDraft: currentWorkoutTemplateDraft };
-  }
-
-  return undefined;
-};
-
 const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const intent = messages[i]?.intent;
@@ -251,7 +173,6 @@ export default function AIChatScreen() {
   const appliedRequestedModeRef = useRef<string | null>(null);
   const autoStartedVoiceSessionKeyRef = useRef<string | null>(null);
   const hasSelectedTourVoiceModeRef = useRef(false);
-  const pendingWorkoutPreviewRestoreRef = useRef<{ mode: AIVoiceMode; messageId: string } | null>(null);
   const voiceCoachSettingsOpenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completedAIWorkoutChecklistMessageIdsRef = useRef<Set<string>>(new Set());
   const isScreenFocused = useIsFocused();
@@ -266,8 +187,7 @@ export default function AIChatScreen() {
   const [pendingVoiceMedia, setPendingVoiceMedia] = useState<AIPendingMedia[]>([]);
   const [isPickingVoiceMedia, setIsPickingVoiceMedia] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
-  const [isGeneratingTextWorkout, setIsGeneratingTextWorkout] = useState(false);
-  const [clarificationPreviewMessage, setClarificationPreviewMessage] = useState<AIConversationMessage | null>(null);
+  const [pendingTextArtifact, setPendingTextArtifact] = useState<AIPendingArtifactKind>(null);
   const [resolvedClarificationMessageIds, setResolvedClarificationMessageIds] = useState<Set<string>>(() => new Set());
   const scrollViewRef = useRef<FlatList<AIConversationMessage>>(null);
   const modeRef = useRef<AIVoiceMode>(mode);
@@ -305,6 +225,7 @@ export default function AIChatScreen() {
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
   const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
   const markWorkoutTemplateSaved = useAIStore((state) => state.markWorkoutTemplateSaved);
+  const markProgramSaved = useAIStore((state) => state.markProgramSaved);
 
   const messages = conversation?.messages || [];
   const isTourBackWorkoutStep = isTourActive && activeStepId === 'ai_text_chat_overview';
@@ -347,8 +268,11 @@ export default function AIChatScreen() {
     coachAudioLevel,
     debugStatus,
     voiceWorkoutMessages,
+    voiceProgramMessages,
     isGeneratingVoiceWorkout,
+    isGeneratingVoiceProgram,
     voiceWorkoutGenerationError,
+    voiceProgramGenerationError,
     isSpeakingCreatorScript,
     creatorScriptError,
     isActive: isVoiceActive,
@@ -359,9 +283,12 @@ export default function AIChatScreen() {
     endUserTurn,
     speakCreatorScript,
     markVoiceWorkoutSaved,
+    markVoiceProgramSaved,
     dismissVoiceWorkoutMessage,
+    dismissVoiceProgramMessage,
     selectVoiceWorkoutClarification,
     retryVoiceWorkoutGeneration,
+    retryVoiceProgramGeneration,
     sendVisualContext,
     sendTextPrompt,
   } = useRealtimeCoach({
@@ -464,43 +391,22 @@ export default function AIChatScreen() {
         : undefined
     ),
   });
+  const chatProgramActions = useAIProgramTemplateActions({
+    conversationId: conversation?.id ?? null,
+    markProgramSaved,
+  });
   const voiceWorkoutActions = useAIWorkoutTemplateActions({
     messages: voiceConversationMessages,
     conversationId: conversation?.id ?? null,
     onWorkoutTemplateSaved: markVoiceWorkoutSaved,
     saveWorkoutPlacement: PAYWALL_PLACEMENTS.voiceWorkoutCreate,
   });
-  const activeWorkoutActions = mode === 'voice' ? voiceWorkoutActions : chatWorkoutActions;
-
-  useEffect(() => {
-    if (!isScreenFocused) {
-      return;
-    }
-
-    const pendingPreview = pendingWorkoutPreviewRestoreRef.current;
-    if (!pendingPreview) {
-      return;
-    }
-
-    const workoutActions = pendingPreview.mode === 'voice'
-      ? voiceWorkoutActions
-      : chatWorkoutActions;
-    workoutActions.setPreviewMessageId(pendingPreview.messageId);
-    pendingWorkoutPreviewRestoreRef.current = null;
-  }, [chatWorkoutActions.setPreviewMessageId, isScreenFocused, voiceWorkoutActions.setPreviewMessageId]);
-
-  const handleOpenAIWorkoutExerciseDetails = useCallback((exerciseId: string) => {
-    const previewMessage = activeWorkoutActions.previewMessage;
-    if (!previewMessage) {
-      return;
-    }
-
-    pendingWorkoutPreviewRestoreRef.current = { mode, messageId: previewMessage.id };
-    activeWorkoutActions.setPreviewMessageId(null);
-    requestAnimationFrame(() => {
-      router.push(`/exercise/${exerciseId}?source=ai-workout-preview`);
-    });
-  }, [activeWorkoutActions, mode, router]);
+  const voiceProgramActions = useAIProgramTemplateActions({
+    conversationId: conversation?.id ?? null,
+    markProgramSaved: async (messageId, programId) => {
+      markVoiceProgramSaved(messageId, programId);
+    },
+  });
 
   const handleRealtimePreferencesChange = useCallback(async (nextPreferences: RealtimeCoachPreferences) => {
     if (isVoiceActive) {
@@ -608,7 +514,8 @@ export default function AIChatScreen() {
     clearConversation();
     clearError();
     chatWorkoutActions.setTemplateSaveError(null);
-    chatWorkoutActions.setPreviewMessageId(null);
+    chatProgramActions.setProgramSaveError(null);
+    useProgramsStore.getState().setPreviewProgram(null);
     setInputText('');
     setPendingChatMedia([]);
     setResolvedClarificationMessageIds(new Set());
@@ -683,10 +590,6 @@ export default function AIChatScreen() {
             ? 'VISUAL_COACHING'
             : inferredIntent;
         const attachments = pendingChatMedia.map(({ id, uri, kind, label }) => ({ id, uri, kind, label }));
-        const requestContext = buildWorkoutRequestContext(
-          message,
-          currentWorkoutTemplateDraft,
-        );
 
         posthog.capture('ai_message_sent', {
           intent,
@@ -695,15 +598,16 @@ export default function AIChatScreen() {
           conversation_length: messages.length,
         });
         chatWorkoutActions.setTemplateSaveError(null);
+        chatProgramActions.setProgramSaveError(null);
         setInputText('');
-        setIsGeneratingTextWorkout(
-          shouldGenerateWorkoutFromVoice(message, Boolean(currentWorkoutTemplateDraft))
+        setPendingTextArtifact(
+          inferPendingAIArtifact(message, messages, Boolean(currentWorkoutTemplateDraft))
         );
         try {
           const response = await sendMessage(
             intent,
             message,
-            requestContext,
+            undefined,
             flattenAIMediaImages(pendingChatMedia),
             attachments
           );
@@ -711,11 +615,11 @@ export default function AIChatScreen() {
             setPendingChatMedia([]);
           }
         } finally {
-          setIsGeneratingTextWorkout(false);
+          setPendingTextArtifact(null);
         }
       },
     );
-  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
+  }, [chatProgramActions, chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
 
   const requestAIFeatureConsent = useCallback(async (): Promise<boolean> => {
     if (!shouldPromptForFeatureAccess(isTourActive)) return true;
@@ -727,8 +631,7 @@ export default function AIChatScreen() {
       return;
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setClarificationPreviewMessage({
+    chatWorkoutActions.handleViewWorkoutTemplate({
       id: `clarification-${option.label}`,
       role: 'assistant',
       intent: 'GENERAL_CHAT',
@@ -739,7 +642,7 @@ export default function AIChatScreen() {
       editableWorkoutTemplateId: null,
       editableWorkoutTemplateName: null,
     });
-  }, []);
+  }, [chatWorkoutActions]);
 
   const handleClarificationConfirm = useCallback(async (
     option: string | AIClarificationOption,
@@ -830,20 +733,21 @@ export default function AIChatScreen() {
         const allowed = await requestAIFeatureConsent();
         if (!allowed) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setIsGeneratingTextWorkout(
-          shouldGenerateWorkoutFromVoice(
+        setPendingTextArtifact(
+          inferPendingAIArtifact(
             lastFailedMessage?.message ?? '',
+            messages,
             Boolean(currentWorkoutTemplateDraft)
           )
         );
         try {
           await retryLastMessage();
         } finally {
-          setIsGeneratingTextWorkout(false);
+          setPendingTextArtifact(null);
         }
       },
     );
-  }, [currentWorkoutTemplateDraft, lastFailedMessage?.message, requestAIFeatureConsent, retryLastMessage, runProFeature]);
+  }, [currentWorkoutTemplateDraft, lastFailedMessage?.message, messages, requestAIFeatureConsent, retryLastMessage, runProFeature]);
 
   const handleStartVoiceCoach = useCallback(async () => (
     runProFeature(
@@ -971,8 +875,6 @@ export default function AIChatScreen() {
     void setLastAICoachMode(nextMode);
   }, [activeStepId, isTourActive]);
 
-  const activePreviewMessage = activeWorkoutActions.previewMessage ?? clarificationPreviewMessage;
-
   return (
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
@@ -1081,9 +983,13 @@ export default function AIChatScreen() {
             coachAudioLevel={coachAudioLevel}
             debugStatus={debugStatus}
             voiceWorkoutMessages={voiceWorkoutMessages}
+            voiceProgramMessages={voiceProgramMessages}
             isGeneratingVoiceWorkout={isGeneratingVoiceWorkout}
+            isGeneratingVoiceProgram={isGeneratingVoiceProgram}
             voiceWorkoutGenerationError={voiceWorkoutGenerationError}
+            voiceProgramGenerationError={voiceProgramGenerationError}
             savingWorkoutMessageId={voiceWorkoutActions.savingWorkoutMessageId}
+            savingProgramMessageId={voiceProgramActions.savingProgramMessageId}
             startingWorkoutMessageId={voiceWorkoutActions.startingWorkoutMessageId}
             isWorkoutActive={voiceWorkoutActions.isWorkoutActive}
             isActive={isVoiceActive}
@@ -1092,6 +998,7 @@ export default function AIChatScreen() {
             isSpeakingCreatorScript={isSpeakingCreatorScript}
             creatorScriptError={creatorScriptError}
             templateSaveError={voiceWorkoutActions.templateSaveError}
+            programSaveError={voiceProgramActions.programSaveError}
             onTalkStart={() => {
               if (isVoiceActive) {
                 void beginUserTurn();
@@ -1105,8 +1012,13 @@ export default function AIChatScreen() {
             onAddWorkoutTemplate={voiceWorkoutActions.handleAddWorkoutTemplate}
             onStartWorkoutTemplate={voiceWorkoutActions.handleStartWorkoutTemplate}
             onDismissWorkoutTemplate={dismissVoiceWorkoutMessage}
+            onAddProgramTemplate={(programMessage) => { void voiceProgramActions.handleAddProgram(programMessage); }}
+            onOpenProgramTemplate={voiceProgramActions.handleOpenProgram}
+            onViewProgramTemplate={voiceProgramActions.handlePreviewProgram}
+            onDismissProgramTemplate={dismissVoiceProgramMessage}
             onSelectWorkoutClarification={selectVoiceWorkoutClarification}
             onRetryWorkoutGeneration={retryVoiceWorkoutGeneration}
+            onRetryProgramGeneration={retryVoiceProgramGeneration}
             interactionMode={interactionMode}
             pendingMedia={pendingVoiceMedia}
             onRemovePendingMedia={(id) => setPendingVoiceMedia((current) => current.filter((item) => item.id !== id))}
@@ -1131,15 +1043,20 @@ export default function AIChatScreen() {
                 <ChatMessage
                   message={message}
                   animateEntrance={false}
+                  animateText={!isTourWorkoutResultStep}
                   isSavingWorkoutTemplate={chatWorkoutActions.savingWorkoutMessageId === message.id}
                   isUpdatingWorkoutTemplate={chatWorkoutActions.updatingWorkoutMessageId === message.id}
                   isStartingWorkoutTemplate={chatWorkoutActions.startingWorkoutMessageId === message.id}
+                  isSavingProgramTemplate={chatProgramActions.savingProgramMessageId === message.id}
                   onClarificationSelect={(option) => { void handleClarificationConfirm(option, message.id); }}
                   onClarificationView={handleClarificationView}
                   onViewWorkoutTemplate={chatWorkoutActions.handleViewWorkoutTemplate}
                   onAddWorkoutTemplate={chatWorkoutActions.handleAddWorkoutTemplate}
                   onUpdateWorkoutTemplate={chatWorkoutActions.handleUpdateWorkoutTemplate}
                   onStartWorkoutTemplate={chatWorkoutActions.handleStartWorkoutTemplate}
+                  onAddProgramTemplate={(programMessage) => { void chatProgramActions.handleAddProgram(programMessage); }}
+                  onOpenProgramTemplate={chatProgramActions.handleOpenProgram}
+                  onViewProgramTemplate={chatProgramActions.handlePreviewProgram}
                   isStartWorkoutTemplateDisabled={
                     chatWorkoutActions.isWorkoutActive
                     || (isTourWorkoutResultStep && message.id === 'tour-back-workout-response')
@@ -1170,14 +1087,16 @@ export default function AIChatScreen() {
               ) : null}
               ListFooterComponent={(
                 <>
-                  {isSendingMessage && isGeneratingTextWorkout ? (
+                  {isSendingMessage && pendingTextArtifact ? (
                     <Animated.View
                       entering={FadeIn.duration(200)}
                       exiting={FadeOut.duration(150)}
                       style={styles.buildingWorkoutContainer}
                     >
                       <View
-                        testID="chat-workout-loading-card"
+                        testID={`chat-${pendingTextArtifact}-loading-card`}
+                        accessibilityRole="progressbar"
+                        accessibilityLabel={`Building ${pendingTextArtifact}`}
                         style={[styles.buildingWorkoutCard, themedStyles.buildingWorkoutCard]}
                       >
                         <Text
@@ -1187,7 +1106,7 @@ export default function AIChatScreen() {
                           numberOfLines={1}
                           style={[styles.buildingWorkoutTitle, { color: colors.textPrimary }]}
                         >
-                          Building Workout
+                          {pendingTextArtifact === 'program' ? 'Building Program' : 'Building Workout'}
                         </Text>
                         <Text
                           allowFontScaling={false}
@@ -1250,6 +1169,19 @@ export default function AIChatScreen() {
                       <Text style={[styles.errorHint, themedStyles.errorHint]}>Tap to dismiss</Text>
                     </TouchableOpacity>
                   )}
+
+                  {chatProgramActions.programSaveError && (
+                    <TouchableOpacity
+                      style={styles.errorContainer}
+                      onPress={() => chatProgramActions.setProgramSaveError(null)}
+                      activeOpacity={0.8}
+                      accessibilityLabel="Dismiss program save error"
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.errorText}>{chatProgramActions.programSaveError}</Text>
+                      <Text style={[styles.errorHint, themedStyles.errorHint]}>Tap to dismiss</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
               style={styles.messagesContainer}
@@ -1287,48 +1219,6 @@ export default function AIChatScreen() {
           </KeyboardAvoidingView>
         )}
 
-      <AIWorkoutPreviewModal
-        visible={Boolean(activePreviewMessage?.workoutTemplate)}
-        template={activePreviewMessage?.workoutTemplate ?? null}
-        onClose={() => {
-          if (clarificationPreviewMessage) {
-            setClarificationPreviewMessage(null);
-            return;
-          }
-          activeWorkoutActions.setPreviewMessageId(null);
-        }}
-        onStart={() => {
-          if (activePreviewMessage) {
-            void activeWorkoutActions.handleStartWorkoutTemplate(activePreviewMessage);
-          }
-        }}
-        onAdd={() => {
-          if (activePreviewMessage) {
-            void activeWorkoutActions.handleAddWorkoutTemplate(activePreviewMessage);
-          }
-        }}
-        onUpdate={() => {
-          if (activePreviewMessage) {
-            void activeWorkoutActions.handleUpdateWorkoutTemplate(activePreviewMessage);
-          }
-        }}
-        isStarting={activePreviewMessage?.id === activeWorkoutActions.startingWorkoutMessageId}
-        isAdding={activePreviewMessage?.id === activeWorkoutActions.savingWorkoutMessageId}
-        isUpdating={activePreviewMessage?.id === activeWorkoutActions.updatingWorkoutMessageId}
-        isAdded={Boolean(activePreviewMessage?.savedWorkoutTemplateId)}
-        isUpdateMode={Boolean(activePreviewMessage?.editableWorkoutTemplateId)}
-        isStartDisabled={
-          activeWorkoutActions.isWorkoutActive
-          || activePreviewMessage?.id === 'tour-back-workout-response'
-        }
-        startDisabledLabel={
-          activePreviewMessage?.id === 'tour-back-workout-response'
-            ? 'Start'
-            : undefined
-        }
-        disableExerciseDetails={isTourActive}
-        onOpenExerciseDetails={handleOpenAIWorkoutExerciseDetails}
-      />
       <CustomScenarioSheet
         visible={isScenarioSheetVisible}
         preferences={realtimePreferences}

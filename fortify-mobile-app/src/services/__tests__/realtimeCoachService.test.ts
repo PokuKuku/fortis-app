@@ -25,6 +25,7 @@ jest.mock('expo-crypto', () => ({
 
 import {
   createRealtimeCoachSession,
+  generateVoiceProgramTemplate,
   generateVoiceWorkoutTemplate,
   generateRealtimeCoachScriptAudio,
   reportRealtimeCoachUsage,
@@ -201,15 +202,45 @@ describe('realtimeCoachService', () => {
             ],
           },
           voiceWorkoutOnly: true,
-          exerciseCatalog: expect.arrayContaining([
-            expect.objectContaining({
-              id: expect.any(String),
-              name: expect.any(String),
-              images: expect.any(Array),
-            }),
-          ]),
         }),
         history: undefined,
+      }),
+    });
+  });
+
+  it('reuses the existing AI program generator for voice programs', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        type: 'answer',
+        answer: {
+          text: 'Your program is ready.',
+          programTemplate: {
+            name: 'Upper Lower Program',
+            workouts: [{ name: 'Upper A', exercises: [] }],
+          },
+        },
+      },
+      error: null,
+      response: null,
+    });
+
+    const currentProgram = {
+      name: 'Current Program',
+      workouts: [{ name: 'Full Body', exercises: [] }],
+    };
+    const response = await generateVoiceProgramTemplate('make it upper lower', currentProgram);
+
+    expect(response.type).toBe('answer');
+    expect(mockInvoke).toHaveBeenCalledWith('ai', {
+      body: expect.objectContaining({
+        intent: 'GENERAL_CHAT',
+        message: 'make it upper lower',
+        context: { generateProgram: true },
+        history: [{
+          role: 'assistant',
+          content: 'Here is the current program: Current Program.',
+          programTemplate: currentProgram,
+        }],
       }),
     });
   });

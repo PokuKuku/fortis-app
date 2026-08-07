@@ -94,6 +94,17 @@ jest.mock('@/src/components/ai/ChatWorkoutTemplateCard', () => {
   };
 });
 
+jest.mock('@/src/components/ai/ChatProgramTemplateCard', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+
+  return {
+    ChatProgramTemplateCard: ({ template }: { template: { name: string } }) => (
+      <Text>{`${template.name} Program Card`}</Text>
+    ),
+  };
+});
+
 jest.mock('react-native-heroicons/outline', () => {
   const React = require('react');
   const { Text } = require('react-native');
@@ -118,21 +129,31 @@ const defaultProps = {
     serverMessagesReceived: 0,
   },
   voiceWorkoutMessages: [],
+  voiceProgramMessages: [],
   isGeneratingVoiceWorkout: false,
+  isGeneratingVoiceProgram: false,
   voiceWorkoutGenerationError: null,
+  voiceProgramGenerationError: null,
   savingWorkoutMessageId: null,
+  savingProgramMessageId: null,
   startingWorkoutMessageId: null,
   isWorkoutActive: false,
   isActive: true,
   isUserTurnActive: false,
   templateSaveError: null,
+  programSaveError: null,
   onTalkStart: jest.fn(),
   onTalkEnd: jest.fn(),
   onViewWorkoutTemplate: jest.fn(),
   onAddWorkoutTemplate: jest.fn(),
   onStartWorkoutTemplate: jest.fn(),
   onDismissWorkoutTemplate: jest.fn(),
+  onAddProgramTemplate: jest.fn(),
+  onOpenProgramTemplate: jest.fn(),
+  onViewProgramTemplate: jest.fn(),
+  onDismissProgramTemplate: jest.fn(),
   onRetryWorkoutGeneration: jest.fn(() => true),
+  onRetryProgramGeneration: jest.fn(() => true),
 };
 
 describe('RealtimeVoiceCoachScreen', () => {
@@ -470,6 +491,28 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(getByText('Coming up...')).toBeTruthy();
     expect(getByTestId('voice-card-scroll')).toBeTruthy();
     expect(getByTestId('voice-workout-loading-card')).toBeTruthy();
+  });
+
+  it('renders pending and completed program cards in the voice screen', () => {
+    const { getByTestId, getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        isGeneratingVoiceProgram
+        voiceProgramMessages={[{
+          id: 'voice-program-1',
+          text: 'Your program is ready.',
+          programTemplate: {
+            name: 'Upper Lower',
+            durationWeeks: 8,
+            workouts: [{ name: 'Upper A', exercises: [] }],
+          },
+        }]}
+      />
+    );
+
+    expect(getByText('Building Program')).toBeTruthy();
+    expect(getByTestId('voice-program-loading-card')).toBeTruthy();
+    expect(getByText('Upper Lower Program Card')).toBeTruthy();
   });
 
   it('keeps a friendly retry card visible when workout generation fails', () => {

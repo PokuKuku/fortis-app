@@ -5,10 +5,12 @@ import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 const mockCreateRealtimeCoachSession = jest.fn();
 const mockGenerateVoiceWorkoutTemplate = jest.fn();
+const mockGenerateVoiceProgramTemplate = jest.fn();
 const mockGenerateRealtimeCoachScriptAudio = jest.fn();
 const mockReportRealtimeCoachUsage = jest.fn();
 const mockRequestAIDataSharingConsent = jest.fn();
 const mockShouldGenerateWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
+const mockShouldGenerateProgramFromVoice = jest.fn((_text?: string, _hasCurrentProgramDraft?: boolean) => false);
 const mockShouldEditWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
 const mockShouldRegenerateWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
 const mockSetAudioModeAsync = jest.fn((_mode: unknown) => Promise.resolve());
@@ -91,6 +93,7 @@ jest.mock('@/src/services/realtimeCoachService', () => ({
   generateRealtimeCoachScriptAudio: (script: unknown, preferences: unknown) =>
     mockGenerateRealtimeCoachScriptAudio(script, preferences),
   generateVoiceWorkoutTemplate: (prompt: unknown, context: unknown) => mockGenerateVoiceWorkoutTemplate(prompt, context),
+  generateVoiceProgramTemplate: (prompt: unknown, currentProgram: unknown) => mockGenerateVoiceProgramTemplate(prompt, currentProgram),
   reportRealtimeCoachUsage: (secondsUsed: unknown) => mockReportRealtimeCoachUsage(secondsUsed),
 }));
 
@@ -112,6 +115,8 @@ jest.mock('@/src/utils/realtimeCoach', () => ({
     mockShouldEditWorkoutFromVoice(text, hasCurrentWorkoutDraft),
   shouldGenerateWorkoutFromVoice: (text: string, hasCurrentWorkoutDraft?: boolean) =>
     mockShouldGenerateWorkoutFromVoice(text, hasCurrentWorkoutDraft),
+  shouldGenerateProgramFromVoice: (text: string, hasCurrentProgramDraft?: boolean) =>
+    mockShouldGenerateProgramFromVoice(text, hasCurrentProgramDraft),
   shouldRegenerateWorkoutFromVoice: (text: string, hasCurrentWorkoutDraft?: boolean) =>
     mockShouldRegenerateWorkoutFromVoice(text, hasCurrentWorkoutDraft),
 }));
@@ -237,6 +242,7 @@ describe('useRealtimeCoach', () => {
       };
     });
     mockShouldGenerateWorkoutFromVoice.mockReturnValue(false);
+    mockShouldGenerateProgramFromVoice.mockReturnValue(false);
     mockShouldEditWorkoutFromVoice.mockReturnValue(false);
     mockShouldRegenerateWorkoutFromVoice.mockReturnValue(false);
     mockRequestAIDataSharingConsent.mockResolvedValue(true);
@@ -274,6 +280,25 @@ describe('useRealtimeCoach', () => {
               reps: '6-10',
             },
           ],
+        },
+      },
+    });
+    mockGenerateVoiceProgramTemplate.mockResolvedValue({
+      type: 'answer',
+      answer: {
+        text: 'I built a program.',
+        programTemplate: {
+          name: 'Strength Program',
+          durationWeeks: 8,
+          workouts: [{
+            name: 'Full Body',
+            exercises: [{
+              exerciseId: 'exercise-1',
+              exerciseName: 'Bench Press',
+              sets: 4,
+              reps: '6-10',
+            }],
+          }],
         },
       },
     });
@@ -504,8 +529,10 @@ describe('useRealtimeCoach', () => {
     expect(setupMessage.setup.realtimeInputConfig.activityHandling).toBe('NO_INTERRUPTION');
     expect(setupMessage.setup.realtimeInputConfig.automaticActivityDetection.disabled).toBe(true);
     expect(setupMessage.setup.tools[0].functionDeclarations[0].name).toBe('create_or_update_workout');
+    expect(setupMessage.setup.tools[0].functionDeclarations[1].name).toBe('create_or_update_program');
     expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('varied short acknowledgement');
     expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('call the create_or_update_workout tool immediately');
+    expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('call the create_or_update_program tool immediately');
     expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('never say "chat"');
     expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('Always speak English');
     expect(setupMessage.setup.systemInstruction.parts[0].text).not.toContain('in the chat');
@@ -1153,6 +1180,190 @@ describe('useRealtimeCoach', () => {
 
     expect(hook.result.current.isGeneratingVoiceWorkout).toBe(false);
     expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Chest Workout');
+
+    hook.unmount();
+  });
+
+  it('builds a structured program from a Gemini Live program tool call', async () => {
+    mockShouldGenerateProgramFromVoice.mockReturnValue(true);
+    let resolveProgram: (value: unknown) => void = () => {};
+    mockGenerateVoiceProgramTemplate.mockReturnValue(new Promise((resolve) => {
+      resolveProgram = resolve;
+    }));
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [{
+            id: 'program-call-1',
+            name: 'create_or_update_program',
+            args: { prompt: 'build me a four day upper lower program' },
+          }],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceProgramTemplate).toHaveBeenCalledWith(
+      'build me a four day upper lower program',
+      null
+    );
+    expect(hook.result.current.isGeneratingVoiceProgram).toBe(true);
+    expect(hook.result.current.voiceProgramMessages).toHaveLength(0);
+    expect(socket.sentMessages.some((message) => (
+      message.includes('"toolResponse"')
+      && message.includes('"id":"program-call-1"')
+      && message.includes('"status":"program_building_started"')
+    ))).toBe(true);
+
+    await act(async () => {
+      resolveProgram({
+        type: 'answer',
+        answer: {
+          text: 'Your program is ready.',
+          programTemplate: {
+            name: 'Upper Lower Program',
+            durationWeeks: 8,
+            workouts: [{
+              name: 'Upper A',
+              exercises: [{
+                exerciseId: 'exercise-1',
+                exerciseName: 'Bench Press',
+                sets: 4,
+                reps: '6-10',
+              }],
+            }],
+          },
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(hook.result.current.isGeneratingVoiceProgram).toBe(false);
+    expect(hook.result.current.voiceProgramMessages[0]?.programTemplate.name).toBe('Upper Lower Program');
+    hook.unmount();
+  });
+
+  it('does not launch the workout builder when Gemini emits both tools for a program', async () => {
+    mockShouldGenerateProgramFromVoice.mockReturnValue(true);
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'wrong-workout-call',
+              name: 'create_or_update_workout',
+              args: { prompt: 'build me a three day push pull legs program' },
+            },
+            {
+              id: 'correct-program-call',
+              name: 'create_or_update_program',
+              args: { prompt: 'build me a three day push pull legs program' },
+            },
+          ],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).not.toHaveBeenCalled();
+    expect(mockGenerateVoiceProgramTemplate).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.voiceProgramMessages[0]?.programTemplate.name).toBe('Strength Program');
+    expect(hook.result.current.voiceWorkoutGenerationError).toBeNull();
+    expect(socket.sentMessages.some((message) => (
+      message.includes('"id":"wrong-workout-call"')
+      && message.includes('"status":"program_tool_selected_for_this_turn"')
+    ))).toBe(true);
+
+    hook.unmount();
+  });
+
+  it('speaks a program clarification after the immediate building acknowledgement', async () => {
+    mockShouldGenerateProgramFromVoice.mockReturnValue(true);
+    mockGenerateVoiceProgramTemplate.mockResolvedValue({
+      type: 'clarification',
+      clarification: {
+        question: 'How many days per week should I use for this program?',
+        options: ['3 days', '4 days', '5 days'],
+      },
+    });
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [{
+            id: 'program-clarification-call',
+            name: 'create_or_update_program',
+            args: { prompt: 'build me a strength program' },
+          }],
+        },
+      }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(socket.sentMessages.some((message) => (
+      message.includes('"status":"program_building_started"')
+    ))).toBe(true);
+    expect(socket.sentMessages.some((message) => (
+      message.includes('"clientContent"')
+      && message.includes('How many days per week should I use for this program?')
+    ))).toBe(true);
+    expect(hook.result.current.voiceProgramGenerationError).toBeNull();
+
+    hook.unmount();
+  });
+
+  it('discards an in-flight workout failure when a program request supersedes it', async () => {
+    mockShouldGenerateProgramFromVoice.mockImplementation((text?: string) => /program/i.test(text ?? ''));
+    let rejectWorkout: (reason?: unknown) => void = () => {};
+    mockGenerateVoiceWorkoutTemplate.mockReturnValue(new Promise((_resolve, reject) => {
+      rejectWorkout = reject;
+    }));
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [{
+            id: 'early-workout-call',
+            name: 'create_or_update_workout',
+            args: { prompt: 'make me a push pull legs workout' },
+          }],
+        },
+      }));
+      await Promise.resolve();
+    });
+    expect(hook.result.current.isGeneratingVoiceWorkout).toBe(true);
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [{
+            id: 'program-call',
+            name: 'create_or_update_program',
+            args: { prompt: 'build me a three day push pull legs program' },
+          }],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(hook.result.current.voiceProgramMessages).toHaveLength(1);
+    expect(hook.result.current.isGeneratingVoiceWorkout).toBe(false);
+
+    await act(async () => {
+      rejectWorkout(new Error('stale workout failed'));
+      await Promise.resolve();
+    });
+
+    expect(hook.result.current.voiceWorkoutGenerationError).toBeNull();
+    expect(hook.result.current.voiceWorkoutMessages).toHaveLength(0);
+    expect(hook.result.current.voiceProgramMessages).toHaveLength(1);
 
     hook.unmount();
   });

@@ -34,7 +34,7 @@ const DEFAULT_TEMPLATE_NAMES_BY_ID = new Map<string, string[]>(
 );
 
 export default function WorkoutDetailScreen() {
-  const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
+  const { id, source, preview } = useLocalSearchParams<{ id: string; source?: string; preview?: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const modalStyles = useModalStyles();
@@ -42,12 +42,18 @@ export default function WorkoutDetailScreen() {
   const isNavigating = useRef(false);
   const isReadOnlyFromProgramEdit = source === 'program-edit';
   const storePrograms = useProgramsStore(s => s.programs);
+  const previewProgram = useProgramsStore(s => s.previewProgram);
+  const setPreviewProgram = useProgramsStore(s => s.setPreviewProgram);
+  const isAIChatPreview = preview === 'ai-chat' && previewProgram?.id === id;
   const [isRedirectingReplacement, setIsRedirectingReplacement] = useState(false);
 
   const cachedWorkout = useMemo<WorkoutDetail | null>(() => {
     if (!id || Array.isArray(id)) return null;
 
-    const sourceProgram = storePrograms.find((program) =>
+    const availablePrograms = previewProgram
+      ? [previewProgram, ...storePrograms]
+      : storePrograms;
+    const sourceProgram = availablePrograms.find((program) =>
       (program.isTemplate && program.id === id) ||
       program.workouts.some((candidate) => candidate.id === id)
     );
@@ -81,7 +87,7 @@ export default function WorkoutDetailScreen() {
       },
       lastPerformed: sourceProgram.lastPerformedAt ?? undefined,
     };
-  }, [id, storePrograms]);
+  }, [id, previewProgram, storePrograms]);
   const workout = hydratedWorkout ?? cachedWorkout;
 
   // Dynamic theme-aware styles
@@ -104,8 +110,9 @@ export default function WorkoutDetailScreen() {
     sectionCount: { color: colors.textSecondary },
   };
   const bodyType = useWorkoutStore((s) => s.bodyType);
-  const template = storePrograms.find(p => p.id === id && p.isTemplate);
-  const canEditTemplate = !!template && !isReadOnlyFromProgramEdit;
+  const template = (previewProgram?.id === id ? previewProgram : null)
+    ?? storePrograms.find(p => p.id === id && p.isTemplate);
+  const canEditTemplate = !!template && !isReadOnlyFromProgramEdit && !isAIChatPreview;
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
 
   const replacementTemplateId = useMemo(() => {
@@ -130,6 +137,9 @@ export default function WorkoutDetailScreen() {
   const handleBack = () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
+    if (isAIChatPreview) {
+      setPreviewProgram(null);
+    }
     router.back();
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
@@ -185,14 +195,30 @@ export default function WorkoutDetailScreen() {
 
 
   const startWorkoutFromTemplate = useWorkoutStore(s => s.startWorkoutFromTemplate);
+  const startWorkoutFromPlan = useWorkoutStore(s => s.startWorkoutFromPlan);
 
   const handleStartWorkout = async () => {
     if (isNavigating.current || !id) return;
     isNavigating.current = true;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const success = await startWorkoutFromTemplate(id);
+    const previewWorkout = isAIChatPreview ? previewProgram?.workouts[0] : null;
+    const success = previewWorkout
+      ? await startWorkoutFromPlan(
+          previewProgram?.name ?? previewWorkout.name,
+          previewWorkout.exercises.map((exercise) => ({
+            exerciseId: exercise.exerciseId,
+            exerciseName: exercise.exerciseName,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            restSeconds: exercise.restSeconds,
+          }))
+        )
+      : await startWorkoutFromTemplate(id);
     if (success) {
+      if (isAIChatPreview) {
+        setPreviewProgram(null);
+      }
       router.replace('/workout/active');
     }
     setTimeout(() => { isNavigating.current = false; }, 500);

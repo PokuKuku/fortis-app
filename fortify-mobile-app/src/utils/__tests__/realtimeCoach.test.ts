@@ -4,6 +4,7 @@ import {
   isCreatorVoiceScriptsEnabled,
   normalizeRealtimeCoachPhase,
   shouldEditWorkoutFromVoice,
+  shouldGenerateProgramFromVoice,
   shouldGenerateWorkoutFromVoice,
   shouldRegenerateWorkoutFromVoice,
 } from '@/src/utils/realtimeCoach';
@@ -49,6 +50,16 @@ describe('realtimeCoach utils', () => {
     expect(shouldEditWorkoutFromVoice('Add a different exercise', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make it five exercises', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make it five exercises')).toBe(false);
+  });
+
+  it('distinguishes multi-day program requests from single workouts', () => {
+    expect(shouldGenerateProgramFromVoice('Build me a four day upper lower program')).toBe(true);
+    expect(shouldGenerateProgramFromVoice('Make me a push pull legs split')).toBe(true);
+    expect(shouldGenerateProgramFromVoice('Create a weekly training plan for MMA')).toBe(true);
+    expect(shouldGenerateProgramFromVoice('Make it bodyweight', true)).toBe(true);
+    expect(shouldGenerateProgramFromVoice('Make it bodyweight')).toBe(false);
+    expect(shouldGenerateProgramFromVoice('Build me a chest workout')).toBe(false);
+    expect(shouldGenerateProgramFromVoice("Don't create a program")).toBe(false);
   });
 
   it('normalizes preferences and clamps intensity', () => {

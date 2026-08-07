@@ -1,4 +1,4 @@
-import type { AIClarification, AIWorkoutTemplate } from '@/src/types/ai';
+import type { AIClarification, AIProgramTemplate, AIWorkoutTemplate } from '@/src/types/ai';
 
 export type AIVoiceMode = 'chat' | 'voice';
 export type RealtimeVoiceInteractionMode = 'push_to_talk' | 'realtime';
@@ -80,6 +80,13 @@ export interface VoiceWorkoutMessage {
   workoutTemplate: AIWorkoutTemplate;
   clarification?: AIClarification;
   savedWorkoutTemplateId?: string | null;
+}
+
+export interface VoiceProgramMessage {
+  id: string;
+  text: string;
+  programTemplate: AIProgramTemplate;
+  savedProgramId?: string | null;
 }
 
 export const COACH_VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse'];

@@ -224,6 +224,50 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     expect(view.queryAllByTestId('completed-day-check-glow').length).toBeGreaterThan(0);
   });
 
+  it('keeps a streak milestone queued while a higher-priority completion modal is visible', async () => {
+    const completedAt = new Date();
+    const completedSession = {
+      localId: 'deferred-celebration-session',
+      name: 'Challenge-completing workout',
+      notes: '',
+      startedAt: completedAt,
+      completedAt,
+      exercises: [],
+      isSynced: false,
+    } as any;
+    await setScopedItem(
+      PENDING_HOME_WORKOUT_CELEBRATION_KEY,
+      JSON.stringify({
+        sessionLocalId: completedSession.localId,
+        completedAt: completedAt.toISOString(),
+      })
+    );
+
+    const renderCarousel = (deferMilestoneCelebration: boolean) => (
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[completedAt.getDay()]}
+          sessions={[completedSession]}
+          isFocused
+          deferMilestoneCelebration={deferMilestoneCelebration}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+    const view = render(renderCarousel(true));
+
+    await waitFor(async () => {
+      expect(await getScopedItem(PENDING_HOME_WORKOUT_CELEBRATION_KEY)).not.toBeNull();
+    });
+    expect(view.queryByTestId('streak-percentile-modal')).toBeNull();
+
+    view.rerender(renderCarousel(false));
+
+    await waitFor(() => {
+      expect(view.getByTestId('streak-percentile-modal')).toBeTruthy();
+    });
+  });
+
   it('does not replay a stale celebration for a second workout on the same day', async () => {
     mockIsPro = true;
     const firstCompletedAt = new Date('2026-08-06T09:00:00-04:00');

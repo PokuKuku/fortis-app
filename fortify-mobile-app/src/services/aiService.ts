@@ -22,24 +22,17 @@ import { hasAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { getAllExercises } from '@/src/services/exerciseService';
 import type { ExerciseWithSource } from '@/src/types/exercise';
 import {
+  normalizeWorkoutMuscle,
+  selectBalancedWorkoutCatalog,
+} from '@/src/utils/workoutCatalogPlanning';
+import {
   invokeEdgeFunctionWithRetry,
   isTransientEdgeFunctionError,
 } from '@/src/services/edgeFunctionRetry';
 
-const MAX_WORKOUT_CONTEXT_EXERCISES = 160;
+const MAX_WORKOUT_CONTEXT_EXERCISES = 80;
 export const AI_CONNECTION_INTERRUPTED_MESSAGE =
   'Your connection was interrupted before Fortis could respond. Please try again.';
-
-const WORKOUT_NOUN_PATTERN = String.raw`(?:work\s*out|workout|routine|session|template|training(?:\s+(?:day|session|workout))?|lift|day)`;
-const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|lats?|traps?|shoulders?|delts?|arms?|biceps|triceps|forearms?|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
-const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|regenerate|reroll|redo|design|plan|craft|write|recommend|suggest|put together|give me|need|want|show me|can i have|i would like)`;
-
-const WORKOUT_REQUEST_REGEXES = [
-  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,100}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
-  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,80}\b${WORKOUT_FOCUS_PATTERN}\b[\s\S]{0,40}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
-  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,60}\b${WORKOUT_FOCUS_PATTERN}\b\s+(?:day|lift|session|routine|training)\b`, 'i'),
-  new RegExp(String.raw`\b${WORKOUT_FOCUS_PATTERN}\b[\s\S]{0,40}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
-];
 
 const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
   { regex: /\bupper body\b/i, muscles: ['pectorals', 'lats', 'upper back', 'traps', 'delts', 'biceps', 'triceps', 'forearms'] },
@@ -74,7 +67,7 @@ const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
   { regex: /\bmachine(s)?\b/i, equipment: 'machine' },
   { regex: /\bkettlebell(s)?\b/i, equipment: 'kettlebell' },
   { regex: /\bband(s)?\b|\bresistance band(s)?\b/i, equipment: 'band' },
-  { regex: /\bbodyweight\b|\bbody weight\b|\bno equipment\b|\bwithout equipment\b|\bno gear\b|\bno weights?\b/i, equipment: 'bodyweight' },
+  { regex: /\bbodyweight\b|\bbody weight\b|\bbody[- ]only\b|\busing (?:only )?my body\b|\bbody movements?\b|\bno equipment\b|\bwithout equipment\b|\bno gear\b|\bno weights?\b|\bcalisthenics?\b|\bpilates\b/i, equipment: 'bodyweight' },
 ];
 
 const normalizeCatalogValue = (value: string | null | undefined): string => (
@@ -88,29 +81,6 @@ const normalizeCatalogValue = (value: string | null | undefined): string => (
     .trim()
 );
 
-const shouldSendWorkoutExerciseCatalog = (
-  intent: AIIntent,
-  message: string,
-  context?: AIRequestContext
-): boolean => {
-  if (context?.exerciseCatalog?.length) {
-    return false;
-  }
-  if (context?.onboardingProgramSpec) {
-    return true;
-  }
-  if (intent !== 'GENERAL_CHAT' && intent !== 'VISUAL_COACHING' && intent !== 'FORTIS_ANALYST') {
-    return false;
-  }
-  if (context?.voiceWorkoutOnly || context?.currentWorkoutTemplateDraft) {
-    return true;
-  }
-  if (context?.avoidWorkoutTemplateDraft) {
-    return true;
-  }
-  return WORKOUT_REQUEST_REGEXES.some((regex) => regex.test(message));
-};
-
 const extractWorkoutTargetMuscles = (message: string): string[] => {
   const muscles = new Set<string>();
   WORKOUT_TARGET_MUSCLE_MAP.forEach((entry) => {
@@ -119,27 +89,6 @@ const extractWorkoutTargetMuscles = (message: string): string[] => {
     }
   });
   return Array.from(muscles);
-};
-
-const getWorkoutTargetPrompt = (
-  message: string,
-  currentDraft?: AIWorkoutTemplate,
-  avoidDraft?: AIWorkoutTemplate
-): string => {
-  if (extractWorkoutTargetMuscles(message).length > 0) {
-    return message;
-  }
-
-  const draft = avoidDraft ?? currentDraft;
-  const inheritedTargetText = [
-    draft?.focus,
-    draft?.name,
-    draft?.description,
-  ]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(' ');
-
-  return inheritedTargetText ? `${message} ${inheritedTargetText}` : message;
 };
 
 const extractWorkoutEquipment = (message: string): string[] => {
@@ -161,14 +110,14 @@ const extractWorkoutEquipment = (message: string): string[] => {
 const exerciseMatchesTargetMuscles = (exercise: ExerciseWithSource, targetMuscles: string[]): boolean => {
   if (targetMuscles.length === 0) return true;
   const muscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
-    .map((muscle) => muscle.toLowerCase());
-  return targetMuscles.some((muscle) => muscles.includes(muscle.toLowerCase()));
+    .map(normalizeWorkoutMuscle);
+  return targetMuscles.some((muscle) => muscles.includes(normalizeWorkoutMuscle(muscle)));
 };
 
 const exercisePrimaryMatchesTargetMuscles = (exercise: ExerciseWithSource, targetMuscles: string[]): boolean => {
   if (targetMuscles.length === 0) return true;
-  const primaryMuscles = exercise.primaryMuscles.map((muscle) => muscle.toLowerCase());
-  return targetMuscles.some((muscle) => primaryMuscles.includes(muscle.toLowerCase()));
+  const primaryMuscles = exercise.primaryMuscles.map(normalizeWorkoutMuscle);
+  return targetMuscles.some((muscle) => primaryMuscles.includes(normalizeWorkoutMuscle(muscle)));
 };
 
 const exerciseMatchesEquipment = (exercise: ExerciseWithSource, equipment: string[]): boolean => {
@@ -263,42 +212,45 @@ const buildWorkoutExerciseCatalogForAI = async (
       selectedById.set(exercise.id, toCatalogEntry(exercise));
     });
 
-  source
+  const rankedExercises = source
     .map((exercise) => ({
       exercise,
       score: scoreWorkoutCatalogExercise(exercise, targetMuscles, equipment),
     }))
-    .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name))
-    .slice(0, MAX_WORKOUT_CONTEXT_EXERCISES)
-    .forEach(({ exercise }) => {
-      selectedById.set(exercise.id, toCatalogEntry(exercise));
-    });
+    .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
+
+  // Give the planner representative choices for every requested region before
+  // filling the remaining context by overall quality. This balances the input
+  // catalog without imposing artificial equal-muscle quotas on the workout.
+  selectBalancedWorkoutCatalog(
+    rankedExercises.map(({ exercise }) => exercise),
+    targetMuscles,
+    MAX_WORKOUT_CONTEXT_EXERCISES
+  ).forEach((exercise) => {
+    if (selectedById.size >= MAX_WORKOUT_CONTEXT_EXERCISES) return;
+    selectedById.set(exercise.id, toCatalogEntry(exercise));
+  });
 
   return Array.from(selectedById.values()).slice(0, MAX_WORKOUT_CONTEXT_EXERCISES);
 };
 
 async function enrichWorkoutRequestContext(
-  intent: AIIntent,
-  message: string,
-  context?: AIRequestContext
+  context?: AIRequestContext,
 ): Promise<AIRequestContext | undefined> {
-  if (!shouldSendWorkoutExerciseCatalog(intent, message, context)) {
+  // Ordinary chat understanding and catalog selection happen on the server after
+  // the model has produced a semantic request. Onboarding is the one exception:
+  // it is an explicit, typed flow and can safely send its prebuilt local catalog.
+  if (!context?.onboardingProgramSpec || context.exerciseCatalog?.length) {
     return context;
   }
 
   try {
-    const catalogPrompt = context?.onboardingProgramSpec
-      ? [
-          context.onboardingProgramSpec.trainingEnvironment,
-          ...(context.onboardingProgramSpec.muscleFocuses ?? []),
-          context.onboardingProgramSpec.fitnessGoal,
-          'full body push pull legs upper lower workout',
-        ].filter(Boolean).join(' ')
-      : getWorkoutTargetPrompt(
-          message,
-          context?.currentWorkoutTemplateDraft,
-          context?.avoidWorkoutTemplateDraft
-        );
+    const catalogPrompt = [
+      context.onboardingProgramSpec.trainingEnvironment,
+      ...(context.onboardingProgramSpec.muscleFocuses ?? []),
+      context.onboardingProgramSpec.fitnessGoal,
+      'full body push pull legs upper lower workout',
+    ].filter(Boolean).join(' ');
     const exerciseCatalog = await buildWorkoutExerciseCatalogForAI(
       catalogPrompt,
       context?.currentWorkoutTemplateDraft,
@@ -374,7 +326,7 @@ export async function sendAIMessage(
     };
   }
 
-  const enrichedContext = await enrichWorkoutRequestContext(intent, message, context);
+  const enrichedContext = await enrichWorkoutRequestContext(context);
 
   const request: AIRequest = {
     intent,

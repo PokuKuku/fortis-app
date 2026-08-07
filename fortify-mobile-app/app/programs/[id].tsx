@@ -86,6 +86,7 @@ function WorkoutSection({
   onSetAsNext,
   onEditWorkout,
   onDeleteExercise,
+  readOnly = false,
 }: {
   workout: ProgramWorkout;
   scheduleLabel: string;
@@ -96,6 +97,7 @@ function WorkoutSection({
   onSetAsNext: (workout: ProgramWorkout) => void;
   onEditWorkout: (workout: ProgramWorkout) => void;
   onDeleteExercise: (workoutId: string, exerciseId: string, exerciseName: string) => void;
+  readOnly?: boolean;
 }) {
   const { colors, isDark } = useTheme();
   const handleToggle = () => {
@@ -133,14 +135,16 @@ function WorkoutSection({
             </View>
           </View>
         </TouchableOpacity>
-        <View style={styles.workoutSectionActions}>
-          <DeleteKebabMenu
-            deleteLabel="Delete Workout"
-            onSetAsNext={() => onSetAsNext(workout)}
-            onEdit={() => onEditWorkout(workout)}
-            onDelete={() => onDeleteWorkout(workout.id, workout.name)}
-          />
-        </View>
+        {!readOnly && (
+          <View style={styles.workoutSectionActions}>
+            <DeleteKebabMenu
+              deleteLabel="Delete Workout"
+              onSetAsNext={() => onSetAsNext(workout)}
+              onEdit={() => onEditWorkout(workout)}
+              onDelete={() => onDeleteWorkout(workout.id, workout.name)}
+            />
+          </View>
+        )}
       </View>
 
       {/* Exercises List (collapsible) */}
@@ -156,13 +160,13 @@ function WorkoutSection({
               primaryMuscles={exercise.primaryMuscles}
               images={exercise.images}
                 onPress={() => onExercisePress(exercise.exerciseId)}
-                rightAction={
+                rightAction={readOnly ? undefined : (
                   <DeleteKebabMenu
                     deleteLabel="Delete Exercise"
                     onViewDetails={() => onExercisePress(exercise.exerciseId)}
                     onDelete={() => onDeleteExercise(workout.id, exercise.id, exercise.exerciseName)}
                   />
-                }
+                )}
               />
             ))}
         </Animated.View>
@@ -229,7 +233,8 @@ function ProgramScheduleRow({
 }
 
 export default function ProgramDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, preview } = useLocalSearchParams<{ id: string; preview?: string }>();
+  const isAIChatPreview = preview === 'ai-chat';
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { scheduleDays } = useWorkoutSchedule();
@@ -237,9 +242,13 @@ export default function ProgramDetailScreen() {
   const { program: hydratedProgram, loading } = useProgram(id);
   const isNavigating = useRef(false);
   const storePrograms = useProgramsStore(s => s.programs);
+  const previewProgram = useProgramsStore(s => s.previewProgram);
+  const setPreviewProgram = useProgramsStore(s => s.setPreviewProgram);
   const cachedProgram = useMemo<ProgramDetail | null>(() => {
     if (!id || Array.isArray(id)) return null;
-    const sourceProgram = storePrograms.find((candidate) => candidate.id === id && !candidate.isTemplate);
+    const sourceProgram = isAIChatPreview && previewProgram?.id === id
+      ? previewProgram
+      : storePrograms.find((candidate) => candidate.id === id && !candidate.isTemplate);
     if (!sourceProgram) return null;
 
     return {
@@ -277,7 +286,7 @@ export default function ProgramDetailScreen() {
       },
       lastPerformed: sourceProgram.lastPerformedAt ?? undefined,
     };
-  }, [id, storePrograms]);
+  }, [id, isAIChatPreview, previewProgram, storePrograms]);
   const program = hydratedProgram ?? cachedProgram;
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
@@ -322,6 +331,7 @@ export default function ProgramDetailScreen() {
   const handleBack = () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
+    if (isAIChatPreview) setPreviewProgram(null);
     router.back();
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
@@ -555,7 +565,7 @@ export default function ProgramDetailScreen() {
       <HubHeader
         title={program.name}
         onBack={handleBack}
-        rightAction={{ label: 'Edit', onPress: handleEdit }}
+        rightAction={isAIChatPreview ? undefined : { label: 'Edit', onPress: handleEdit }}
         titleStyle={styles.programTitle}
       />
 
@@ -618,22 +628,24 @@ export default function ProgramDetailScreen() {
         </View>
 
         {/* Start Program Button */}
-        <Animated.View
-          entering={FadeInDown.delay(60).duration(180)}
-          style={styles.startButtonContainer}
-        >
-          <GlassButton
-            style={styles.startButton}
-            onPress={handleStartProgram}
-            disabled={!isProgressLoaded}
-            shadow={false}
+        {!isAIChatPreview && (
+          <Animated.View
+            entering={FadeInDown.delay(60).duration(180)}
+            style={styles.startButtonContainer}
           >
-            <View style={styles.startButtonContent}>
-              <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={[styles.startButtonText, { color: colors.accentForegroundOnFill }]}>Continue Program</Text>
-            </View>
-          </GlassButton>
-        </Animated.View>
+            <GlassButton
+              style={styles.startButton}
+              onPress={handleStartProgram}
+              disabled={!isProgressLoaded}
+              shadow={false}
+            >
+              <View style={styles.startButtonContent}>
+                <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.lg} strokeWidth={2.5} />
+                <Text style={[styles.startButtonText, { color: colors.accentForegroundOnFill }]}>Continue Program</Text>
+              </View>
+            </GlassButton>
+          </Animated.View>
+        )}
 
         <Animated.View
           entering={FadeInDown.delay(75).duration(180)}
@@ -678,13 +690,14 @@ export default function ProgramDetailScreen() {
                   onSetAsNext={handleSetWorkoutAsNext}
                   onEditWorkout={handleEditWorkout}
                   onDeleteExercise={handleDeleteExercise}
+                  readOnly={isAIChatPreview}
                 />
               </Animated.View>
             ))}
           </View>
         </Animated.View>
 
-        <Animated.View
+        {!isAIChatPreview && <Animated.View
           entering={FadeInDown.delay(400).duration(400)}
           style={styles.section}
         >
@@ -705,17 +718,17 @@ export default function ProgramDetailScreen() {
               {completedCycles} cycle{completedCycles === 1 ? '' : 's'} completed
             </Text>
           )}
-        </Animated.View>
+        </Animated.View>}
 
         {/* Stats Section */}
-        <Animated.View
+        {!isAIChatPreview && <Animated.View
           entering={FadeInDown.delay(450).duration(400)}
           style={styles.section}
         >
           <HubStatsSection
             stats={program.stats}
           />
-        </Animated.View>
+        </Animated.View>}
       </ScrollView>
 
       {/* Delete Confirmation Modal */}

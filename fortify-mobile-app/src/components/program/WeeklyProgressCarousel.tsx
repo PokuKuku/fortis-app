@@ -60,6 +60,7 @@ type WeeklyProgressCarouselProps = {
   sessions: WorkoutSession[];
   isFocused?: boolean;
   startupRevealComplete?: boolean;
+  deferMilestoneCelebration?: boolean;
   onEditSchedule: () => void;
 };
 
@@ -114,6 +115,7 @@ export function WeeklyProgressCarousel({
   sessions,
   isFocused = true,
   startupRevealComplete = true,
+  deferMilestoneCelebration = false,
   onEditSchedule,
 }: WeeklyProgressCarouselProps) {
   const { colors, isDark } = useTheme();
@@ -265,6 +267,7 @@ export function WeeklyProgressCarousel({
   useEffect(() => {
     if (
       !isFocused
+      || deferMilestoneCelebration
       || !pendingHomeCelebration
       || handledCelebrationRef.current === pendingHomeCelebration.sessionLocalId
     ) {
@@ -319,6 +322,7 @@ export function WeeklyProgressCarousel({
     playHomeCelebration(completedDateKey);
   }, [
     animatedDisplayedStreak,
+    deferMilestoneCelebration,
     isFocused,
     pendingHomeCelebration,
     playHomeCelebration,
@@ -327,6 +331,12 @@ export function WeeklyProgressCarousel({
     sessions,
     streak,
   ]);
+
+  useEffect(() => {
+    if (!deferMilestoneCelebration || !isMilestoneVisible) return;
+    setIsMilestoneVisible(false);
+    handledCelebrationRef.current = null;
+  }, [deferMilestoneCelebration, isMilestoneVisible]);
 
   const handleMomentumEnd = (offsetX: number) => {
     const pageIndex = Math.round(offsetX / CAROUSEL_WIDTH);
