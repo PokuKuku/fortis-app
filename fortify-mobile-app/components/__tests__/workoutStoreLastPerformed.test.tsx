@@ -66,6 +66,7 @@ describe('workout last performed updates', () => {
     const result = await useWorkoutStore.getState().startWorkoutFromTemplate(template.id);
 
     expect(result).toBe(true);
+    expect(useWorkoutStore.getState().activeSession?.originalTargetReps).toEqual(['5']);
     expect(updateLastPerformed).not.toHaveBeenCalled();
   });
 
@@ -80,6 +81,7 @@ describe('workout last performed updates', () => {
     );
 
     expect(result).toBe(true);
+    expect(useWorkoutStore.getState().activeSession?.originalTargetReps).toEqual(['5']);
     expect(updateLastPerformed).not.toHaveBeenCalled();
   });
 

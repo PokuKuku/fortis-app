@@ -1,4 +1,4 @@
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { hasTemplateModifications, useWorkoutStore } from '@/src/store/workoutStore';
 import type { WorkoutSession } from '@/src/types/workout';
 
 describe('workout number pad auto-save', () => {
@@ -162,5 +162,87 @@ describe('workout number pad auto-save', () => {
     expect(updatedExercise?.sets).toHaveLength(4);
     expect(updatedExercise?.sets.map((set) => set.setNumber)).toEqual([1, 2, 3, 4]);
     expect(updatedExercise?.sets.map((set) => set.orderIndex)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('detects a rep-range-only template modification', () => {
+    const activeSession: WorkoutSession = {
+      localId: 'session-4',
+      name: 'Upper 1',
+      notes: '',
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      completedAt: null,
+      programId: 'template-1',
+      programWorkoutId: 'workout-1',
+      originalExerciseIds: ['ex-4'],
+      originalSetCounts: [3],
+      originalTargetReps: ['8-12'],
+      exercises: [
+        {
+          localId: 'exercise-4',
+          exerciseId: 'ex-4',
+          exerciseName: 'Bench Press',
+          targetReps: '6-10',
+          sets: Array.from({ length: 3 }, (_, index) => ({
+            localId: `set-${index + 1}`,
+            setNumber: index + 1,
+            setType: 'normal' as const,
+            weight: null,
+            reps: null,
+            rpe: null,
+            restSeconds: null,
+            notes: '',
+            isCompleted: false,
+            orderIndex: index,
+          })),
+          notes: '',
+          orderIndex: 0,
+        },
+      ],
+      isSynced: false,
+    };
+
+    expect(hasTemplateModifications(activeSession)).toBe(true);
+  });
+
+  it('does not treat equivalent rep-range formatting as a modification', () => {
+    const activeSession: WorkoutSession = {
+      localId: 'session-5',
+      name: 'Upper 1',
+      notes: '',
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      completedAt: null,
+      programId: 'template-1',
+      programWorkoutId: 'workout-1',
+      originalExerciseIds: ['ex-5'],
+      originalSetCounts: [1],
+      originalTargetReps: ['8 to 12'],
+      exercises: [
+        {
+          localId: 'exercise-5',
+          exerciseId: 'ex-5',
+          exerciseName: 'Bench Press',
+          targetReps: '8-12',
+          sets: [
+            {
+              localId: 'set-5',
+              setNumber: 1,
+              setType: 'normal',
+              weight: null,
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          notes: '',
+          orderIndex: 0,
+        },
+      ],
+      isSynced: false,
+    };
+
+    expect(hasTemplateModifications(activeSession)).toBe(false);
   });
 });

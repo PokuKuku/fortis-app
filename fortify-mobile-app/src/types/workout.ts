@@ -78,6 +78,7 @@ export interface WorkoutSession {
   programWorkoutId?: string; // Optional template reference
   originalExerciseIds?: string[]; // Exercise IDs at start (for modification detection)
   originalSetCounts?: number[];   // Set counts at start (for template change detection)
+  originalTargetReps?: string[];  // Rep targets at start (for template change detection)
   exercises: WorkoutExercise[];
   isSynced: boolean;
 }

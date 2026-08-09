@@ -49,6 +49,10 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     ]);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('opens the workout streak placement from the Go Pro button', () => {
     const { getByLabelText } = render(
       <ThemeProvider>
@@ -176,6 +180,33 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     await waitFor(() => {
       expect(view.queryAllByTestId('completed-day-check-glow').length).toBeGreaterThan(0);
     });
+  });
+
+  it('replaces a past frozen scheduled-day circle with the Frost snowflake', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-08T12:00:00-04:00'));
+    useWorkoutStore.setState({
+      streakPausePeriods: [{
+        startDateKey: '2026-08-05',
+        endDateKey: '2026-08-05',
+      }],
+    });
+
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[3]}
+          sessions={[]}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+
+    const frozenDay = view.getByLabelText('Wednesday, Aug 5, frozen scheduled workout day');
+    expect(frozenDay).toBeTruthy();
+    fireEvent.press(frozenDay);
+    expect(view.getByText('Scheduled workout frozen')).toBeTruthy();
+
   });
 
   it('replays both celebrations on the first focused visit after a scheduled workout', async () => {

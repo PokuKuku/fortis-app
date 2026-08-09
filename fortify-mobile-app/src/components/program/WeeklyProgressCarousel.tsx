@@ -22,6 +22,7 @@ import {
   getScheduledWorkoutDayStreak,
   getScheduleDaysForDate,
   getSundayWeekStart,
+  isStreakDateProtected,
   type WeekProgressDay,
   type WorkoutScheduleHistoryEntry,
 } from '@/src/utils/workoutSchedule';
@@ -38,6 +39,7 @@ import { getScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
 import { StreakPercentileCelebrationModal } from '@/src/components/retention/StreakPercentileCelebrationModal';
 import Reanimated, { ZoomIn } from 'react-native-reanimated';
 import { useDevHomeTestControlsVisibility } from '@/src/hooks/useDevHomeTestControlsVisibility';
+import { FrostSnowflakeIcon } from '@/src/components/program/FrostSnowflakeIcon';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = scale(24);
@@ -449,11 +451,13 @@ export function WeeklyProgressCarousel({
   };
 
   const renderWeek = ({ item }: { item: WeekPage }) => {
+    const today = new Date();
     const weekDays = buildWeekProgressDays({
       anchorDate: item.anchorDate,
       scheduleDays,
       scheduleHistory,
       sessions,
+      today,
     });
 
     return (
@@ -464,7 +468,11 @@ export function WeeklyProgressCarousel({
             const isComplete = completionPreview?.dateKey === day.dateKey
               ? completionPreview.isComplete
               : day.completedSessions.length > 0;
-            const isScheduledPending = day.isScheduled && !isComplete;
+            const isFrozen = day.isScheduled
+              && day.isMissed
+              && !isComplete
+              && isStreakDateProtected(day.dateKey, streakPausePeriods, today);
+            const isScheduledPending = day.isScheduled && !isComplete && !isFrozen;
 
             if (!startupRevealComplete) {
               return <View key={day.dateKey} style={styles.dayAnimationSlot} />;
@@ -477,6 +485,10 @@ export function WeeklyProgressCarousel({
                 style={styles.dayAnimationSlot}
               >
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={isFrozen
+                    ? `${format(day.date, 'EEEE, MMM d')}, frozen scheduled workout day`
+                    : format(day.date, 'EEEE, MMM d')}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
                     setSelectedDay(day);
@@ -491,32 +503,38 @@ export function WeeklyProgressCarousel({
                   >
                     {day.dayLabel}
                   </Text>
-                  <View
-                    style={[
-                      styles.dayCircle,
-                      {
-                        backgroundColor: isComplete
-                          ? colors.accent
-                          : colors.glassBackground,
-                        borderColor: isScheduledPending
-                          ? day.isMissed ? colors.error : colors.accent
-                          : isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)',
-                        borderStyle: isScheduledPending ? 'dashed' : 'solid',
-                      },
-                      day.isToday && !isComplete && { borderColor: colors.textPrimary },
-                    ]}
-                  >
-                    <AnimatedDayCompletion
-                      isComplete={isComplete}
-                      dateLabel={day.dateLabel}
-                      dateColor={day.isMissed ? colors.error : day.isScheduled ? colors.accent : colors.textTertiary}
-                      celebrationKey={
-                        homeCompletionPreview?.dateKey === day.dateKey
-                          ? homeCelebrationToken
-                          : null
-                      }
-                    />
-                  </View>
+                  {isFrozen ? (
+                    <View style={styles.frozenDayMark}>
+                      <FrostSnowflakeIcon size={scale(38)} />
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.dayCircle,
+                        {
+                          backgroundColor: isComplete
+                            ? colors.accent
+                            : colors.glassBackground,
+                          borderColor: isScheduledPending
+                            ? day.isMissed ? colors.error : colors.accent
+                            : isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)',
+                          borderStyle: isScheduledPending ? 'dashed' : 'solid',
+                        },
+                        day.isToday && !isComplete && { borderColor: colors.textPrimary },
+                      ]}
+                    >
+                      <AnimatedDayCompletion
+                        isComplete={isComplete}
+                        dateLabel={day.dateLabel}
+                        dateColor={day.isMissed ? colors.error : day.isScheduled ? colors.accent : colors.textTertiary}
+                        celebrationKey={
+                          homeCompletionPreview?.dateKey === day.dateKey
+                            ? homeCelebrationToken
+                            : null
+                        }
+                      />
+                    </View>
+                  )}
                 </Pressable>
               </Reanimated.View>
             );
@@ -652,6 +670,10 @@ export function WeeklyProgressCarousel({
             <Text style={[styles.detailStatus, { color: colors.textSecondary }]}>
               {selectedDay.completedSessions.length > 0
                 ? 'Workout completed'
+                : selectedDay.isScheduled
+                  && selectedDay.isMissed
+                  && isStreakDateProtected(selectedDay.dateKey, streakPausePeriods, new Date())
+                  ? 'Scheduled workout frozen'
                 : selectedDay.isMissed
                   ? 'Scheduled workout missed'
                 : selectedDay.isScheduled
@@ -997,6 +1019,12 @@ const styles = StyleSheet.create({
     height: DAY_SIZE,
     borderRadius: DAY_SIZE / 2,
     borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  frozenDayMark: {
+    width: DAY_SIZE,
+    height: DAY_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },

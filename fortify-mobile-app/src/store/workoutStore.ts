@@ -796,6 +796,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           isSynced: false,
           originalExerciseIds: exercises.map((ex) => ex.exerciseId),
           originalSetCounts: exercises.map((ex) => ex.sets.length),
+          originalTargetReps: exercises.map((ex) => ex.targetReps || DEFAULT_TARGET_REPS),
         };
 
         set({
@@ -913,6 +914,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           programWorkoutId: workout.id,
           originalExerciseIds: exercises.map(ex => ex.exerciseId),
           originalSetCounts: exercises.map(ex => ex.sets.length),
+          originalTargetReps: exercises.map(ex => ex.targetReps || DEFAULT_TARGET_REPS),
         };
 
         set({
@@ -1051,6 +1053,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           programWorkoutId,
           originalExerciseIds: exercises.map((ex) => ex.exerciseId),
           originalSetCounts: exercises.map((ex) => ex.sets.length),
+          originalTargetReps: exercises.map((ex) => ex.targetReps || DEFAULT_TARGET_REPS),
         };
 
         set({
@@ -3794,6 +3797,7 @@ export const hasIncompleteSets = (session: WorkoutSession | null): boolean => {
  * - Exercise replacements (different ID at same position)
  * - Exercise reordering
  * - Set count changes for existing exercises
+ * - Rep target changes for existing exercises
  */
 export const hasTemplateModifications = (session: WorkoutSession | null): boolean => {
   if (!session) return false;
@@ -3846,6 +3850,27 @@ export const hasTemplateModifications = (session: WorkoutSession | null): boolea
     });
 
     if (hasSetCountChanges) {
+      return true;
+    }
+  }
+
+  // 4. CHECK FOR REP TARGET CHANGES
+  if (session.originalTargetReps && session.originalTargetReps.length > 0) {
+    const normalizeTargetReps = (targetReps: string | null | undefined) => {
+      const range = parseRepRange(targetReps || DEFAULT_TARGET_REPS);
+      return range
+        ? formatRepRange(range.min, range.max)
+        : (targetReps || DEFAULT_TARGET_REPS).trim();
+    };
+
+    const hasRepTargetChanges = session.exercises.some((exercise, index) => {
+      const originalTargetReps = session.originalTargetReps?.[index];
+      if (originalTargetReps === undefined) return false;
+
+      return normalizeTargetReps(exercise.targetReps) !== normalizeTargetReps(originalTargetReps);
+    });
+
+    if (hasRepTargetChanges) {
       return true;
     }
   }
