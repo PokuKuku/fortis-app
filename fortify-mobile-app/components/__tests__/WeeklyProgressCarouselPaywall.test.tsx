@@ -112,9 +112,10 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     expect(getByText('Paused')).toBeTruthy();
   });
 
-  it('previews a streak increase from the development-only test button', () => {
+  it('previews a streak increase from the development-only test button', async () => {
     mockIsPro = true;
     const today = new Date();
+    await saveDevHomeTestControlsVisible(true);
 
     const view = render(
       <ThemeProvider>
@@ -134,6 +135,9 @@ describe('WeeklyProgressCarousel streak paywall', () => {
       </ThemeProvider>
     );
 
+    await waitFor(() => {
+      expect(view.getByLabelText('Test streak increase')).toBeTruthy();
+    });
     fireEvent.press(view.getByLabelText('Test streak increase'));
 
     expect(view.getByTestId('streak-number-current').props.children).toBe(2);
@@ -153,6 +157,12 @@ describe('WeeklyProgressCarousel streak paywall', () => {
       </ThemeProvider>
     );
 
+    await waitFor(() => {
+      expect(view.queryByLabelText('Test streak percentile celebration')).toBeNull();
+      expect(view.queryByLabelText('Test completed day animation')).toBeNull();
+      expect(view.queryByLabelText('Test streak increase')).toBeNull();
+    });
+
     await act(async () => {
       await saveDevHomeTestControlsVisible(false);
     });
@@ -165,6 +175,7 @@ describe('WeeklyProgressCarousel streak paywall', () => {
   });
 
   it('previews a completed-day transition from the development-only test button', async () => {
+    await saveDevHomeTestControlsVisible(true);
     const view = render(
       <ThemeProvider>
         <WeeklyProgressCarousel
@@ -175,6 +186,9 @@ describe('WeeklyProgressCarousel streak paywall', () => {
       </ThemeProvider>
     );
 
+    await waitFor(() => {
+      expect(view.getByLabelText('Test completed day animation')).toBeTruthy();
+    });
     fireEvent.press(view.getByLabelText('Test completed day animation'));
 
     await waitFor(() => {
@@ -349,6 +363,7 @@ describe('WeeklyProgressCarousel streak paywall', () => {
   });
 
   it('cycles the development-only percentile modal preview', async () => {
+    await saveDevHomeTestControlsVisible(true);
     const view = render(
       <ThemeProvider>
         <WeeklyProgressCarousel
@@ -359,6 +374,9 @@ describe('WeeklyProgressCarousel streak paywall', () => {
       </ThemeProvider>
     );
 
+    await waitFor(() => {
+      expect(view.getByLabelText('Test streak percentile celebration')).toBeTruthy();
+    });
     fireEvent.press(view.getByLabelText('Test streak percentile celebration'));
     expect(view.getByLabelText('1 day streak')).toBeTruthy();
 

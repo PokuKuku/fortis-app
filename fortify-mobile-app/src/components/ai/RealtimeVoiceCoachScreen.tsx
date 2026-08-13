@@ -211,11 +211,17 @@ export function RealtimeVoiceCoachScreen({
   const talkButtonBorderWidth = Math.max(4, Math.round(5 * viewportScale));
   const talkButtonBottom = Math.max(20, Math.min(38, height * 0.038));
   const visualizerTop = Math.max(138, Math.min(190, height * 0.2));
+  const visualizerStatusGap = Math.round(88 * viewportScale);
+  const connectingFontSize = Math.max(16, Math.round(18 * viewportScale));
+  const connectingLineHeight = Math.max(22, Math.round(24 * viewportScale));
+  const connectingLetterSpacing = 0.8 * viewportScale;
+  const connectingDotsWidth = Math.round(30 * viewportScale);
+  const visualizerStatusHeight = connectingLineHeight + Math.round(8 * viewportScale);
   const middleSlotBottom = interactionMode === 'realtime'
     ? talkButtonBottom
     : talkButtonBottom + talkButtonSize + Spacing.md;
   const middleSlotFrame = {
-    top: visualizerTop + visualizerHeight + Spacing.md,
+    top: visualizerTop + visualizerHeight + visualizerStatusGap + visualizerStatusHeight,
     bottom: middleSlotBottom,
   };
   const middleSlotHeight = Math.max(96, heroMinHeight - middleSlotFrame.top - middleSlotFrame.bottom);
@@ -237,12 +243,26 @@ export function RealtimeVoiceCoachScreen({
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const displayProgramSaveError = sanitizeVoiceCoachError(programSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
+  const [connectingDotCount, setConnectingDotCount] = useState(3);
   const hasVoiceCards = voiceWorkoutMessages.length > 0
     || voiceProgramMessages.length > 0
     || isGeneratingVoiceWorkout
     || isGeneratingVoiceProgram
     || Boolean(voiceWorkoutGenerationError)
     || Boolean(voiceProgramGenerationError);
+
+  useEffect(() => {
+    if (phase !== 'connecting') {
+      setConnectingDotCount(3);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setConnectingDotCount((count) => (count + 1) % 4);
+    }, 420);
+
+    return () => clearInterval(interval);
+  }, [phase]);
   const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -445,6 +465,52 @@ export function RealtimeVoiceCoachScreen({
             coachAudioLevel={coachAudioLevel}
             scale={viewportScale}
           />
+          {phase === 'connecting' ? (
+            <View
+              testID="voice-connecting-status"
+              style={[
+                styles.connectingStatus,
+                {
+                  height: visualizerStatusHeight,
+                  marginTop: visualizerStatusGap,
+                },
+              ]}
+              accessibilityRole="text"
+              accessibilityLabel="Connecting to Voice Coach"
+            >
+              <Text
+                allowFontScaling={false}
+                numberOfLines={1}
+                style={[
+                  styles.connectingText,
+                  {
+                    color: colors.textSecondary,
+                    fontSize: connectingFontSize,
+                    lineHeight: connectingLineHeight,
+                    letterSpacing: connectingLetterSpacing,
+                  },
+                ]}
+              >
+                Connecting
+              </Text>
+              <Text
+                allowFontScaling={false}
+                numberOfLines={1}
+                style={[
+                  styles.connectingDots,
+                  {
+                    color: colors.accent,
+                    width: connectingDotsWidth,
+                    fontSize: connectingFontSize,
+                    lineHeight: connectingLineHeight,
+                    letterSpacing: connectingLetterSpacing,
+                  },
+                ]}
+              >
+                {'.'.repeat(connectingDotCount)}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View
@@ -912,6 +978,20 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
+  },
+  connectingStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
+  connectingText: {
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+  },
+  connectingDots: {
+    fontFamily: 'BankGothicBT-Medium',
   },
   creatorScriptPanel: {
     position: 'absolute',

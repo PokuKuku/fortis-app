@@ -6,7 +6,7 @@ const DEV_HOME_TEST_CONTROLS_VISIBILITY_EVENT = 'fortify-dev-home-test-controls-
 
 export async function loadDevHomeTestControlsVisible(): Promise<boolean> {
   if (!__DEV__) return false;
-  return (await getScopedItem(DEV_HOME_TEST_CONTROLS_VISIBLE_KEY)) !== 'false';
+  return (await getScopedItem(DEV_HOME_TEST_CONTROLS_VISIBLE_KEY)) === 'true';
 }
 
 export async function saveDevHomeTestControlsVisible(visible: boolean): Promise<void> {

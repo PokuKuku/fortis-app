@@ -6,7 +6,7 @@ import {
 } from '@/src/services/devPreferencesService';
 
 export function useDevHomeTestControlsVisibility() {
-  const [visible, setVisibleState] = useState(__DEV__);
+  const [visible, setVisibleState] = useState(false);
 
   useEffect(() => {
     if (!__DEV__) {

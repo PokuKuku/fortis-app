@@ -348,6 +348,28 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(StyleSheet.flatten(talkButton.props.style).opacity).toBeLessThan(1);
   });
 
+  it('shows a Bank Gothic connecting status while voice setup is in progress', () => {
+    const { getByTestId, getByText, queryByTestId, rerender } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        phase="connecting"
+        debugStatus={{
+          ...defaultProps.debugStatus,
+          setupComplete: false,
+        }}
+      />
+    );
+
+    expect(getByTestId('voice-connecting-status')).toBeTruthy();
+    expect(StyleSheet.flatten(getByText('Connecting').props.style).fontFamily).toBe(
+      'BankGothicBT-Medium'
+    );
+    expect(getByText('...')).toBeTruthy();
+
+    rerender(<RealtimeVoiceCoachScreen {...defaultProps} phase="idle" />);
+    expect(queryByTestId('voice-connecting-status')).toBeNull();
+  });
+
   it('renders workout cards in the voice screen content', () => {
     const { getByTestId, getByText } = render(
       <RealtimeVoiceCoachScreen
