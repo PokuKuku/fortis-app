@@ -33,6 +33,7 @@ type WeeklyRecapModalProps = {
   recap: WeeklyRecap | null;
   userName?: string | null;
   onClose: () => void;
+  onDismiss?: () => void;
 };
 
 const formatDuration = (seconds: number): string => {
@@ -54,7 +55,7 @@ const formatBestLift = (lift: WeeklyRecap['bestLifts'][number]): string => {
   return reps ? `${reps} x ${weight}` : weight;
 };
 
-export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRecapModalProps) {
+export function WeeklyRecapModal({ visible, recap, userName, onClose, onDismiss }: WeeklyRecapModalProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -121,7 +122,7 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
     }
   };
 
-  if (!visible || !recap) return null;
+  if (!recap) return null;
 
   const isCompactHeight = windowHeight < 760;
   const isNarrow = windowWidth < 390;
@@ -206,7 +207,13 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
   );
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="overFullScreen"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+    >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <StainlessSteelPattern />
         <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>

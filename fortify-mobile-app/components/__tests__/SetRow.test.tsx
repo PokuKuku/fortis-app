@@ -224,6 +224,86 @@ describe('SetRow', () => {
     expect(useWorkoutStore.getState().validationErrorsBySet).toEqual({});
   });
 
+  it('uses the progressed weight instead of a lower template baseline when history exists', () => {
+    const activeSession: WorkoutSession = {
+      localId: 'session-progression',
+      name: 'Lower 1',
+      notes: '',
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [
+        {
+          localId: 'exercise-progression',
+          exerciseId: 'leg-curl',
+          exerciseName: 'Lever Seated Leg Curl',
+          sets: [
+            {
+              localId: 'set-progression',
+              setNumber: 1,
+              setType: 'normal',
+              weight: null,
+              weightUnit: 'lbs',
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          targetReps: '4-6',
+          baselinePerformance: {
+            sets: [
+              {
+                weight: 80,
+                weightUnit: 'lbs',
+                reps: 4,
+                setType: 'normal',
+              },
+            ],
+          },
+          notes: '',
+          orderIndex: 0,
+        },
+      ],
+      isSynced: false,
+    };
+
+    useWorkoutStore.setState({
+      activeSession,
+      isWorkoutActive: true,
+      weightUnits: { 'leg-curl': 'lbs' },
+    });
+
+    const { getByLabelText, getByText } = renderWithTheme(
+      <SetRow
+        exerciseLocalId="exercise-progression"
+        setLocalId="set-progression"
+        setIndex={0}
+        baselinePerformance={activeSession.exercises[0].baselinePerformance}
+        lastPerformance={{
+          exerciseId: 'leg-curl',
+          setCount: 1,
+          weight: 105,
+          reps: 6,
+          weightUnit: 'lbs',
+          sets: [{ weight: 105, reps: 6, weightUnit: 'lbs', setType: 'normal' }],
+        }}
+        suggestedPerformance={{
+          sets: [{ weight: 110, reps: 4, weightUnit: 'lbs', setType: 'normal' }],
+        }}
+      />
+    );
+
+    expect(getByText('110')).toBeTruthy();
+    fireEvent.press(getByLabelText('Set 1 completed'));
+
+    const updatedSet = useWorkoutStore.getState().activeSession?.exercises[0].sets[0];
+    expect(updatedSet?.weight).toBe(110);
+    expect(updatedSet?.reps).toBe(4);
+    expect(updatedSet?.isCompleted).toBe(true);
+  });
+
   it('blocks every non-target control during the complete-remaining-sets tour step', () => {
     const activeSession: WorkoutSession = {
       localId: 'session-tour',

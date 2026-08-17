@@ -10,10 +10,12 @@ import {
   getFirstMissedScheduledWorkoutDateKey,
   getLatestScheduledCompletionDateKey,
   getScheduleDaysForDate,
+  getScheduledWorkoutCompletionCountAfterDateKey,
   getScheduledWorkoutDayStreak,
   getWorkoutDayStreak,
   normalizeWorkoutScheduleDays,
   resolveWorkoutScheduleDays,
+  shouldEarnStreakFreezePass,
 } from '@/src/utils/workoutSchedule';
 
 function session(localId: string, completedAt: string, name = 'Workout'): WorkoutSession {
@@ -60,6 +62,70 @@ function programSession(
 }
 
 describe('workoutSchedule', () => {
+  describe('streak freeze pass eligibility', () => {
+    const baseEligibility = {
+      latestScheduledCompletionDateKey: '2026-08-11',
+      scheduledCompletionsAfterMilestone: 0,
+      streakFreezePassAvailable: false,
+      streakFreezePassMilestoneDateKey: null,
+    };
+
+    it('grandfathers a user whose streak already exceeds five', () => {
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak: 24,
+      })).toBe(true);
+    });
+
+    it('does not award a pass before the five-workout milestone', () => {
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak: 4,
+      })).toBe(false);
+    });
+
+    it('does not immediately re-award a redeemed pass above five', () => {
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak: 30,
+        streakFreezePassMilestoneDateKey: '2026-08-05',
+      })).toBe(false);
+    });
+
+    it('awards a pass after five additional scheduled workouts', () => {
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak: 33,
+        scheduledCompletionsAfterMilestone: 5,
+        streakFreezePassMilestoneDateKey: '2026-07-15',
+      })).toBe(true);
+    });
+
+    it('does not award a second pass while one is available', () => {
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak: 10,
+        streakFreezePassAvailable: true,
+      })).toBe(false);
+    });
+
+    it('counts unique scheduled workout dates after the reset milestone', () => {
+      const sessions = [
+        session('before', '2026-08-10T12:00:00'),
+        session('first', '2026-08-12T12:00:00'),
+        session('duplicate', '2026-08-12T18:00:00'),
+        session('unscheduled', '2026-08-13T12:00:00'),
+        session('second', '2026-08-14T12:00:00'),
+      ];
+
+      expect(getScheduledWorkoutCompletionCountAfterDateKey({
+        afterDateKey: '2026-08-11',
+        scheduleDays: [1, 3, 5],
+        sessions,
+      })).toBe(2);
+    });
+  });
+
   it('normalizes weekdays by rejecting invalid values, deduping, and sorting', () => {
     expect(normalizeWorkoutScheduleDays([5, 1, 9, 1, -1, '3', 2.5, null])).toEqual([1, 3, 5]);
   });

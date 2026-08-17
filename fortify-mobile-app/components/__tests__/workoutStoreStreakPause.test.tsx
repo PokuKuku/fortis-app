@@ -169,7 +169,7 @@ describe('workout store streak pause', () => {
     expect(useWorkoutStore.getState().streakFreezePassMilestoneDateKey).toBe('2026-07-10');
   });
 
-  it('redeems the pass into one protected date without re-awarding the same milestone', async () => {
+  it('redeems the pass and resets freeze progress to the protected date', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-07-10T12:00:00'));
     await useWorkoutStore.getState().earnStreakFreezePass('2026-07-10');
@@ -183,8 +183,8 @@ describe('workout store streak pause', () => {
       startDateKey: '2026-07-13',
       endDateKey: '2026-07-13',
     });
-    await expect(useWorkoutStore.getState().earnStreakFreezePass('2026-07-10'))
-      .resolves.toBe(false);
+    expect(useWorkoutStore.getState().streakFreezePassMilestoneDateKey)
+      .toBe('2026-07-13');
   });
 
   it('preserves five real workouts after redemption and lets the next workout build to six', async () => {

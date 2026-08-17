@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, InteractionManager, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import type { Exercise } from '@/src/types/exercise';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutRetentionPreferences } from '@/src/hooks/useWorkoutRetentionPreferences';
@@ -33,10 +34,12 @@ import {
   getDateKey,
   getFirstMissedScheduledWorkoutDateKey,
   getLatestScheduledCompletionDateKey,
+  getScheduledWorkoutCompletionCountAfterDateKey,
   getScheduledWorkoutDayStreak,
+  shouldEarnStreakFreezePass,
 } from '@/src/utils/workoutSchedule';
 
-export function WorkoutRetentionCoordinator() {
+function WorkoutRetentionCoordinatorContent() {
   const { user, profile } = useAuth();
   const { scheduleDays, scheduleHistory, isLoaded: scheduleLoaded } = useWorkoutSchedule();
   const { sessions, isLoading: historyLoading } = useWorkoutHistorySource({ enabled: Boolean(user) });
@@ -54,6 +57,7 @@ export function WorkoutRetentionCoordinator() {
   const handledNotificationResponseIdsRef = useRef(new Set<string>());
   const [pendingWeeklyRecapWeekStart, setPendingWeeklyRecapWeekStart] = useState<Date | null>(null);
   const [weeklyRecap, setWeeklyRecap] = useState<WeeklyRecap | null>(null);
+  const [weeklyRecapVisible, setWeeklyRecapVisible] = useState(false);
   const [currentDateKey, setCurrentDateKey] = useState(() => getDateKey(new Date()));
   const retentionDataReady = Boolean(user) && scheduleLoaded && !historyLoading && !exercisesLoading;
 
@@ -75,15 +79,30 @@ export function WorkoutRetentionCoordinator() {
     () => getLatestScheduledCompletionDateKey({ scheduleDays, scheduleHistory, sessions }),
     [scheduleDays, scheduleHistory, sessions]
   );
+  const scheduledCompletionsAfterFreezePassMilestone = useMemo(
+    () => streakFreezePassMilestoneDateKey
+      ? getScheduledWorkoutCompletionCountAfterDateKey({
+        afterDateKey: streakFreezePassMilestoneDateKey,
+        scheduleDays,
+        scheduleHistory,
+        sessions,
+      })
+      : 0,
+    [scheduleDays, scheduleHistory, sessions, streakFreezePassMilestoneDateKey]
+  );
 
   const reconcileStreakFreezePass = useCallback(async () => {
     if (!retentionDataReady) return;
 
     if (
-      currentStreak === 5
-      && latestScheduledCompletionDateKey
-      && !streakFreezePassAvailable
-      && streakFreezePassMilestoneDateKey !== latestScheduledCompletionDateKey
+      latestScheduledCompletionDateKey
+      && shouldEarnStreakFreezePass({
+        currentStreak,
+        latestScheduledCompletionDateKey,
+        scheduledCompletionsAfterMilestone: scheduledCompletionsAfterFreezePassMilestone,
+        streakFreezePassAvailable,
+        streakFreezePassMilestoneDateKey,
+      })
     ) {
       const earned = await earnStreakFreezePass(latestScheduledCompletionDateKey);
       if (earned) {
@@ -114,6 +133,7 @@ export function WorkoutRetentionCoordinator() {
     retentionDataReady,
     scheduleDays,
     scheduleHistory,
+    scheduledCompletionsAfterFreezePassMilestone,
     sessions,
     streakFreezePassAvailable,
     streakFreezePassMilestoneDateKey,
@@ -158,6 +178,7 @@ export function WorkoutRetentionCoordinator() {
     if (!forceWeekStart && (lastShown === recap.weekKey || lastAcknowledged === recap.weekKey)) return;
     await setLastShownWeeklyRecapKey(recap.weekKey);
     setWeeklyRecap(recap);
+    setWeeklyRecapVisible(true);
   }, [buildRecapForWeek, profile?.created_at, retentionDataReady]);
 
   const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse | null | undefined) => {
@@ -258,21 +279,42 @@ export function WorkoutRetentionCoordinator() {
     void maybeShowWeeklyRecap(weekStart);
   }, [maybeShowWeeklyRecap, pendingWeeklyRecapWeekStart, retentionDataReady]);
 
-  const handleCloseWeeklyRecap = async () => {
-    if (weeklyRecap) {
-      await setLastAcknowledgedWeeklyRecapKey(weeklyRecap.weekKey);
+  const handleCloseWeeklyRecap = () => {
+    const recapKey = weeklyRecap?.weekKey;
+    setWeeklyRecapVisible(false);
+    if (recapKey) {
+      void setLastAcknowledgedWeeklyRecapKey(recapKey);
     }
-    setWeeklyRecap(null);
   };
 
   return (
     <>
       <WeeklyRecapModal
-        visible={Boolean(weeklyRecap)}
+        visible={weeklyRecapVisible}
         recap={weeklyRecap}
         userName={profile?.full_name}
-        onClose={() => void handleCloseWeeklyRecap()}
+        onClose={handleCloseWeeklyRecap}
+        onDismiss={() => setWeeklyRecap(null)}
       />
     </>
   );
+}
+
+export function WorkoutRetentionCoordinator() {
+  const { hasTourFinished } = useInAppTour();
+  const [shouldMountContent, setShouldMountContent] = useState(false);
+
+  useEffect(() => {
+    if (!hasTourFinished) {
+      setShouldMountContent(false);
+      return;
+    }
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      setShouldMountContent(true);
+    });
+    return () => task.cancel();
+  }, [hasTourFinished]);
+
+  return shouldMountContent ? <WorkoutRetentionCoordinatorContent /> : null;
 }

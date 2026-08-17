@@ -193,4 +193,38 @@ describe('TourOverlay', () => {
     expect(replay).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it('renders the secondary tour action and responds immediately', () => {
+    const skip = jest.fn();
+    const view = render(
+      <TourOverlay
+        visible
+        mode="blocking"
+        anchorRect={null}
+        body="Tour introduction"
+        secondaryAction={{ label: 'Skip tour', onPress: skip }}
+      />
+    );
+
+    fireEvent.press(view.getByLabelText('Skip tour'));
+
+    expect(skip).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fire a disabled secondary tour action', () => {
+    const skip = jest.fn();
+    const view = render(
+      <TourOverlay
+        visible
+        mode="blocking"
+        anchorRect={null}
+        body="Tour introduction"
+        secondaryAction={{ label: 'Skip tour', onPress: skip, disabled: true }}
+      />
+    );
+
+    fireEvent.press(view.getByLabelText('Skip tour'));
+
+    expect(skip).not.toHaveBeenCalled();
+  });
 });

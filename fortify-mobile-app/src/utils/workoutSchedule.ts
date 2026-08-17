@@ -29,6 +29,34 @@ export type WeekProgressDay = {
   completedSessions: WorkoutSession[];
 };
 
+export function shouldEarnStreakFreezePass({
+  currentStreak,
+  latestScheduledCompletionDateKey,
+  scheduledCompletionsAfterMilestone,
+  streakFreezePassAvailable,
+  streakFreezePassMilestoneDateKey,
+}: {
+  currentStreak: number;
+  latestScheduledCompletionDateKey: string | null;
+  scheduledCompletionsAfterMilestone: number;
+  streakFreezePassAvailable: boolean;
+  streakFreezePassMilestoneDateKey: string | null;
+}): boolean {
+  if (
+    currentStreak < 5
+    || !latestScheduledCompletionDateKey
+    || streakFreezePassAvailable
+  ) {
+    return false;
+  }
+
+  // Grandfather users whose streak was already past five when freeze passes launched.
+  if (!streakFreezePassMilestoneDateKey) return true;
+
+  // Redemption resets the milestone, so progress only includes later scheduled workouts.
+  return scheduledCompletionsAfterMilestone >= 5;
+}
+
 export function normalizeWorkoutScheduleDays(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
 
@@ -463,6 +491,37 @@ export function getLatestScheduledCompletionDateKey({
   });
 
   return latestDateKey;
+}
+
+export function getScheduledWorkoutCompletionCountAfterDateKey({
+  afterDateKey,
+  scheduleDays,
+  scheduleHistory = [],
+  sessions,
+}: {
+  afterDateKey: string;
+  scheduleDays: number[];
+  scheduleHistory?: WorkoutScheduleHistoryEntry[];
+  sessions: WorkoutSession[];
+}): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(afterDateKey)) return 0;
+
+  const completedScheduledDateKeys = new Set<string>();
+  sessions.forEach((session) => {
+    if (!session.completedAt) return;
+    const dateKey = getDateKey(session.completedAt);
+    if (dateKey <= afterDateKey) return;
+
+    const activeSchedule = new Set(getScheduleDaysForDate({
+      date: session.completedAt,
+      scheduleDays,
+      scheduleHistory,
+    }));
+    if (activeSchedule.size === 0 || !activeSchedule.has(session.completedAt.getDay())) return;
+    completedScheduledDateKeys.add(dateKey);
+  });
+
+  return completedScheduledDateKeys.size;
 }
 
 export function getFirstMissedScheduledWorkoutDateKey({

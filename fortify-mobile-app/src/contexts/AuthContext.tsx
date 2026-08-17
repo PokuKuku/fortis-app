@@ -116,7 +116,10 @@ export interface AuthContextValue {
   signOut: () => Promise<void>;
 
   // Profile methods
-  updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
+  updateProfile: (
+    updates: Partial<Profile>,
+    options?: { refresh?: boolean }
+  ) => Promise<{ error: Error | null }>;
   uploadAvatar: (
     uri: string,
     options?: { base64?: string | null; mimeType?: string | null }
@@ -808,7 +811,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user?.id]);
 
   // Update profile
-  const updateProfile = useCallback(async (updates: Partial<Profile>) => {
+  const updateProfile = useCallback(async (
+    updates: Partial<Profile>,
+    options?: { refresh?: boolean }
+  ) => {
     if (!user?.id) {
       return { error: new Error('Not authenticated') };
     }
@@ -871,8 +877,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
 
-      // Refresh profile after update
-      await refreshProfile();
+      if (options?.refresh === false) {
+        // Latency-sensitive background writes can update the local profile
+        // optimistically instead of paying for a second network round trip.
+        setProfile((current) => {
+          if (!current) return current;
+          const next = { ...current, ...updatesToSave };
+          void cacheProfile(next);
+          return next;
+        });
+      } else {
+        await refreshProfile();
+      }
       return { error: null };
     } catch (err) {
       return { error: err as Error };

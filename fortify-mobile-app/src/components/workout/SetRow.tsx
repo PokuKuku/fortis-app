@@ -345,13 +345,20 @@ export function SetRow({
       }
       const absoluteIndex = setIndex + offset;
       const previousSetForRow = absoluteIndex > 0 ? exercise.sets[absoluteIndex - 1] : undefined;
+      const historyTypeIndex = exercise.sets
+        .slice(0, absoluteIndex)
+        .filter((candidate) => candidate.setType === s.setType)
+        .length;
+      const hasLoggedWeightForRow = lastPerformance?.sets
+        .filter((historySet) => historySet.setType === s.setType)[historyTypeIndex]
+        ?.weight != null;
       const inputSuggestionForRow = allowAutoFill
         ? getWorkoutSetInputSuggestion({
             exercise,
             previousSet: previousSetForRow,
             setIndex: absoluteIndex,
             setType: s.setType,
-            preferredWeightPerformance: baselinePerformance,
+            preferredWeightPerformance: hasLoggedWeightForRow ? undefined : baselinePerformance,
             suggestedPerformance,
             fallbackPerformance: lastPerformance,
             secondaryFallbackPerformance: baselinePerformance,
@@ -582,7 +589,9 @@ export function SetRow({
     previousSet,
     setIndex,
     setType: set.setType,
-    preferredWeightPerformance: baselinePerformance,
+    preferredWeightPerformance: previousSetPerformance?.weight != null
+      ? undefined
+      : baselinePerformance,
     suggestedPerformance,
     fallbackPerformance: lastPerformance,
     secondaryFallbackPerformance: baselinePerformance,

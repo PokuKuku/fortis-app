@@ -9,6 +9,9 @@ type TourAnchorProps = PropsWithChildren<{
   onLayout?: (event: LayoutChangeEvent) => void;
 } & Omit<ViewProps, 'onLayout'>>;
 
+const ACTIVE_ANCHOR_SETTLE_MS = 120;
+const DEFERRED_ANCHOR_SETTLE_MS = 220;
+
 export function TourAnchor({
   id,
   disabled = false,
@@ -92,18 +95,19 @@ export function TourAnchor({
 
     interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
       if (deferMeasurementUntilInteractions) {
-        settleTimerRef.current = setTimeout(() => {
-          requestAnimationFrame(measure);
-        }, 280);
+        // InteractionManager already waits for the route/modal transition.
+        // Publish the first valid position immediately, then remeasure once
+        // after native layout has had time to settle.
+        requestAnimationFrame(measure);
         lateSettleTimerRef.current = setTimeout(() => {
           requestAnimationFrame(measure);
-        }, 520);
+        }, DEFERRED_ANCHOR_SETTLE_MS);
         return;
       }
 
       settleTimerRef.current = setTimeout(() => {
         requestAnimationFrame(measure);
-      }, 260);
+      }, ACTIVE_ANCHOR_SETTLE_MS);
     });
   }, [
     deferMeasurementUntilInteractions,
@@ -127,18 +131,16 @@ export function TourAnchor({
 
     interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
       if (deferMeasurementUntilInteractions) {
-        settleTimerRef.current = setTimeout(() => {
-          requestAnimationFrame(measure);
-        }, 280);
+        requestAnimationFrame(measure);
         lateSettleTimerRef.current = setTimeout(() => {
           requestAnimationFrame(measure);
-        }, 520);
+        }, DEFERRED_ANCHOR_SETTLE_MS);
         return;
       }
 
       settleTimerRef.current = setTimeout(() => {
         requestAnimationFrame(measure);
-      }, 260);
+      }, ACTIVE_ANCHOR_SETTLE_MS);
     });
   }, [deferMeasurementUntilInteractions, disabled, isActiveAnchor, measure, onLayout]);
 

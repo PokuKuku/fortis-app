@@ -1389,6 +1389,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({
         streakFreezePassAvailable: false,
         streakFreezePassEarnedAt: null,
+        streakFreezePassMilestoneDateKey: missedDateKey,
         streakPausePeriods,
         streakPauseUpdatedAt: redeemedAt,
       });
@@ -1403,7 +1404,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           streakPausesUsedThisMonth: current.streakPausesUsedThisMonth,
           streakFreezePassAvailable: false,
           streakFreezePassEarnedAt: null,
-          streakFreezePassMilestoneDateKey: current.streakFreezePassMilestoneDateKey,
+          streakFreezePassMilestoneDateKey: missedDateKey,
           updatedAt: redeemedAt,
         });
       } catch (error) {

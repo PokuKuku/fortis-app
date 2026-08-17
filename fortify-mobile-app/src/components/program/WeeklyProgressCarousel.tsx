@@ -138,6 +138,7 @@ export function WeeklyProgressCarousel({
   const completionPreviewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const homeCelebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handledCelebrationRef = useRef<string | null>(null);
+  const shouldAnimateStartupDaysRef = useRef(!startupRevealComplete);
   const [anchorDate, setAnchorDate] = useState(() => getSundayWeekStart(new Date()));
   const [selectedDay, setSelectedDay] = useState<WeekProgressDay | null>(null);
   const [isStreakModalVisible, setIsStreakModalVisible] = useState(false);
@@ -168,6 +169,15 @@ export function WeeklyProgressCarousel({
       clearTimeout(homeCelebrationTimeoutRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    if (startupRevealComplete && shouldAnimateStartupDaysRef.current) {
+      // The entering animation is only for the first render revealed by a cold
+      // start. Consume it after that commit so newly mounted swipe pages do not
+      // replay the same pop-in.
+      shouldAnimateStartupDaysRef.current = false;
+    }
+  }, [startupRevealComplete]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -481,7 +491,7 @@ export function WeeklyProgressCarousel({
             return (
               <Reanimated.View
                 key={day.dateKey}
-                entering={buildDayPopIn(index)}
+                entering={shouldAnimateStartupDaysRef.current ? buildDayPopIn(index) : undefined}
                 style={styles.dayAnimationSlot}
               >
                 <Pressable

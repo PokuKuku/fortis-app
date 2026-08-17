@@ -631,6 +631,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const [isExitingTooltip, setIsExitingTooltip] = useState(false);
   const [completedActionStepIds, setCompletedActionStepIds] = useState<Set<TourStepId>>(() => new Set());
   const [pendingPaywallStartRequestedAt, setPendingPaywallStartRequestedAt] = useState<number | null>(null);
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const serverSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const advancingStepIdRef = useRef<TourStepId | null>(null);
   const lastTrackedStepIdRef = useRef<TourStepId | null>(null);
   const completedSetsTourAdvanceRef = useRef(false);
   const profileTourVersionRef = useRef(profile?.in_app_tour_version);
@@ -810,16 +813,19 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     await saveInAppTourState(next);
   }, []);
 
-  const setTourStateAndPersist = useCallback(async (next: PersistedInAppTourState | null) => {
+  const setTourStateAndPersist = useCallback((next: PersistedInAppTourState | null): Promise<void> => {
+    // Tour interactions are local-first. Persistence is serialized in the
+    // background so rapid steps cannot be written out of order.
     setTourState(next);
-    try {
-      await persistTour(next);
-    } catch {
-      // Ignore storage failures; tour should still function.
-    }
+    const pendingWrite = persistenceQueueRef.current
+      .catch(() => undefined)
+      .then(() => persistTour(next))
+      .catch(() => undefined);
+    persistenceQueueRef.current = pendingWrite;
+    return pendingWrite;
   }, [persistTour]);
 
-  const markTourSeenOnServer = useCallback(async (params: {
+  const syncTourSeenOnServer = useCallback(async (params: {
     completedAt?: string | null;
     status: 'started' | 'completed' | 'skipped';
   }) => {
@@ -838,12 +844,26 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       payload.in_app_tour_completed_at = params.completedAt;
     }
 
-    const { error } = await updateProfile(payload);
+    const { error } = await updateProfile(payload, { refresh: false });
     if (error) {
       // Best-effort: local state prevents repeated tours even if this fails.
       console.warn('[InAppTour] Failed to persist tour state:', error.message);
     }
   }, [isAuthenticated, updateProfile]);
+
+  const markTourSeenOnServer = useCallback((params: {
+    completedAt?: string | null;
+    status: 'started' | 'completed' | 'skipped';
+  }): Promise<void> => {
+    // Preserve server update order without putting network latency on the
+    // interaction path.
+    const pendingSync = serverSyncQueueRef.current
+      .catch(() => undefined)
+      .then(() => syncTourSeenOnServer(params))
+      .catch(() => undefined);
+    serverSyncQueueRef.current = pendingSync;
+    return pendingSync;
+  }, [syncTourSeenOnServer]);
 
   const startTour = useCallback(async (): Promise<boolean> => {
     if (!tourLoaded) return false;
@@ -859,14 +879,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
 
     setCompletedActionStepIds(new Set());
-    await setTourStateAndPersist(next);
+    void setTourStateAndPersist(next);
     posthog.capture('tour_started');
-    await markTourSeenOnServer({ status: 'started' });
+    void markTourSeenOnServer({ status: 'started' });
     router.navigate(TOUR_STEPS[0].route);
     return true;
   }, [isAuthenticated, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
 
-  const finishTour = useCallback(async (status: 'completed' | 'skipped') => {
+  const finishTour = useCallback((status: 'completed' | 'skipped') => {
     if (!tourLoaded) return;
     const now = new Date().toISOString();
     const next: PersistedInAppTourState = {
@@ -875,7 +895,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       stepId: TOUR_STEPS[TOUR_STEPS.length - 1].id,
       updatedAt: now,
     };
-    await setTourStateAndPersist(next);
+    void setTourStateAndPersist(next);
     if (status === 'completed') {
       posthog.capture('tour_completed');
     } else if (logicalStep) {
@@ -902,13 +922,16 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isTourActive]);
 
-  const advanceStep = useCallback(async () => {
+  const advanceStep = useCallback(() => {
     if (!tourLoaded) return;
     if (!isTourActive || currentStepIndex < 0) return;
+    if (!logicalStep || advancingStepIdRef.current === logicalStep.id) return;
+
+    advancingStepIdRef.current = logicalStep.id;
 
     const isLast = currentStepIndex >= TOUR_STEPS.length - 1;
     if (isLast) {
-      await finishTour('completed');
+      finishTour('completed');
       return;
     }
 
@@ -922,7 +945,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
 
-    await setTourStateAndPersist(next);
+    void setTourStateAndPersist(next);
   }, [currentStepIndex, finishTour, isTourActive, logicalStep?.id, setTourStateAndPersist, tourLoaded]);
 
   // Long presses update workout state asynchronously. Advance only after the
@@ -1024,9 +1047,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
           loaded,
           COLD_START_TOUR_RESUME_STEP_ID,
         );
-        await setTourStateAndPersist(resumed);
-        await markTourSeenOnServer({ status: 'started' });
+        // Make the restored controls interactive in the same render that
+        // reveals them. Neither storage nor the network may gate the first tap.
+        void setTourStateAndPersist(resumed);
         setTourLoaded(true);
+        void markTourSeenOnServer({ status: 'started' });
         return;
       }
 
@@ -1090,6 +1115,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     setIsTooltipVisible(false);
     setIsExitingTooltip(false);
     setCompletedActionStepIds(new Set());
+    advancingStepIdRef.current = null;
     lastTrackedStepIdRef.current = null;
     await setTourStateAndPersist(null);
     setTourLoaded(true);
@@ -1261,6 +1287,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     const isActionRequired = Boolean(overlayStep.requiresActionBeforeNext);
     const hasCompletedRequiredAction = !isActionRequired || completedActionStepIds.has(overlayStep.id);
     const canAdvanceFromDisplayedStep =
+      tourLoaded &&
       !isExitingTooltip &&
       !pendingStepId &&
       logicalStep?.id === overlayStep.id &&
@@ -1273,23 +1300,24 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       },
       disabled: !canAdvanceFromDisplayedStep,
     };
-  }, [advanceStep, completedActionStepIds, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
+  }, [advanceStep, completedActionStepIds, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId, tourLoaded]);
 
   const skipAction = useMemo(() => {
     if (!isTourActive || !overlayStep) return null;
     const canSkip =
+      tourLoaded &&
       !isExitingTooltip &&
       !pendingStepId &&
       logicalStep?.id === overlayStep.id;
     return {
-      label: 'Skip',
+      label: 'Skip tour',
       onPress: () => {
         if (!canSkip) return;
         void finishTour('skipped');
       },
       disabled: !canSkip,
     };
-  }, [finishTour, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
+  }, [finishTour, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId, tourLoaded]);
 
   const stepLabel = useMemo(() => {
     if (!isTourActive || !overlayStep) return null;
@@ -1297,6 +1325,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   }, [isTourActive, overlayStep]);
 
   const showOverlay = Boolean(
+    tourLoaded &&
     isTourActive &&
     overlayStep &&
     overlayStep.renderOverlay !== false &&

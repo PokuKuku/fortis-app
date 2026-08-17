@@ -678,9 +678,9 @@ export default function TabLayout() {
           animation: 'shift',
           animationEnabled: true,
           sceneStyle: { backgroundColor: colors.background },
-          // Mount tab scenes up front so first-time navigation never exposes an empty scene.
-          // Screens with asynchronous data render their own themed skeleton state.
-          lazy: false,
+          // Keep inactive screens off the cold-start interaction path. Each tab
+          // already owns a themed loading state for its first focused render.
+          lazy: true,
           unmountOnBlur: false,
           freezeOnBlur: true,
           tabBarStyle: {

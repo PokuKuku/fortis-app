@@ -866,12 +866,12 @@ export function RealtimeVoiceCoachScreen({
           }}
           onPressIn={() => {
             if (!isTalkButtonReady) return;
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
             onTalkStart();
           }}
           onPressOut={() => {
             if (!isTalkButtonReady) return;
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Haptics.selectionAsync();
             onTalkEnd();
           }}
           activeOpacity={0.84}

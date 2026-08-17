@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { format } from 'date-fns';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { WeeklyProgressCarousel } from '@/src/components/program/WeeklyProgressCarousel';
 import { StreakPercentileCelebrationModal } from '@/src/components/retention/StreakPercentileCelebrationModal';
@@ -76,6 +77,33 @@ describe('WeeklyProgressCarousel streak paywall', () => {
       }),
       expect.any(Function),
     );
+  });
+
+  it('consumes the day pop-in after the cold-start reveal', () => {
+    const renderCarousel = (startupRevealComplete: boolean) => (
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[]}
+          sessions={[]}
+          startupRevealComplete={startupRevealComplete}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+    const todayLabel = format(new Date(), 'EEEE, MMM d');
+    const view = render(renderCarousel(false));
+
+    expect(view.queryByLabelText(todayLabel)).toBeNull();
+
+    view.rerender(renderCarousel(true));
+    expect(view.UNSAFE_root.findAll((node: { props: Record<string, unknown> }) => (
+      node.props.entering !== undefined
+    )).length).toBeGreaterThan(0);
+
+    view.rerender(renderCarousel(true));
+    expect(view.UNSAFE_root.findAll((node: { props: Record<string, unknown> }) => (
+      node.props.entering !== undefined
+    ))).toHaveLength(0);
   });
 
   it('opens streak options and pauses the streak for pro users', () => {

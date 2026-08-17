@@ -23,6 +23,12 @@ import {
   fetchRecentWorkoutContext,
   withContextCache,
 } from '../_shared/ai-context.ts';
+import {
+  extractRequestedExerciseCount,
+  getScopedWorkoutFollowUp,
+  WORKOUT_BUILD_OFFER_REGEX,
+  WORKOUT_FOLLOW_UP_CONFIRMATION_REGEX,
+} from './workout-follow-up.ts';
 
 // ============================================
 // Runtime Config
@@ -735,10 +741,6 @@ const WORKOUT_REQUEST_REGEXES = [
   new RegExp(`\\b${WORKOUT_NOUN_PATTERN}\\b[\\s\\S]{0,40}\\b${EXERCISE_COUNT_PATTERN}\\s+(?:exercise|movement|lift)s?\\b`, 'i'),
   new RegExp(`\\b${WORKOUT_NOUN_PATTERN}\\b\\s*(?:please|now)\\b`, 'i'),
 ];
-const WORKOUT_FOLLOW_UP_CONFIRMATION_REGEX =
-  /\b(?:yes|yeah|yep|sure|do it|build it|make it|create it|build me one|make me one|create one|put it together|that sounds good)\b/i;
-const WORKOUT_BUILD_OFFER_REGEX =
-  /\b(?:want|would you like|should i|can i|i can)[\s\S]{0,100}\b(?:workout|routine|session|plan|template)\b|\b(?:build|make|create|put together)[\s\S]{0,80}\b(?:workout|routine|session|plan|template)\b/i;
 const REFERENTIAL_WORKOUT_CREATION_REGEX =
   /\b(?:build|make|create|generate|put together)\b[\s\S]{0,30}\b(?:it|that|this|one)\b/i;
 const WORKOUT_CONVERSATION_CONTEXT_REGEX =
@@ -976,12 +978,14 @@ function getWorkoutTargetText(request: AIRequest, context?: Pick<AIContext, 'avo
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ');
 
+  const scopedFollowUp = getScopedWorkoutFollowUp(request.message, request.history);
   const recentConversationText = request.history
     ?.slice(-4)
     .map((entry) => entry.content)
     .filter(Boolean)
     .join(' ') ?? '';
-  const conversationalTargetText = [request.message, recentConversationText].filter(Boolean).join(' ');
+  const conversationalTargetText = scopedFollowUp?.targetText
+    ?? [request.message, recentConversationText].filter(Boolean).join(' ');
   if (ATHLETIC_PERFORMANCE_REGEX.test(conversationalTargetText)) {
     return `full body athletic performance ${conversationalTargetText}`;
   }
@@ -993,12 +997,23 @@ function getWorkoutTargetText(request: AIRequest, context?: Pick<AIContext, 'avo
     return `${conversationalTargetText} full body`;
   }
 
-  return inheritedTargetText
-    ? `${request.message} ${inheritedTargetText}`
-    : conversationalTargetText;
+  return scopedFollowUp
+    ? conversationalTargetText
+    : inheritedTargetText
+      ? `${request.message} ${inheritedTargetText}`
+      : conversationalTargetText;
 }
 
 function getUserWorkoutConstraintText(request: AIRequest): string {
+  if (isExplicitNewWorkoutRequestForRequest(request)) {
+    return request.message;
+  }
+
+  const scopedFollowUp = getScopedWorkoutFollowUp(request.message, request.history);
+  if (scopedFollowUp) {
+    return scopedFollowUp.constraintText;
+  }
+
   const recentUserMessages = request.history
     ?.slice(-6)
     .filter((entry) => entry.role === 'user')
@@ -2600,7 +2615,11 @@ async function assembleContext(
       }
     );
     if (!isTemplateEdit) {
-      context.workoutPlan = buildWorkoutGenerationPlan(workoutTargetText, context.user);
+      context.workoutPlan = buildWorkoutGenerationPlan(
+        workoutTargetText,
+        context.user,
+        getUserWorkoutConstraintText(request)
+      );
     }
   }
 
@@ -6565,42 +6584,6 @@ function buildBaseWorkoutGenerationPlan(
   };
 }
 
-const REQUESTED_EXERCISE_COUNT_WORDS: Record<string, number> = {
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-  eight: 8,
-  nine: 9,
-  ten: 10,
-};
-
-function extractRequestedExerciseCount(message: string): number | null {
-  const normalized = message
-    .toLowerCase()
-    .replace(/[-–—]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const digitMatch = normalized.match(
-    /\b(\d{1,2})\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/
-  );
-  if (digitMatch) {
-    return Math.max(3, Math.min(MAX_WORKOUT_TEMPLATE_EXERCISES, Number(digitMatch[1])));
-  }
-
-  const wordPattern = Object.keys(REQUESTED_EXERCISE_COUNT_WORDS).join('|');
-  const wordMatch = normalized.match(
-    new RegExp(`\\b(${wordPattern})\\s+(?:(?:\\w+)\\s+){0,3}(?:exercise|movement|lift)s?\\b`, 'i')
-  );
-  if (!wordMatch) {
-    return null;
-  }
-
-  return REQUESTED_EXERCISE_COUNT_WORDS[wordMatch[1].toLowerCase()] ?? null;
-}
-
 function cloneWorkoutSlotForExtra(slot: WorkoutGenerationSlot, index: number): WorkoutGenerationSlot {
   return {
     ...slot,
@@ -6617,7 +6600,7 @@ function applyRequestedExerciseCountToPlan(
   plan: WorkoutGenerationPlan,
   message: string
 ): WorkoutGenerationPlan {
-  const requestedCount = extractRequestedExerciseCount(message);
+  const requestedCount = extractRequestedExerciseCount(message, MAX_WORKOUT_TEMPLATE_EXERCISES);
   if (!requestedCount || requestedCount === plan.slots.length || plan.slots.length === 0) {
     return plan;
   }
@@ -6685,13 +6668,14 @@ function applyUserProgrammingPreferences(
 
 function buildWorkoutGenerationPlan(
   message: string,
-  user: AIBaseContext['user']
+  user: AIBaseContext['user'],
+  constraintText = message
 ): WorkoutGenerationPlan {
   const preferenceAwarePlan = applyUserProgrammingPreferences(
     buildBaseWorkoutGenerationPlan(message, user),
-    message
+    constraintText
   );
-  return applyRequestedExerciseCountToPlan(preferenceAwarePlan, message);
+  return applyRequestedExerciseCountToPlan(preferenceAwarePlan, constraintText);
 }
 
 function scoreCatalogExercise(

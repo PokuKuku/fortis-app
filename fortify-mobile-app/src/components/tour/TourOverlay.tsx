@@ -91,6 +91,7 @@ export const TourOverlay = memo(function TourOverlay({
   arrowTargetRect = null,
   body,
   primaryAction,
+  secondaryAction,
   auxiliaryAction,
   showArrow = false,
   arrowDirections,
@@ -256,6 +257,7 @@ export const TourOverlay = memo(function TourOverlay({
     },
     bodyText: { color: colors.textPrimary },
     auxiliaryText: { color: colors.textSecondary },
+    secondaryText: { color: colors.textSecondary },
     highlightBorder: { borderColor: colors.accent },
     primaryText: { color: colors.accentForegroundOnFill },
     arrow: { borderTopColor: arrowColor ?? '#FFFFFF' },
@@ -802,6 +804,23 @@ export const TourOverlay = memo(function TourOverlay({
                 <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
               </GlassButton>
             ) : null}
+
+            {secondaryAction ? (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={secondaryAction.label}
+                disabled={secondaryAction.disabled}
+                onPress={secondaryAction.onPress}
+                style={[
+                  styles.secondaryButton,
+                  secondaryAction.disabled && styles.secondaryButtonDisabled,
+                ]}
+              >
+                <Text style={[styles.secondaryText, themedStyles.secondaryText]}>
+                  {secondaryAction.label}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </Animated.View>
         </Animated.View>
       ) : null}
@@ -867,6 +886,21 @@ const styles = StyleSheet.create({
   primaryText: {
     fontSize: moderateScale(14),
     fontWeight: FontWeights.bold,
+  },
+  secondaryButton: {
+    alignSelf: 'center',
+    minHeight: scale(40),
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonDisabled: {
+    opacity: 0.5,
+  },
+  secondaryText: {
+    fontSize: moderateScale(13),
+    fontWeight: FontWeights.semibold,
   },
   arrow: {
     position: 'absolute',
