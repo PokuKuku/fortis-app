@@ -16,6 +16,8 @@ import {
   Platform,
   Text,
   Alert,
+  KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -24,10 +26,16 @@ import Animated, {
   withSpring,
   Easing,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import { MicrophoneIcon, PaperAirplaneIcon, PlusIcon } from 'react-native-heroicons/outline';
+import {
+  ArrowsPointingInIcon,
+  ArrowsPointingOutIcon,
+  MicrophoneIcon,
+  PaperAirplaneIcon,
+  PlusIcon,
+} from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -49,6 +57,7 @@ interface ChatInputProps {
 type VoicePhase = 'idle' | 'listening' | 'processing';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+const COMPACT_INPUT_EXPAND_THRESHOLD = 72;
 
 type SpeechRecognitionPermissionResponse = {
   granted: boolean;
@@ -96,9 +105,12 @@ export function ChatInput({
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [isFocused, setIsFocused] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [inputContentHeight, setInputContentHeight] = useState(0);
   const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
   const [liveTranscript, setLiveTranscript] = useState('');
   const inputRef = useRef<TextInput>(null);
+  const expandedInputRef = useRef<TextInput>(null);
   const transcriptRef = useRef('');
   const isTearingDownVoiceRef = useRef(false);
   const hasActiveDictationRequestRef = useRef(false);
@@ -137,6 +149,7 @@ export function ChatInput({
   const hasTypedValue = value.trim().length > 0;
   const canSend = (hasTypedValue || hasAttachments) && !disabled && !isVoiceBusy;
   const canUseVoice = !disabled;
+  const shouldShowExpand = hasTypedValue && inputContentHeight >= COMPACT_INPUT_EXPAND_THRESHOLD;
 
   const borderOpacity = useSharedValue(0);
   const actionScale = useSharedValue(1);
@@ -270,6 +283,12 @@ export function ChatInput({
     onSend();
   }, [canSend, onSend]);
 
+  const handleExpandedSendPress = useCallback(() => {
+    if (!canSend) return;
+    handleSendPress();
+    setIsExpanded(false);
+  }, [canSend, handleSendPress]);
+
   const handleMicPress = useCallback(async () => {
     if (!canUseVoice || suppressVoicePermissionPrompt) return;
 
@@ -331,73 +350,32 @@ export function ChatInput({
   }, [canUseVoice, onRequestAIConsent, resetVoiceState, showVoicePermissionAlert, suppressVoicePermissionPrompt, voicePhase]);
 
   return (
-    <View
-      style={[
-        styles.wrapper,
-        themedStyles.wrapper,
-        { paddingBottom: Math.max(Spacing['2xl'], insets.bottom + Spacing.sm) },
-      ]}
-    >
-      <Animated.View style={[styles.container, themedStyles.container, containerStyle]}>
-        {isVoiceBusy ? (
-          <View style={[styles.voiceTrack, themedStyles.voiceTrack]}>
-            <Text
-              style={[
-                styles.voiceTranscript,
-                liveTranscript.length > 0
-                  ? themedStyles.voiceTranscript
-                  : themedStyles.voicePlaceholder,
-              ]}
-              numberOfLines={3}
+    <>
+      <View
+        style={[
+          styles.wrapper,
+          themedStyles.wrapper,
+          { paddingBottom: Math.max(Spacing['2xl'], insets.bottom + Spacing.sm) },
+        ]}
+      >
+        <Animated.View style={[styles.container, themedStyles.container, containerStyle]}>
+          {shouldShowExpand && (
+            <TouchableOpacity
+              testID="chat-expand-editor"
+              style={[styles.expandButton, themedStyles.actionButton]}
+              onPress={() => setIsExpanded(true)}
+              activeOpacity={0.8}
+              accessibilityLabel="Expand message editor"
+              accessibilityRole="button"
             >
-              {liveTranscript || (voicePhase === 'processing' ? 'Finishing transcript...' : 'Start speaking...')}
-            </Text>
-          </View>
-        ) : (
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, themedStyles.input]}
-            placeholder={placeholder}
-            placeholderTextColor={colors.textTertiary}
-            value={value}
-            onChangeText={onChangeText}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            multiline
-            maxLength={2000}
-            editable={!disabled}
-            returnKeyType="default"
-            blurOnSubmit={false}
-          />
-        )}
-
-        <View style={styles.actions}>
-          <AnimatedTouchableOpacity
-            style={[
-              styles.actionButton,
-              themedStyles.actionButton,
-              voicePhase === 'listening' && themedStyles.voiceButtonActive,
-              voicePhase === 'processing' && themedStyles.voiceButtonProcessing,
-              actionButtonStyle,
-            ]}
-            onPress={() => {
-              void handleMicPress();
-            }}
-            disabled={!canUseVoice || disabled}
-            activeOpacity={0.8}
-            accessibilityLabel={voicePhase === 'listening' ? 'Stop voice dictation' : 'Start voice dictation'}
-            accessibilityRole="button"
-          >
-            <MicrophoneIcon
-              color={voicePhase === 'listening' ? Colors.white : colors.textSecondary}
-              size={IconSizes.md}
-            />
-          </AnimatedTouchableOpacity>
+              <ArrowsPointingOutIcon color={colors.textSecondary} size={IconSizes.sm} />
+            </TouchableOpacity>
+          )}
 
           {onAddMedia && (
             <AnimatedTouchableOpacity
               testID="chat-add-media"
-              style={[styles.actionButton, themedStyles.actionButton, actionButtonStyle]}
+              style={[styles.actionButton, styles.leadingAction, themedStyles.actionButton, actionButtonStyle]}
               onPress={onAddMedia}
               disabled={disabled}
               activeOpacity={0.8}
@@ -408,27 +386,192 @@ export function ChatInput({
             </AnimatedTouchableOpacity>
           )}
 
-          <AnimatedTouchableOpacity
-            style={[
-              styles.actionButton,
-              themedStyles.actionButton,
-              canSend && themedStyles.sendButtonActive,
-              actionButtonStyle,
-            ]}
-            onPress={handleSendPress}
-            disabled={!canSend}
-            activeOpacity={0.8}
-            accessibilityLabel="Send message"
-            accessibilityRole="button"
-          >
-            <PaperAirplaneIcon
-              color={canSend ? colors.accentForegroundOnFill : colors.textTertiary}
-              size={IconSizes.md}
+          {isVoiceBusy ? (
+            <View style={[styles.voiceTrack, themedStyles.voiceTrack]}>
+              <Text
+                style={[
+                  styles.voiceTranscript,
+                  liveTranscript.length > 0
+                    ? themedStyles.voiceTranscript
+                    : themedStyles.voicePlaceholder,
+                ]}
+                numberOfLines={3}
+              >
+                {liveTranscript || (voicePhase === 'processing' ? 'Finishing transcript...' : 'Start speaking...')}
+              </Text>
+            </View>
+          ) : (
+            <TextInput
+              ref={inputRef}
+              style={[styles.input, themedStyles.input]}
+              placeholder={placeholder}
+              placeholderTextColor={colors.textTertiary}
+              value={value}
+              onChangeText={onChangeText}
+              onContentSizeChange={({ nativeEvent }) => {
+                setInputContentHeight(nativeEvent.contentSize.height);
+              }}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              multiline
+              maxLength={2000}
+              editable={!disabled}
+              returnKeyType="default"
+              blurOnSubmit={false}
             />
-          </AnimatedTouchableOpacity>
-        </View>
-      </Animated.View>
-    </View>
+          )}
+
+          <View style={styles.actions}>
+            <AnimatedTouchableOpacity
+              style={[
+                styles.actionButton,
+                themedStyles.actionButton,
+                voicePhase === 'listening' && themedStyles.voiceButtonActive,
+                voicePhase === 'processing' && themedStyles.voiceButtonProcessing,
+                actionButtonStyle,
+              ]}
+              onPress={() => {
+                void handleMicPress();
+              }}
+              disabled={!canUseVoice || disabled}
+              activeOpacity={0.8}
+              accessibilityLabel={voicePhase === 'listening' ? 'Stop voice dictation' : 'Start voice dictation'}
+              accessibilityRole="button"
+            >
+              <MicrophoneIcon
+                color={voicePhase === 'listening' ? Colors.white : colors.textSecondary}
+                size={IconSizes.md}
+              />
+            </AnimatedTouchableOpacity>
+
+            <AnimatedTouchableOpacity
+              style={[
+                styles.actionButton,
+                themedStyles.actionButton,
+                canSend && themedStyles.sendButtonActive,
+                actionButtonStyle,
+              ]}
+              onPress={handleSendPress}
+              disabled={!canSend}
+              activeOpacity={0.8}
+              accessibilityLabel="Send message"
+              accessibilityRole="button"
+            >
+              <PaperAirplaneIcon
+                color={canSend ? colors.accentForegroundOnFill : colors.textTertiary}
+                size={IconSizes.md}
+              />
+            </AnimatedTouchableOpacity>
+          </View>
+        </Animated.View>
+      </View>
+
+      <Modal
+        visible={isExpanded}
+        animationType="slide"
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        onRequestClose={() => setIsExpanded(false)}
+      >
+        <KeyboardAvoidingView
+          style={[styles.expandedScreen, { backgroundColor: colors.background }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <SafeAreaView style={styles.expandedSafeArea} edges={['top', 'bottom']}>
+            <View style={[styles.expandedEditor, themedStyles.container]}>
+              <TouchableOpacity
+                testID="chat-collapse-editor"
+                style={[styles.collapseButton, themedStyles.actionButton]}
+                onPress={() => setIsExpanded(false)}
+                activeOpacity={0.8}
+                accessibilityLabel="Collapse message editor"
+                accessibilityRole="button"
+              >
+                <ArrowsPointingInIcon color={colors.textSecondary} size={IconSizes.md} />
+              </TouchableOpacity>
+
+              <TextInput
+                ref={expandedInputRef}
+                testID="chat-expanded-input"
+                style={[styles.expandedInput, themedStyles.input]}
+                placeholder={placeholder}
+                placeholderTextColor={colors.textTertiary}
+                value={value}
+                onChangeText={onChangeText}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                multiline
+                maxLength={2000}
+                editable={!disabled}
+                returnKeyType="default"
+                blurOnSubmit={false}
+                textAlignVertical="top"
+                autoFocus
+              />
+
+              <View style={styles.expandedFooter}>
+                {onAddMedia ? (
+                  <AnimatedTouchableOpacity
+                    testID="chat-expanded-add-media"
+                    style={[styles.actionButton, themedStyles.actionButton, actionButtonStyle]}
+                    onPress={onAddMedia}
+                    disabled={disabled}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Add photos or video"
+                    accessibilityRole="button"
+                  >
+                    <PlusIcon color={colors.textSecondary} size={IconSizes.md} />
+                  </AnimatedTouchableOpacity>
+                ) : <View />}
+
+                <View style={styles.actions}>
+                  <AnimatedTouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      themedStyles.actionButton,
+                      voicePhase === 'listening' && themedStyles.voiceButtonActive,
+                      voicePhase === 'processing' && themedStyles.voiceButtonProcessing,
+                      actionButtonStyle,
+                    ]}
+                    onPress={() => {
+                      void handleMicPress();
+                    }}
+                    disabled={!canUseVoice || disabled}
+                    activeOpacity={0.8}
+                    accessibilityLabel={voicePhase === 'listening' ? 'Stop voice dictation' : 'Start voice dictation'}
+                    accessibilityRole="button"
+                  >
+                    <MicrophoneIcon
+                      color={voicePhase === 'listening' ? Colors.white : colors.textSecondary}
+                      size={IconSizes.md}
+                    />
+                  </AnimatedTouchableOpacity>
+
+                  <AnimatedTouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      themedStyles.actionButton,
+                      canSend && themedStyles.sendButtonActive,
+                      actionButtonStyle,
+                    ]}
+                    onPress={handleExpandedSendPress}
+                    disabled={!canSend}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Send message"
+                    accessibilityRole="button"
+                  >
+                    <PaperAirplaneIcon
+                      color={canSend ? colors.accentForegroundOnFill : colors.textTertiary}
+                      size={IconSizes.md}
+                    />
+                  </AnimatedTouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -460,6 +603,17 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? Spacing.sm : Spacing.xs,
     paddingHorizontal: Spacing.xs,
   },
+  expandButton: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    zIndex: 2,
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   voiceTrack: {
     flex: 1,
     minHeight: 36,
@@ -481,11 +635,53 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
+  leadingAction: {
+    marginRight: Spacing.xs,
+  },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
     marginLeft: Spacing.xs,
+  },
+  expandedScreen: {
+    flex: 1,
+  },
+  expandedSafeArea: {
+    flex: 1,
+    padding: Spacing.lg,
+  },
+  expandedEditor: {
+    flex: 1,
+    position: 'relative',
+    borderRadius: BorderRadius['3xl'],
+    borderWidth: 1,
+    padding: Spacing.sm,
+  },
+  collapseButton: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.md,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandedInput: {
+    flex: 1,
+    ...Typography.body,
+    color: Colors.textPrimary,
+    paddingTop: Spacing['3xl'],
+    paddingHorizontal: Spacing.md,
+    paddingRight: Spacing['6xl'],
+  },
+  expandedFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.xs,
   },
 });
 

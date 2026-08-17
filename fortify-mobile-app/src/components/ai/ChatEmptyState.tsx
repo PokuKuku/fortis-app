@@ -15,7 +15,6 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import {
-  ChevronRightIcon,
   CalendarDaysIcon,
   ChartBarIcon,
   FireIcon,
@@ -41,7 +40,6 @@ const CARD_HEIGHT = GRID_COLUMNS === 1 ? scale(120) : scale(140);
 const CARD_ICON_SIZE = scale(36);
 const CARD_ICON_RADIUS = scale(10);
 const CARD_ICON_GLYPH_SIZE = scale(IconSizes.md);
-const CARD_CHEVRON_SIZE = scale(IconSizes.sm);
 const TITLE_FONT_SIZE = moderateScale(Typography.h2.fontSize as number);
 const TITLE_LINE_HEIGHT = moderateScale(Typography.h2.lineHeight as number);
 const LABEL_FONT_SIZE = moderateScale(Typography.label.fontSize as number);
@@ -163,11 +161,17 @@ export function ChatEmptyState({
                     accessibilityHint={`Sends: ${action.prompt}`}
                     accessibilityRole="button"
                   >
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.cardCornerAccent,
+                        { borderTopColor: colors.accent, borderLeftColor: colors.accent },
+                      ]}
+                    />
                     <View style={styles.cardHeader}>
                       <View style={[styles.cardIcon, themedStyles.cardIcon]}>
                         <action.icon color={colors.textSecondary} size={CARD_ICON_GLYPH_SIZE} />
                       </View>
-                      <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
                     </View>
                     <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
                       {action.label}
@@ -186,11 +190,17 @@ export function ChatEmptyState({
                   accessibilityHint={`Sends: ${action.prompt}`}
                   accessibilityRole="button"
                 >
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.cardCornerAccent,
+                      { borderTopColor: colors.accent, borderLeftColor: colors.accent },
+                    ]}
+                  />
                   <View style={styles.cardHeader}>
                     <View style={[styles.cardIcon, themedStyles.cardIcon]}>
                       <action.icon color={colors.textSecondary} size={CARD_ICON_GLYPH_SIZE} />
                     </View>
-                    <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
                   </View>
                   <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
                     {action.label}
@@ -256,9 +266,19 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'flex-start',
     marginBottom: scale(Spacing.md),
+  },
+  cardCornerAccent: {
+    position: 'absolute',
+    top: -1,
+    left: -1,
+    width: scale(24),
+    height: scale(24),
+    borderTopWidth: scale(2),
+    borderLeftWidth: scale(2),
+    borderTopLeftRadius: scale(BorderRadius.xl),
   },
   cardIcon: {
     width: CARD_ICON_SIZE,

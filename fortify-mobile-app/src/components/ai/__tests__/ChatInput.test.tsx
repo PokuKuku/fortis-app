@@ -31,6 +31,18 @@ jest.mock('@/src/contexts/ThemeContext', () => ({
   }),
 }));
 
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+
+  return {
+    SafeAreaView: ({ children, ...props }: { children: React.ReactNode }) => (
+      React.createElement(View, props, children)
+    ),
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
+
 jest.mock('@/constants/Colors', () => ({
   Colors: { error: '#ff0000' },
 }));
@@ -87,5 +99,32 @@ describe('ChatInput', () => {
     expect(onRequestAIConsent).toHaveBeenCalledTimes(1);
     expect(mockSpeechModule.requestPermissionsAsync).not.toHaveBeenCalled();
     expect(mockSpeechModule.start).not.toHaveBeenCalled();
+  });
+
+  it('offers a large editor when the compact input grows beyond the threshold', () => {
+    const view = render(
+      <ChatInput
+        value="A long training question"
+        onChangeText={jest.fn()}
+        onSend={jest.fn()}
+        onAddMedia={jest.fn()}
+      />
+    );
+
+    expect(view.queryByLabelText('Expand message editor')).toBeNull();
+
+    fireEvent(
+      view.getByPlaceholderText('Ask about your training...'),
+      'contentSizeChange',
+      { nativeEvent: { contentSize: { width: 240, height: 80 } } }
+    );
+
+    fireEvent.press(view.getByLabelText('Expand message editor'));
+
+    expect(view.getByTestId('chat-expanded-input').props.value).toBe('A long training question');
+    expect(view.getByLabelText('Collapse message editor')).toBeTruthy();
+
+    fireEvent.press(view.getByLabelText('Collapse message editor'));
+    expect(view.queryByTestId('chat-expanded-input')).toBeNull();
   });
 });

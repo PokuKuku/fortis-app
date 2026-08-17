@@ -1274,6 +1274,7 @@ const styles = StyleSheet.create({
   },
   modeOptionText: {
     ...Typography.bodySmall,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '800',
   },
   headerRight: {
