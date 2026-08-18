@@ -63,6 +63,7 @@ type WeeklyProgressCarouselProps = {
   scheduleHistory?: WorkoutScheduleHistoryEntry[];
   sessions: WorkoutSession[];
   isFocused?: boolean;
+  enablePersistence?: boolean;
   startupRevealComplete?: boolean;
   isDataReady?: boolean;
   animateStreakFromZero?: boolean;
@@ -120,6 +121,7 @@ export function WeeklyProgressCarousel({
   scheduleHistory = [],
   sessions,
   isFocused = true,
+  enablePersistence = true,
   startupRevealComplete = true,
   isDataReady = true,
   animateStreakFromZero = false,
@@ -188,7 +190,7 @@ export function WeeklyProgressCarousel({
   }, [startupRevealComplete]);
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!enablePersistence || !isFocused) return;
     let isMounted = true;
 
     const loadPendingCelebration = async () => {
@@ -217,7 +219,7 @@ export function WeeklyProgressCarousel({
     return () => {
       isMounted = false;
     };
-  }, [isFocused]);
+  }, [enablePersistence, isFocused]);
 
   const pages = useMemo<WeekPage[]>(() => (
     Array.from({ length: WEEK_PAGE_RADIUS * 2 + 1 }, (_, index) => {

@@ -48,7 +48,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useExercises } from '@/src/hooks/useExercises';
 import { createExerciseVoiceFileName, interpretExerciseVoiceAdd } from '@/src/services/exerciseVoiceService';
 import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
-import type { Exercise } from '@/src/types/exercise';
+import type { Exercise, ExerciseWithSource } from '@/src/types/exercise';
 import type { ExerciseVoiceEntry } from '@/src/types/exerciseVoice';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
@@ -87,6 +87,18 @@ const HEADER_ICON_SIZE = scale(18);
 const PILL_RADIUS = scale(999);
 const TOUR_DIM_BACKGROUND = 'rgba(15, 23, 42, 0.55)';
 const TOUR_DIM_BACKGROUND_SUBTLE = 'rgba(15, 23, 42, 0.42)';
+const TOUR_VOICE_EXERCISE: ExerciseWithSource = {
+  id: '10a23ae7-3c11-4f71-b2ef-fb8d1d06fabc',
+  name: 'Barbell Bench Press',
+  primaryMuscles: ['pectorals'],
+  secondaryMuscles: ['triceps', 'shoulders'],
+  equipment: 'barbell',
+  category: 'strength',
+  instructions: [],
+  images: [],
+  aliases: ['barbell bench press'],
+  source: 'local',
+};
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   m4a: 'audio/m4a',
@@ -214,7 +226,7 @@ export function ExerciseVoiceAddSheet({
   const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const { exercises } = useExercises();
+  const { exercises } = useExercises({ enabled: !isTourActive });
   const shouldAnchorListenButton = isTourActive && activeStepId === 'add_with_voice';
   const shouldShowVoiceTourTooltip = visible && isTourActive && (
     activeStepId === 'add_with_voice' || activeStepId === 'confirm_add_with_voice'
@@ -245,8 +257,12 @@ export function ExerciseVoiceAddSheet({
   const arrowNudge = useSharedValue(0);
 
   const searchIndex = useMemo(
-    () => buildExerciseSearchIndex([...exercises].sort((a, b) => a.name.localeCompare(b.name))),
-    [exercises]
+    () => buildExerciseSearchIndex(
+      isTourActive
+        ? [TOUR_VOICE_EXERCISE]
+        : [...exercises].sort((a, b) => a.name.localeCompare(b.name))
+    ),
+    [exercises, isTourActive]
   );
 
   const accentGradient = colors.accentGradient as unknown as [string, string, ...string[]];
@@ -594,6 +610,12 @@ export function ExerciseVoiceAddSheet({
     isStartingRef.current = true;
 
     try {
+      if (isTourActive) {
+        setPhase('listening');
+        setMeterLevel(0.46);
+        return;
+      }
+
       await discardRecording();
       const permission = await ensureMicrophonePermission();
       if (!permission.granted) {
@@ -634,9 +656,40 @@ export function ExerciseVoiceAddSheet({
     } finally {
       isStartingRef.current = false;
     }
-  }, [discardRecording, phase, visible]);
+  }, [discardRecording, isTourActive, phase, visible]);
 
   const stopListening = useCallback(async () => {
+    if (isTourActive) {
+      if (phase !== 'listening' || isStoppingRef.current) return;
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setPhase('processing');
+      setErrorMessage(null);
+      setMeterLevel(0.12);
+      const requestVersion = requestVersionRef.current + 1;
+      requestVersionRef.current = requestVersion;
+      isStoppingRef.current = true;
+
+      setTimeout(() => {
+        if (requestVersion !== requestVersionRef.current) {
+          isStoppingRef.current = false;
+          return;
+        }
+        const entries: ExerciseVoiceEntry[] = [{
+          exerciseQuery: 'barbell bench press',
+          setCount: 3,
+          confidence: 'high',
+        }];
+        const nextCandidates = buildCandidates(entries);
+        setTranscript('3 sets of barbell bench press');
+        setCandidates(nextCandidates);
+        setErrorMessage(null);
+        setPhase('review');
+        isStoppingRef.current = false;
+      }, 420);
+      return;
+    }
+
     const recording = recordingRef.current;
     if (!recording || isStoppingRef.current || isStartingRef.current) return;
 
@@ -687,7 +740,7 @@ export function ExerciseVoiceAddSheet({
     } finally {
       isStoppingRef.current = false;
     }
-  }, [buildCandidates, discardRecording, restoreAudioMode]);
+  }, [buildCandidates, discardRecording, isTourActive, phase, restoreAudioMode]);
 
   const updateCandidate = useCallback((
     candidateKey: string,

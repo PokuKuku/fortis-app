@@ -41,6 +41,7 @@ import { posthog } from '@/src/config/posthog';
 
 interface UseRealtimeCoachOptions {
   preferences: RealtimeCoachPreferences;
+  enabled?: boolean;
   currentWorkoutTemplateDraft?: AIRequestContext['currentWorkoutTemplateDraft'];
   interactionMode?: 'push_to_talk' | 'realtime';
   onVisualContextConsumed?: () => void;
@@ -451,6 +452,7 @@ const setVoiceCoachAudioMode = async (isActive: boolean) => {
 
 export function useRealtimeCoach({
   preferences,
+  enabled = true,
   currentWorkoutTemplateDraft,
   interactionMode = 'push_to_talk',
   onVisualContextConsumed,
@@ -856,6 +858,13 @@ export function useRealtimeCoach({
 
   const stop = useCallback(() => {
     pendingTextPromptRef.current = null;
+    if (!enabled) {
+      if (isMountedRef.current) {
+        setTranscriptOverlay(null);
+        setPhase('stopped');
+      }
+      return;
+    }
     cleanup();
     void setVoiceCoachAudioMode(false).catch(() => {
       // Audio mode reset is best-effort when stopping.
@@ -864,9 +873,10 @@ export function useRealtimeCoach({
       setTranscriptOverlay(null);
       setPhase('stopped');
     }
-  }, [cleanup]);
+  }, [cleanup, enabled]);
 
   const speakCreatorScript = useCallback(async (script: string): Promise<boolean> => {
+    if (!enabled) return false;
     const trimmed = script.trim();
     if (!trimmed) {
       setCreatorScriptError(EMPTY_CREATOR_SCRIPT_ERROR);
@@ -936,7 +946,7 @@ export function useRealtimeCoach({
         setIsSpeakingCreatorScript(false);
       }
     }
-  }, [preferences, unloadCreatorScriptSound]);
+  }, [enabled, preferences, unloadCreatorScriptSound]);
 
   const sendGeminiToolResponse = useCallback((
     id: string,
@@ -1842,6 +1852,7 @@ export function useRealtimeCoach({
   ]);
 
   const start = useCallback(async () => {
+    if (!enabled) return;
     if (phase === 'connecting' || phase === 'listening' || phase === 'user_speaking' || phase === 'coach_speaking') {
       return;
     }
@@ -2020,6 +2031,7 @@ export function useRealtimeCoach({
     clearMicWatchdog,
     clearRealtimeSpeechEndTimeout,
     clearUsageReportInterval,
+    enabled,
     handleGeminiMessage,
     finalizeUsageReporting,
     interactionMode,
@@ -2033,6 +2045,7 @@ export function useRealtimeCoach({
   ]);
 
   const beginUserTurn = useCallback(async () => {
+    if (!enabled) return;
     if (interactionMode === 'realtime') {
       if (phase === 'idle' || phase === 'stopped' || phase === 'error') await start();
       return;
@@ -2052,14 +2065,16 @@ export function useRealtimeCoach({
     if (phase === 'idle' || phase === 'stopped' || phase === 'error') {
       await start();
     }
-  }, [interactionMode, phase, start, startUserTurn]);
+  }, [enabled, interactionMode, phase, start, startUserTurn]);
 
   const endUserTurn = useCallback(() => {
+    if (!enabled) return;
     if (interactionMode === 'realtime') return;
     finishUserTurn();
-  }, [finishUserTurn, interactionMode]);
+  }, [enabled, finishUserTurn, interactionMode]);
 
   const sendVisualContext = useCallback((images: AIImage[]): boolean => {
+    if (!enabled) return false;
     const socket = socketRef.current;
     if (!isSocketOpen(socket) || !setupCompleteRef.current || images.length === 0) return false;
     socket.send(JSON.stringify({
@@ -2075,9 +2090,10 @@ export function useRealtimeCoach({
     }));
     visualContextPendingRef.current = true;
     return true;
-  }, []);
+  }, [enabled]);
 
   const sendTextPrompt = useCallback((text: string): boolean => {
+    if (!enabled) return false;
     const trimmed = text.trim();
     if (!trimmed) return false;
     if (sendTextPromptOverSocket(trimmed)) return true;
@@ -2087,7 +2103,7 @@ export function useRealtimeCoach({
       void start();
     }
     return true;
-  }, [phase, sendTextPromptOverSocket, start]);
+  }, [enabled, phase, sendTextPromptOverSocket, start]);
 
   const markVoiceWorkoutSaved = useCallback((messageId: string, templateId: string) => {
     setVoiceWorkoutMessages((current) => current.map((message) => (
@@ -2126,6 +2142,7 @@ export function useRealtimeCoach({
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     const subscription = AppState.addEventListener('change', (state) => {
       if (state !== 'active') {
         stop();
@@ -2135,18 +2152,20 @@ export function useRealtimeCoach({
     return () => {
       subscription.remove();
     };
-  }, [stop]);
+  }, [enabled, stop]);
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       cleanup();
-      void setVoiceCoachAudioMode(false).catch(() => {
-        // Audio mode reset is best-effort during unmount.
-      });
+      if (enabled) {
+        void setVoiceCoachAudioMode(false).catch(() => {
+          // Audio mode reset is best-effort during unmount.
+        });
+      }
     };
-  }, [cleanup]);
+  }, [cleanup, enabled]);
 
   const isActive = phase === 'connecting'
     || phase === 'listening'

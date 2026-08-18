@@ -732,6 +732,8 @@ export function SetRow({
           <TourAnchor
             id={shouldAnchorWeight ? TOUR_ANCHOR_IDS.activeSetWeight : `${TOUR_ANCHOR_IDS.activeSetWeight}.${setLocalId}`}
             disabled={!shouldAnchorWeight}
+            onTourLongPress={() => handleApplyToRemaining('weight')}
+            tourDelayLongPress={350}
           >
             <Pressable
               accessibilityRole="button"
@@ -827,7 +829,12 @@ export function SetRow({
 
         {/* Completion checkbox */}
         {shouldShowCheckboxes && (
-          <TourAnchor id={TOUR_ANCHOR_IDS.activeSetComplete} disabled={!shouldAnchorComplete}>
+          <TourAnchor
+            id={TOUR_ANCHOR_IDS.activeSetComplete}
+            disabled={!shouldAnchorComplete}
+            onTourLongPress={handleCheckboxLongPress}
+            tourDelayLongPress={350}
+          >
             <Pressable
             accessibilityRole="checkbox"
             accessibilityLabel={`${setNumberLabel} completed`}

@@ -26,6 +26,7 @@ jest.mock('@/src/services/realtimeCoachPreferencesService', () => ({
 
 describe('useRealtimeCoachPreferences', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     mockStoredPreferences = {
       personality: 'direct',
       intensity: 0.55,
@@ -34,6 +35,20 @@ describe('useRealtimeCoachPreferences', () => {
       interactionMode: 'push_to_talk',
     };
     mockListeners.clear();
+  });
+
+  it('does not read or subscribe to preferences when disabled for a tour simulation', () => {
+    const service = jest.requireMock('@/src/services/realtimeCoachPreferencesService') as {
+      getRealtimeCoachPreferences: jest.Mock;
+      subscribeToRealtimeCoachPreferences: jest.Mock;
+    };
+
+    const hook = renderHook(() => useRealtimeCoachPreferences({ enabled: false }));
+
+    expect(hook.result.current.isLoaded).toBe(true);
+    expect(service.getRealtimeCoachPreferences).not.toHaveBeenCalled();
+    expect(service.subscribeToRealtimeCoachPreferences).not.toHaveBeenCalled();
+    hook.unmount();
   });
 
   it('synchronizes voice changes across mounted consumers', async () => {

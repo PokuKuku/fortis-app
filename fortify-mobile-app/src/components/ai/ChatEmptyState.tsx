@@ -152,6 +152,7 @@ export function ChatEmptyState({
                   id={TOUR_ANCHOR_IDS.aiChatBackWorkout}
                   disabled={!isTourBackWorkoutStep}
                   deferMeasurementUntilInteractions
+                  onTourPress={onTourBackWorkoutPress}
                 >
                   <TouchableOpacity
                     style={[styles.card, themedStyles.card]}

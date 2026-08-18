@@ -50,6 +50,35 @@ Barbell Bench Press: 3 sets x 8-12 reps
 Cable Pulldown: 3 sets x 10-12 reps
 Dumbbell Seated Shoulder Press: 3 sets x 10-12 reps`;
 
+// The tour is a deterministic simulation. Keep its known exercises local so
+// opening the demonstration never hydrates or searches the exercise library.
+export const TOUR_PASTE_WORKOUT_SIMULATION: readonly ImportedExercise[] = [
+  {
+    id: '10a23ae7-3c11-4f71-b2ef-fb8d1d06fabc',
+    name: 'Barbell Bench Press',
+    initialSetCount: 3,
+    reps: '8-12',
+    startingWeight: null,
+    weightUnit: 'lbs',
+  },
+  {
+    id: 'd4e6ab99-5b62-4ff0-9595-0263c247198f',
+    name: 'Cable Pulldown',
+    initialSetCount: 3,
+    reps: '10-12',
+    startingWeight: null,
+    weightUnit: 'lbs',
+  },
+  {
+    id: '44321c23-9411-44cf-ada0-b93238d60962',
+    name: 'Dumbbell Seated Shoulder Press',
+    initialSetCount: 3,
+    reps: '10-12',
+    startingWeight: null,
+    weightUnit: 'lbs',
+  },
+];
+
 const MATCH_STOP_WORDS = new Set(['a', 'an', 'and', 'for', 'of', 'or', 'the', 'to', 'with']);
 
 function getMatchTerms(value: string): string[] {
@@ -119,9 +148,11 @@ export function PasteWorkoutSheet({
   const { colors, isDark } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const isTourExample = Boolean(tourExampleText);
   // The workout builder mounts this sheet while hidden, so defer the exercise
-  // library and search index until the user actually opens it.
-  const { exercises } = useExercises({ enabled: visible });
+  // library and search index until a real paste flow opens it. The tour uses
+  // the fixed simulation above and never touches the catalog.
+  const { exercises } = useExercises({ enabled: visible && !isTourExample });
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showFormatHelp, setShowFormatHelp] = useState(false);
@@ -130,8 +161,11 @@ export function PasteWorkoutSheet({
   const [makeTemplateButtonRect, setMakeTemplateButtonRect] = useState<AnchorRect | null>(null);
   const [tourInputRect, setTourInputRect] = useState<AnchorRect | null>(null);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
-  const index = useMemo(() => buildExerciseSearchIndex(exercises), [exercises]);
-  const isTourExample = Boolean(tourExampleText);
+  const makeTemplatePressDepth = useRef(new Animated.Value(0)).current;
+  const index = useMemo(
+    () => buildExerciseSearchIndex(exercises, { includeInstructions: false }),
+    [exercises]
+  );
   const maxSheetHeight = Math.round(windowHeight * 0.9);
   const sheetBottomPadding = Math.max(insets.bottom + Spacing.lg, Spacing['2xl']);
   const dismissPanResponder = useMemo(
@@ -155,6 +189,17 @@ export function PasteWorkoutSheet({
   };
 
   const importWorkout = useCallback((isTourImport = false) => {
+    if (isTourImport) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onAdd(
+        TOUR_PASTE_WORKOUT_SIMULATION.map((exercise) => ({ ...exercise })),
+        'Upper Body Demo'
+      );
+      onClose();
+      onTourExampleImported?.();
+      return true;
+    }
+
     const parsed = parsePastedWorkout(text);
     const unresolved: UnresolvedPastedExercise[] = [];
     const imported = parsed.entries.flatMap((entry) => {
@@ -190,9 +235,24 @@ export function PasteWorkoutSheet({
     if (imported.length > 0 || parsed.workoutName) onAdd(imported, parsed.workoutName);
     if (unresolved.length > 0) onResolve(unresolved);
     onClose();
-    if (isTourImport) onTourExampleImported?.();
     return true;
   }, [exercises, index, onAdd, onClose, onResolve, onTourExampleImported, text]);
+
+  const handleMakeTemplatePressIn = useCallback(() => {
+    Animated.timing(makeTemplatePressDepth, {
+      toValue: 1,
+      duration: 80,
+      useNativeDriver: true,
+    }).start();
+  }, [makeTemplatePressDepth]);
+
+  const handleMakeTemplatePressOut = useCallback(() => {
+    Animated.timing(makeTemplatePressDepth, {
+      toValue: 0,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  }, [makeTemplatePressDepth]);
 
   useEffect(() => {
     if (!visible || !tourExampleText) return;
@@ -365,19 +425,36 @@ export function PasteWorkoutSheet({
               ) : null}
               {isTourExample ? (
                 <View ref={makeTemplateButtonRef} onLayout={measureTourTargets}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Make template from example workout notes"
-                    testID="paste-workout-tour-make-template"
-                    onPress={() => importWorkout(true)}
-                    style={({ pressed }) => [
-                      styles.demoAction,
-                      { backgroundColor: colors.accent },
-                      pressed && styles.demoActionPressed,
-                    ]}
+                  <Animated.View
+                    style={{
+                      transform: [
+                        {
+                          translateY: makeTemplatePressDepth.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 2],
+                          }),
+                        },
+                        {
+                          scale: makeTemplatePressDepth.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 0.985],
+                          }),
+                        },
+                      ],
+                    }}
                   >
-                    <Text style={[styles.demoActionText, { color: colors.accentForegroundOnFill }]} maxFontSizeMultiplier={1.2}>Make Template</Text>
-                  </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Make template from example workout notes"
+                      testID="paste-workout-tour-make-template"
+                      onPress={() => importWorkout(true)}
+                      onPressIn={handleMakeTemplatePressIn}
+                      onPressOut={handleMakeTemplatePressOut}
+                      style={[styles.demoAction, { backgroundColor: colors.accent }]}
+                    >
+                      <Text style={[styles.demoActionText, { color: colors.accentForegroundOnFill }]} maxFontSizeMultiplier={1.2}>Make Template</Text>
+                    </Pressable>
+                  </Animated.View>
                 </View>
               ) : (
                 <View style={styles.row}>
@@ -419,6 +496,12 @@ export function PasteWorkoutSheet({
             showArrow={false}
             showHighlight
             allowAnchorInteraction
+            anchorAction={{
+              label: 'Make Template',
+              onPress: () => importWorkout(true),
+              onPressIn: handleMakeTemplatePressIn,
+              onPressOut: handleMakeTemplatePressOut,
+            }}
           />
         ) : null}
       {showFormatHelp ? (
@@ -492,7 +575,6 @@ const styles = StyleSheet.create({
   formatErrorAction: { alignSelf: 'flex-start', marginTop: Spacing.xs, minHeight: 28, justifyContent: 'center' },
   formatErrorActionText: { fontSize: 13, fontWeight: '700' },
   demoAction: { minHeight: 52, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
-  demoActionPressed: { opacity: 0.82 },
   demoActionText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textTransform: 'uppercase' },
   row: { flexDirection: 'row', gap: Spacing.md },
   secondary: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, minHeight: 52, alignItems: 'center', justifyContent: 'center' },

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { Platform } from 'react-native';
 import { Buffer } from 'buffer';
 import * as FileSystem from 'expo-file-system';
 import { Session, User } from '@supabase/supabase-js';
@@ -34,7 +34,6 @@ import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
-import NetInfo from '@react-native-community/netinfo';
 import { isInvalidRefreshTokenError } from '@/src/utils/authErrors';
 
 // Ensure web browser is dismissed after auth
@@ -104,9 +103,12 @@ export interface AuthContextValue {
   isLoading: boolean;
   isAuthResolved: boolean;
   isHydrating: boolean;
+  isDeferredHydrationComplete: boolean;
   isAuthenticated: boolean;
   needsOnboarding: boolean;
   setAllowProfileCreation: (allow: boolean) => void;
+  hydrateDeferredUserData: () => Promise<void>;
+  syncPendingUserData: () => Promise<void>;
 
   // Auth methods
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -169,35 +171,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [isHydrating, setIsHydrating] = useState(false);
+  const [isDeferredHydrationComplete, setIsDeferredHydrationComplete] = useState(false);
   const hydrateRunRef = useRef(0);
+  const deferredHydrationPromiseRef = useRef<Promise<void> | null>(null);
   const [allowProfileCreation, setAllowProfileCreation] = useState(false);
 
   const isAuthenticated = !!session;
   const needsOnboarding = isAuthenticated && profile?.onboarding_completed === false;
 
-  const hydrateUserData = useCallback(async () => {
-    const runId = ++hydrateRunRef.current;
-    setIsHydrating(true);
+  useEffect(() => {
+    hydrateRunRef.current += 1;
+    deferredHydrationPromiseRef.current = null;
+    setIsHydrating(false);
+    setIsDeferredHydrationComplete(false);
+  }, [user?.id]);
 
-    try {
-      const workoutStore = useWorkoutStore.getState();
-      const aiStore = useAIStore.getState();
+  const loadLocalUserData = useCallback(async () => {
+    const workoutStore = useWorkoutStore.getState();
+    const aiStore = useAIStore.getState();
 
-      await Promise.all([
-        workoutStore.loadActiveSession(),
-        workoutStore.loadCompletedSessions(),
-        workoutStore.loadRestTimerSettings(),
-        workoutStore.loadStickyNotes(),
-        workoutStore.loadWeightUnits(),
-        workoutStore.loadBodyType(),
-        workoutStore.loadStreakPauseState(),
-        aiStore.loadConversation(),
-      ]);
-    } finally {
-      if (runId === hydrateRunRef.current) {
-        setIsHydrating(false);
-      }
-    }
+    await Promise.all([
+      workoutStore.loadActiveSession(),
+      workoutStore.loadCompletedSessions(),
+      workoutStore.loadRestTimerSettings(),
+      workoutStore.loadStickyNotes(),
+      workoutStore.loadWeightUnits(),
+      workoutStore.loadBodyType(),
+      workoutStore.loadStreakPauseState(),
+      aiStore.loadConversation(),
+    ]);
   }, []);
 
   // Fetch profile from database
@@ -275,7 +277,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [user?.id, fetchProfile]);
 
-  const appStateRef = useRef(AppState.currentState);
   const workoutSyncInFlightRef = useRef<Promise<void> | null>(null);
   const programSyncInFlightRef = useRef<Promise<void> | null>(null);
 
@@ -334,6 +335,77 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return request;
   }, []);
 
+  const syncPendingUserData = useCallback(async () => {
+    await Promise.allSettled([
+      syncPendingWorkouts(),
+      syncPendingPrograms(),
+    ]);
+  }, [syncPendingPrograms, syncPendingWorkouts]);
+
+  const hydrateDeferredUserData = useCallback(async () => {
+    if (!user?.id || !profileResolved) return;
+    if (isDeferredHydrationComplete) return;
+    if (deferredHydrationPromiseRef.current) {
+      return deferredHydrationPromiseRef.current;
+    }
+
+    const expectedUserId = user.id;
+    const runId = ++hydrateRunRef.current;
+    setIsHydrating(true);
+
+    const hydration = (async () => {
+      await migrateGuestStorageToUser(expectedUserId);
+      await Promise.allSettled([
+        loadLocalUserData(),
+        useProgramsStore.getState().loadLocalPrograms(),
+        useStartPresetStore.getState().loadPreset(profile),
+      ]);
+
+      await Promise.allSettled([
+        syncPendingUserData(),
+        processPendingStickyNotesQueue(),
+      ]);
+
+      await Promise.allSettled([
+        useProgramsStore.getState().fetchPrograms({ force: true }),
+        fetchWorkoutHistory(10000).then(async ({ sessions, error }) => {
+          if (error) return;
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (!currentSession?.user || currentSession.user.id !== expectedUserId) return;
+
+          const localSessions = useWorkoutStore.getState().completedSessions;
+          const mergedSessions = mergeWorkoutSessions(sessions, localSessions);
+          setCachedWorkoutHistory(expectedUserId, mergedSessions);
+          if (sessions.length > 0) {
+            await useWorkoutStore.getState().replaceCompletedSessions(mergedSessions);
+          }
+        }),
+      ]);
+    })()
+      .catch((error) => {
+        console.warn('Failed to hydrate deferred app data:', error);
+      })
+      .finally(() => {
+        if (runId === hydrateRunRef.current) {
+          setIsHydrating(false);
+          setIsDeferredHydrationComplete(true);
+        }
+        if (deferredHydrationPromiseRef.current === hydration) {
+          deferredHydrationPromiseRef.current = null;
+        }
+      });
+
+    deferredHydrationPromiseRef.current = hydration;
+    return hydration;
+  }, [
+    isDeferredHydrationComplete,
+    loadLocalUserData,
+    profile,
+    profileResolved,
+    syncPendingUserData,
+    user?.id,
+  ]);
+
   // Initialize auth state
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -382,26 +454,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const cachedProfilePromise = readCachedProfile(userId);
         const freshProfilePromise = fetchProfile(userId);
 
-        // Migration and store hydration are important for the destination
-        // screen, but none of them are required to choose that destination.
-        void migrateGuestStorageToUser(userId)
-          .then(async () => {
-            await Promise.allSettled([
-              hydrateUserData(),
-              useProgramsStore.getState().loadLocalPrograms(),
-            ]);
-          })
-          .catch((error) => {
-            console.warn('Failed to hydrate local app data:', error);
-          });
-
         const cachedProfile = await cachedProfilePromise;
         if (cachedProfile) {
           setProfile(cachedProfile);
           setProfileResolved(true);
           setIsLoading(false);
           primeDefaultProgramPersistence(userId, cachedProfile);
-          void useStartPresetStore.getState().loadPreset(cachedProfile);
         }
 
         const profileData = await freshProfilePromise;
@@ -411,10 +469,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (profileData) {
           void cacheProfile(profileData);
         }
-        void useStartPresetStore.getState().loadPreset(profileData ?? cachedProfile);
         setIsLoading(false);
-        syncPendingWorkouts();
-        syncPendingPrograms();
       } else {
         setProfile(null);
         setProfileResolved(false);
@@ -433,7 +488,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Listen for auth changes
     // Avoid async callbacks here to prevent Supabase auth lock deadlocks.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       setActiveScopedStorageUser(newSession?.user?.id ?? null);
@@ -441,63 +496,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (newSession?.user) {
         const userId = newSession.user.id;
         void (async () => {
-          await migrateGuestStorageToUser(userId);
-          const [profileData] = await Promise.all([
-            fetchProfile(userId),
-            event === 'SIGNED_IN' ? hydrateUserData() : Promise.resolve(),
-          ]);
+          const profileData = await fetchProfile(userId);
           primeDefaultProgramPersistence(userId, profileData);
-          await useProgramsStore.getState().loadLocalPrograms();
           setProfile(profileData);
           setProfileResolved(true);
           if (profileData) {
             void cacheProfile(profileData);
-          }
-          void useStartPresetStore.getState().loadPreset(profileData);
-
-          // Process any pending syncs when user signs in
-          if (event === 'SIGNED_IN') {
-            // Sync pending workout sessions
-            syncPendingWorkouts();
-
-            // Sync pending programs/templates
-            syncPendingPrograms();
-
-            // Sync pending sticky notes
-            processPendingStickyNotesQueue().catch(error => {
-              console.warn('Failed to process pending sticky notes sync queue:', error);
-            });
-
-            // Refresh programs after sign-in to ensure server data is loaded.
-            useProgramsStore.getState().fetchPrograms({ force: true }).catch(error => {
-              console.warn('Failed to refresh programs after sign-in:', error);
-            });
-
-            // Restore ALL workout history from cloud to local cache
-            // Users need full history for strength tracking/progress
-            // Using high limit (10000) covers even 10+ years of daily workouts
-            const signedInUserId = userId;
-            fetchWorkoutHistory(10000)
-              .then(async ({ sessions, error }) => {
-                if (error) {
-                  return;
-                }
-                const { data: { session: currentSession } } = await supabase.auth.getSession();
-                if (!currentSession?.user || currentSession.user.id !== signedInUserId) {
-                  return;
-                }
-                const localSessions = useWorkoutStore.getState().completedSessions;
-                const mergedSessions = mergeWorkoutSessions(sessions, localSessions);
-                setCachedWorkoutHistory(signedInUserId, mergedSessions);
-                if (sessions.length > 0) {
-                  useWorkoutStore.getState().replaceCompletedSessions(mergedSessions).catch(storeError => {
-                    console.warn('Failed to replace workout history from cloud:', storeError);
-                  });
-                }
-              })
-              .catch(error => {
-                console.warn('Failed to fetch workout history on sign-in:', error);
-              });
           }
         })();
       } else {
@@ -508,58 +512,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
           clearCachedWorkoutHistory(lastUserId);
         }
         hydrateRunRef.current += 1;
+        deferredHydrationPromiseRef.current = null;
         setIsHydrating(false);
+        setIsDeferredHydrationComplete(false);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [FORCE_DEV_SIGN_OUT_ON_LAUNCH, fetchProfile, hydrateUserData, syncPendingPrograms, syncPendingWorkouts]);
-
-  useEffect(() => {
-    const handleAppStateChange = (nextState: AppStateStatus) => {
-      appStateRef.current = nextState;
-      if (nextState !== 'active' || !user) return;
-      syncPendingWorkouts();
-      syncPendingPrograms();
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [syncPendingPrograms, syncPendingWorkouts, user]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const intervalId = setInterval(() => {
-      if (appStateRef.current !== 'active') return;
-      syncPendingWorkouts();
-      syncPendingPrograms();
-    }, 30000);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [syncPendingPrograms, syncPendingWorkouts, user]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      if (!state.isConnected || !state.isInternetReachable) return;
-      if (appStateRef.current !== 'active') return;
-      syncPendingWorkouts();
-      syncPendingPrograms();
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [syncPendingPrograms, syncPendingWorkouts, user]);
+  }, [FORCE_DEV_SIGN_OUT_ON_LAUNCH, fetchProfile]);
 
   // Email sign in
   const signInWithEmail = useCallback(async (email: string, password: string) => {
@@ -994,9 +956,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     isAuthResolved,
     isHydrating,
+    isDeferredHydrationComplete,
     isAuthenticated,
     needsOnboarding,
     setAllowProfileCreation,
+    hydrateDeferredUserData,
+    syncPendingUserData,
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,

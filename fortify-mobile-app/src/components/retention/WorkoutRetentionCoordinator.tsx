@@ -302,10 +302,11 @@ function WorkoutRetentionCoordinatorContent() {
 
 export function WorkoutRetentionCoordinator() {
   const { hasTourFinished } = useInAppTour();
+  const { isDeferredHydrationComplete } = useAuth();
   const [shouldMountContent, setShouldMountContent] = useState(false);
 
   useEffect(() => {
-    if (!hasTourFinished) {
+    if (!hasTourFinished || !isDeferredHydrationComplete) {
       setShouldMountContent(false);
       return;
     }
@@ -314,7 +315,7 @@ export function WorkoutRetentionCoordinator() {
       setShouldMountContent(true);
     });
     return () => task.cancel();
-  }, [hasTourFinished]);
+  }, [hasTourFinished, isDeferredHydrationComplete]);
 
   return shouldMountContent ? <WorkoutRetentionCoordinatorContent /> : null;
 }

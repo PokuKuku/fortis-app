@@ -37,6 +37,14 @@ describe('shouldBypassProGateForTourState', () => {
     })).toBe(true);
   });
 
+  it('bypasses the workout limit while the tour opens the workout builder', () => {
+    expect(shouldBypassProGateForTourState({
+      activeStepId: 'add_workout_routine',
+      isTourActive: true,
+      placement: PAYWALL_PLACEMENTS.workoutLimit,
+    })).toBe(true);
+  });
+
   it('bypasses AI chat only on AI chat tour steps', () => {
     expect(shouldBypassProGateForTourState({
       activeStepId: 'ai_chat_overview',

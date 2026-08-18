@@ -442,7 +442,10 @@ export function ExerciseCard({
               </Text>
               {targetSummary && (
                 isSetTargetTourStep ? (
-                  <TourAnchor id={TOUR_ANCHOR_IDS.setTarget}>
+                  <TourAnchor
+                    id={TOUR_ANCHOR_IDS.setTarget}
+                    onTourPress={handleOpenTargetSheet}
+                  >
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Edit target for ${exercise.exerciseName}`}

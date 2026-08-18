@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SpeakerWaveIcon } from 'react-native-heroicons/outline';
-import Svg, { Defs, Mask, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -27,9 +27,15 @@ export type TourArrowDirection = 'top' | 'right' | 'bottom' | 'left';
 type Action = {
   label: string;
   onPress: () => void;
+  onLongPress?: () => void;
+  delayLongPress?: number;
   onPressIn?: () => void;
   onPressOut?: () => void;
   disabled?: boolean;
+};
+
+type AnchorAction = Omit<Action, 'onPress'> & {
+  onPress?: () => void;
 };
 
 type TourOverlayProps = {
@@ -63,6 +69,8 @@ type TourOverlayProps = {
   reserveArrowSpace?: boolean;
   allowAnchorInteraction?: boolean;
   allowOnlyArrowTargetInteraction?: boolean;
+  anchorAction?: AnchorAction | null;
+  anchorActionRect?: AnchorRect | null;
   onTooltipHideComplete?: (() => void) | null;
 };
 
@@ -83,6 +91,24 @@ const TOOLTIP_POSITION_DURATION_MS = 150;
 const TOOLTIP_POSITION_JITTER_PX = 2;
 const TOUR_DIM_BACKGROUND = 'rgba(15, 23, 42, 0.55)';
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const roundedRectPath = (rect: AnchorRect): string => {
+  const radius = Math.min(HIGHLIGHT_RADIUS, rect.width / 2, rect.height / 2);
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  return [
+    `M ${rect.x + radius} ${rect.y}`,
+    `H ${right - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${right} ${rect.y + radius}`,
+    `V ${bottom - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom}`,
+    `H ${rect.x + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${rect.x} ${bottom - radius}`,
+    `V ${rect.y + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${rect.x + radius} ${rect.y}`,
+    'Z',
+  ].join(' ');
+};
 
 export const getTourSlideDirection = (transitionIndex: number): -1 | 1 =>
   transitionIndex % 2 === 0 ? -1 : 1;
@@ -117,6 +143,8 @@ export const TourOverlay = memo(function TourOverlay({
   reserveArrowSpace = false,
   allowAnchorInteraction = false,
   allowOnlyArrowTargetInteraction = false,
+  anchorAction = null,
+  anchorActionRect = null,
   onTooltipHideComplete = null,
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
@@ -478,8 +506,23 @@ export const TourOverlay = memo(function TourOverlay({
       const rightLeft = rect.x + rect.width;
       return (
         <>
-          <View style={[styles.overlayBlock, { top: rect.y, left: 0, width: rect.x, height: rect.height }]} />
-          <View style={[styles.overlayBlock, { top: rect.y, left: rightLeft, width: Math.max(0, screenWidth - rightLeft), height: rect.height }]} />
+          <View
+            style={[
+              styles.overlayBlock,
+              { top: rect.y, left: 0, width: rect.x, height: rect.height },
+            ]}
+          />
+          <View
+            style={[
+              styles.overlayBlock,
+              {
+                top: rect.y,
+                left: rightLeft,
+                width: Math.max(0, screenWidth - rightLeft),
+                height: rect.height,
+              },
+            ]}
+          />
         </>
       );
     };
@@ -566,55 +609,78 @@ export const TourOverlay = memo(function TourOverlay({
     const secondHole = holes[1];
     const firstBottom = firstHole.y + firstHole.height;
     const secondBottom = secondHole ? secondHole.y + secondHole.height : firstBottom;
+    const spotlightPath = [
+      `M 0 0 H ${screenWidth} V ${screenHeight} H 0 Z`,
+      ...holes.map(roundedRectPath),
+    ].join(' ');
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          <Svg style={StyleSheet.absoluteFill} width={screenWidth} height={screenHeight}>
-            <Defs>
-              <Mask
-                id="tour-spotlight-mask"
-                x={0}
-                y={0}
-                width={screenWidth}
-                height={screenHeight}
-                maskUnits="userSpaceOnUse"
-              >
-                <Rect x={0} y={0} width={screenWidth} height={screenHeight} fill="#FFFFFF" />
-                {holes.map((rect, index) => (
-                  <Rect
-                    key={`tour-spotlight-hole-${index}`}
-                    testID={`tour-spotlight-hole-${index}`}
-                    x={rect.x}
-                    y={rect.y}
-                    width={rect.width}
-                    height={rect.height}
-                    rx={HIGHLIGHT_RADIUS}
-                    ry={HIGHLIGHT_RADIUS}
-                    fill="#000000"
-                  />
-                ))}
-              </Mask>
-            </Defs>
-            <Rect
-              x={0}
-              y={0}
-              width={screenWidth}
-              height={screenHeight}
-              fill={TOUR_DIM_BACKGROUND}
-              mask="url(#tour-spotlight-mask)"
-            />
-          </Svg>
-        </View>
-        <View style={[styles.overlayBlock, { top: 0, left: 0, right: 0, height: firstHole.y }]} />
+        <Svg
+          testID="tour-spotlight-dim"
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, styles.spotlightDim]}
+          width={screenWidth}
+          height={screenHeight}
+        >
+          <Path
+            testID="tour-spotlight-path"
+            d={spotlightPath}
+            fill={TOUR_DIM_BACKGROUND}
+            fillRule="evenodd"
+          />
+        </Svg>
+        <View
+          style={[
+            styles.overlayBlock,
+            { top: 0, left: 0, right: 0, height: firstHole.y },
+          ]}
+        />
         {renderSideBlocks(firstHole)}
         {secondHole ? (
           <>
-            <View style={[styles.overlayBlock, { top: firstBottom, left: 0, right: 0, height: Math.max(0, secondHole.y - firstBottom) }]} />
+            <View
+              style={[
+                styles.overlayBlock,
+                {
+                  top: firstBottom,
+                  left: 0,
+                  right: 0,
+                  height: Math.max(0, secondHole.y - firstBottom),
+                },
+              ]}
+            />
             {renderSideBlocks(secondHole)}
           </>
         ) : null}
-        <View style={[styles.overlayBlock, { top: secondBottom, left: 0, right: 0, height: Math.max(0, screenHeight - secondBottom) }]} />
+        <View
+          style={[
+            styles.overlayBlock,
+            {
+              top: secondBottom,
+              left: 0,
+              right: 0,
+              height: Math.max(0, screenHeight - secondBottom),
+            },
+          ]}
+        />
+
+        {holes.map((rect, index) => (
+          <View
+            key={`tour-spotlight-hole-${index}`}
+            testID={`tour-spotlight-hole-${index}`}
+            pointerEvents="none"
+            style={[
+              styles.spotlightGeometry,
+              {
+                left: rect.x,
+                top: rect.y,
+                width: rect.width,
+                height: rect.height,
+              },
+            ]}
+          />
+        ))}
 
         {/* In blocking mode we still render the "hole", but we swallow touches over it. */}
         {!allowHolePassthrough && holes.map(renderHoleTouchBlockers)}
@@ -749,6 +815,28 @@ export const TourOverlay = memo(function TourOverlay({
   const overlayContent = (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {renderBlockingOverlay()}
+      {anchorAction && paddedRect ? (
+        <Pressable
+          testID="tour-anchor-action"
+          accessibilityRole="button"
+          accessibilityLabel={anchorAction.label}
+          disabled={anchorAction.disabled}
+          onPress={anchorAction.onPress}
+          onLongPress={anchorAction.onLongPress}
+          delayLongPress={anchorAction.delayLongPress}
+          onPressIn={anchorAction.onPressIn}
+          onPressOut={anchorAction.onPressOut}
+          style={[
+            styles.anchorAction,
+            {
+              left: anchorActionRect?.x ?? paddedRect.x,
+              top: anchorActionRect?.y ?? paddedRect.y,
+              width: anchorActionRect?.width ?? paddedRect.width,
+              height: anchorActionRect?.height ?? paddedRect.height,
+            },
+          ]}
+        />
+      ) : null}
       {showHighlight ? renderHighlight(paddedRect) : null}
       {showHighlight ? renderHighlight(paddedSecondaryRect) : null}
       {renderArrow()}
@@ -844,15 +932,27 @@ export const TourOverlay = memo(function TourOverlay({
 });
 
 const styles = StyleSheet.create({
+  spotlightDim: {
+    zIndex: 0,
+  },
   overlayBlock: {
     position: 'absolute',
     zIndex: 1,
+  },
+  spotlightGeometry: {
+    position: 'absolute',
+    borderRadius: HIGHLIGHT_RADIUS,
+    zIndex: 2,
   },
   highlight: {
     position: 'absolute',
     borderRadius: HIGHLIGHT_RADIUS,
     borderWidth: HIGHLIGHT_BORDER,
     zIndex: 2,
+  },
+  anchorAction: {
+    position: 'absolute',
+    zIndex: 6,
   },
   tooltip: {
     borderRadius: BorderRadius.xl,

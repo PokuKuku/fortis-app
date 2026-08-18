@@ -42,6 +42,7 @@ import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
 import { createWorkoutVoiceLogPlan } from '../utils/workoutVoiceLog';
 import { DEFAULT_TARGET_REPS, formatRepRange, parseRepRange } from '../utils/workoutProgression';
 import { resolveProgramEditorSetTypes } from '../utils/programWorkoutEditor';
+import { areWorkoutSessionsEqual } from '../utils/workoutHistory';
 import { posthog } from '@/src/config/posthog';
 import {
   fetchCloudStreakPauseState,
@@ -2417,6 +2418,13 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     replaceCompletedSessions: async (sessions) => {
+      const currentState = get();
+      if (areWorkoutSessionsEqual(currentState.completedSessions, sessions)) {
+        if (!currentState.hasLoadedCompletedSessions) {
+          set({ hasLoadedCompletedSessions: true });
+        }
+        return;
+      }
       set({ completedSessions: sessions, hasLoadedCompletedSessions: true });
       try {
         await setScopedItem(COMPLETED_WORKOUTS_KEY, JSON.stringify(sessions));

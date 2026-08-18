@@ -39,4 +39,11 @@ describe('PasteWorkoutSheet layout', () => {
     expect(tourOverlayProps).toContain('allowAnchorInteraction');
     expect(source).toContain('scrollEnabled={!isTourExample}');
   });
+
+  it('uses fixed simulated exercises without loading the catalog during the tour', () => {
+    expect(source).toContain('TOUR_PASTE_WORKOUT_SIMULATION');
+    expect(source).toContain('enabled: visible && !isTourExample');
+    expect(source).toContain('TOUR_PASTE_WORKOUT_SIMULATION.map');
+    expect(source).toContain("buildExerciseSearchIndex(exercises, { includeInstructions: false })");
+  });
 });

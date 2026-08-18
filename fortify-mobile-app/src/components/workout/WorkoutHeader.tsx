@@ -101,8 +101,12 @@ export function WorkoutHeaderTopBar({
   const shouldAnchorRestTimerSettings = isTourActive && activeStepId === 'rest_timer_settings';
   const shouldAnchorWorkoutClose = isTourActive && activeStepId === 'close_active_workout';
 
-  const wrapAnchor = (enabled: boolean, id: string, node: ReactElement) =>
-    enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
+  const wrapAnchor = (
+    enabled: boolean,
+    id: string,
+    node: ReactElement,
+    onTourPress?: () => void,
+  ) => enabled ? <TourAnchor id={id} onTourPress={onTourPress}>{node}</TourAnchor> : node;
 
   const renderTimers = (compact: boolean) => (
     <View style={[styles.timersRowBase, compact ? styles.timersRowCompact : styles.timersRow]}>
@@ -192,7 +196,8 @@ export function WorkoutHeaderTopBar({
             ]}
           >
             <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
-          </Pressable>
+          </Pressable>,
+          onCancelPress,
         )}
       </View>
     </View>

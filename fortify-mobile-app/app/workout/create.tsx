@@ -725,7 +725,10 @@ export default function CreateWorkoutScreen() {
                   )}
                 </View>
                 {shouldAnchorWorkoutBuilderClose ? (
-                  <TourAnchor id={TOUR_ANCHOR_IDS.workoutBuilderCloseButton}>
+                  <TourAnchor
+                    id={TOUR_ANCHOR_IDS.workoutBuilderCloseButton}
+                    onTourPress={handleClose}
+                  >
                     <Pressable
                       onPress={handleClose}
                       style={({ pressed }) => [
@@ -878,7 +881,13 @@ export default function CreateWorkoutScreen() {
                 )}
               </View>
               {shouldAnchorPasteWorkout ? (
-                <TourAnchor id={TOUR_ANCHOR_IDS.pasteWorkout}>
+                <TourAnchor
+                  id={TOUR_ANCHOR_IDS.pasteWorkout}
+                  onTourPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowPasteWorkoutSheet(true);
+                  }}
+                >
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

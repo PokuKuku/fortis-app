@@ -260,7 +260,7 @@ export default function AIChatScreen() {
     preferences: realtimePreferences,
     isLoaded: areRealtimePreferencesLoaded,
     updatePreferences: updateRealtimePreferences,
-  } = useRealtimeCoachPreferences();
+  } = useRealtimeCoachPreferences({ enabled: !isTourActive });
   const interactionMode = realtimePreferences.interactionMode ?? 'push_to_talk';
   const realtimePreferencesSignature = JSON.stringify(realtimePreferences);
   const activeVoicePreferencesSignatureRef = useRef<string | null>(null);
@@ -297,6 +297,7 @@ export default function AIChatScreen() {
     sendTextPrompt,
   } = useRealtimeCoach({
     preferences: realtimePreferences,
+    enabled: !isTourActive,
     currentWorkoutTemplateDraft,
     interactionMode,
     onVisualContextConsumed: () => setPendingVoiceMedia([]),
@@ -437,9 +438,11 @@ export default function AIChatScreen() {
   const showRateLimitWarning = remaining !== null && (remaining === 3 || remaining === 1);
 
   useEffect(() => {
+    if (isTourActive) return;
     loadConversation();
     checkRateLimits();
   }, [
+    isTourActive,
     loadConversation,
     checkRateLimits,
   ]);
@@ -856,7 +859,9 @@ export default function AIChatScreen() {
     // after this render, so native audio/socket teardown cannot delay the toggle.
     // Text actions remain gated at the point where the user sends a message.
     setMode(nextMode);
-    void setLastAICoachMode(nextMode);
+    if (!isTourActive) {
+      void setLastAICoachMode(nextMode);
+    }
   }, [activeStepId, isTourActive]);
 
   return (
@@ -921,7 +926,11 @@ export default function AIChatScreen() {
                 return (
                   isTourVoiceModeTarget
                     ? (
-                      <TourAnchor key={item} id={TOUR_ANCHOR_IDS.aiChatVoiceMode}>
+                      <TourAnchor
+                        key={item}
+                        id={TOUR_ANCHOR_IDS.aiChatVoiceMode}
+                        onTourPress={() => handleModeChange(item)}
+                      >
                         {modeOption}
                       </TourAnchor>
                     )
@@ -931,7 +940,10 @@ export default function AIChatScreen() {
             </View>
             <View style={styles.headerRight}>
               {isTourActive && activeStepId === 'close_ai_chat' ? (
-                <TourAnchor id={TOUR_ANCHOR_IDS.aiChatCloseButton}>
+                <TourAnchor
+                  id={TOUR_ANCHOR_IDS.aiChatCloseButton}
+                  onTourPress={handleClose}
+                >
                   <TouchableOpacity
                     style={styles.closeButton}
                     onPress={handleClose}

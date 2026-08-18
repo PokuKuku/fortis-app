@@ -98,6 +98,7 @@ export default function TabLayout() {
   const { colors, isDark } = useTheme();
   const {
     isAuthenticated,
+    isDeferredHydrationComplete,
     isLoading,
     needsOnboarding,
     profile,
@@ -181,6 +182,14 @@ export default function TabLayout() {
       return;
     }
 
+    if (isTourActive) {
+      startupVeilTranslateX.stopAnimation();
+      startupVeilTranslateX.setValue(-Math.max(1, windowWidth));
+      completeStartupReveal();
+      setShowStartupVeil(false);
+      return;
+    }
+
     const revealFrame = requestAnimationFrame(() => {
       Animated.timing(startupVeilTranslateX, {
         toValue: -Math.max(1, windowWidth),
@@ -199,7 +208,7 @@ export default function TabLayout() {
       cancelAnimationFrame(revealFrame);
       startupVeilTranslateX.stopAnimation();
     };
-  }, [showStartupVeil, startupVeilTranslateX, windowWidth]);
+  }, [isTourActive, showStartupVeil, startupVeilTranslateX, windowWidth]);
 
   const syncAccessState = useCallback(
     async (reason: 'initial' | 'app-active') => {
@@ -328,9 +337,9 @@ export default function TabLayout() {
   }, [syncAccessState]);
 
   useEffect(() => {
-    if (!hasTourFinished) return;
+    if (!hasTourFinished || !isDeferredHydrationComplete) return;
     loadProgramProgress();
-  }, [hasTourFinished, loadProgramProgress]);
+  }, [hasTourFinished, isDeferredHydrationComplete, loadProgramProgress]);
 
   // AI Store
   const { conversation } = useAIStore();
@@ -497,7 +506,7 @@ export default function TabLayout() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     setDraftStartPreset(startPreset);
     setStartConfigVisible(true);
-    if (!programs.length) {
+    if (!isTourActive && !programs.length) {
       // Let React commit the modal shell before program hydration updates the store.
       requestAnimationFrame(() => {
         void fetchPrograms();
@@ -797,7 +806,13 @@ export default function TabLayout() {
         options={{
           title: 'Insights',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <TourAnchor id={TOUR_ANCHOR_IDS.insightsTab}>
+            <TourAnchor
+              id={TOUR_ANCHOR_IDS.insightsTab}
+              onTourPress={() => {
+                handlePrimaryTabPress('insights');
+                router.navigate('/(tabs)/insights');
+              }}
+            >
               <View
                 style={[
                   styles.tabIconContainer,
@@ -826,7 +841,10 @@ export default function TabLayout() {
           title: 'Coach',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={styles.centerButtonContainer}>
-              <TourAnchor id={TOUR_ANCHOR_IDS.aiChatButton}>
+              <TourAnchor
+                id={TOUR_ANCHOR_IDS.aiChatButton}
+                onTourPress={() => void handleAiPress()}
+              >
                 <GlassButton
                   circular
                   size={CENTER_BUTTON_SIZE}
@@ -938,6 +956,7 @@ export default function TabLayout() {
     >
       <TourAnchor
         id={TOUR_ANCHOR_IDS.quickStartFab}
+        onTourPress={() => void handleStartPress()}
         style={{
           width: FAB_BUTTON_SIZE,
           height: FAB_BUTTON_SIZE,

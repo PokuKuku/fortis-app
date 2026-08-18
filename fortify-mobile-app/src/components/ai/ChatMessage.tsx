@@ -366,7 +366,14 @@ export function ChatMessage({
             );
 
             return tourWorkoutTemplateAnchorId
-              ? <TourAnchor id={tourWorkoutTemplateAnchorId}>{templateCard}</TourAnchor>
+              ? (
+                <TourAnchor
+                  id={tourWorkoutTemplateAnchorId}
+                  onTourPress={() => onAddWorkoutTemplate?.(message)}
+                >
+                  {templateCard}
+                </TourAnchor>
+              )
               : templateCard;
           })()}
 

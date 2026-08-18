@@ -9,13 +9,20 @@ import {
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
 
-export function useRealtimeCoachPreferences() {
+export function useRealtimeCoachPreferences(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const [preferences, setPreferencesState] = useState<RealtimeCoachPreferences>(
     DEFAULT_REALTIME_COACH_PREFERENCES
   );
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(!enabled);
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoaded(true);
+      return;
+    }
+
+    setIsLoaded(false);
     let mounted = true;
     const unsubscribe = subscribeToRealtimeCoachPreferences((nextPreferences) => {
       if (mounted) {
@@ -39,7 +46,7 @@ export function useRealtimeCoachPreferences() {
       mounted = false;
       unsubscribe();
     };
-  }, []);
+  }, [enabled]);
 
   const updatePreferences = useCallback(async (
     next:
@@ -48,13 +55,14 @@ export function useRealtimeCoachPreferences() {
   ) => {
     const resolved = typeof next === 'function' ? next(preferences) : next;
     setPreferencesState(resolved);
+    if (!enabled) return;
     try {
       await setRealtimeCoachPreferences(resolved);
     } catch (error) {
       setPreferencesState(preferences);
       throw error;
     }
-  }, [preferences]);
+  }, [enabled, preferences]);
 
   return {
     preferences,

@@ -31,6 +31,7 @@ import {
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 import { posthog } from '@/src/config/posthog';
 import { ACCENT_COLORS } from '@/src/utils/accentColors';
+import { completeStartupReveal } from '@/src/utils/startupReveal';
 
 // Keep development behavior aligned with production tour completion state.
 const FORCE_TOUR_ON_DEV_REFRESH = false;
@@ -347,6 +348,7 @@ const TOUR_STEPS: TourStep[] = [
     showArrow: true,
     arrowDirections: ['top', 'right', 'bottom', 'left'],
     allowAnchorInteraction: true,
+    allowOnlyArrowTargetInteraction: true,
     arrowColor: ACCENT_COLORS.midnight.base,
     boldPhrases: ['Press and hold'],
     holePadding: 0,
@@ -523,6 +525,7 @@ const TOUR_PRO_GATE_BYPASS_STEPS: Partial<Record<PaywallPlacement, ReadonlySet<T
     'ai_chat_overview',
   ]),
   [PAYWALL_PLACEMENTS.workoutLimit]: new Set([
+    'add_workout_routine',
     'ai_text_chat_result',
   ]),
 };
@@ -534,6 +537,7 @@ const REMOVED_TOUR_STEP_REPLACEMENTS: Partial<Record<string, TourStepId>> = {
   confirm_voice_log: 'fill_weight_column',
 };
 const COLD_START_TOUR_RESUME_STEP_ID: TourStepId = 'support_overview';
+const TOUR_ANCHOR_FALLBACK_MS = 1200;
 
 export function shouldBypassProGateForTourState(params: {
   activeStepId: TourStepId | null;
@@ -580,6 +584,8 @@ const getStepIndexById = (stepId: string): number => {
 type InAppTourContextValue = {
   registerAnchorRect: (id: string, rect: AnchorRect) => void;
   unregisterAnchor: (id: string) => void;
+  registerAnchorAction: (id: string, action: TourAnchorAction) => void;
+  unregisterAnchorAction: (id: string, action: TourAnchorAction) => void;
   isTourActive: boolean;
   hasTourFinished: boolean;
   activeStepId: TourStepId | null;
@@ -596,6 +602,14 @@ type InAppTourContextValue = {
   queueTourStartAfterPaywallClose: () => void;
   resetTourForDev: () => Promise<void>;
   shouldBypassProGateForTour: (placement: PaywallPlacement) => boolean;
+};
+
+type TourAnchorAction = {
+  onPress?: () => void;
+  onLongPress?: () => void;
+  delayLongPress?: number;
+  onPressIn?: () => void;
+  onPressOut?: () => void;
 };
 
 const InAppTourContext = createContext<InAppTourContextValue | null>(null);
@@ -627,10 +641,12 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
   const [tourLoaded, setTourLoaded] = useState(false);
   const [anchorRects, setAnchorRects] = useState<Record<string, AnchorRect>>({});
+  const [anchorActions, setAnchorActions] = useState<Record<string, TourAnchorAction>>({});
   const [renderStepId, setRenderStepId] = useState<TourStepId | null>(null);
   const [pendingStepId, setPendingStepId] = useState<TourStepId | null>(null);
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const [isExitingTooltip, setIsExitingTooltip] = useState(false);
+  const [anchorFallbackStepId, setAnchorFallbackStepId] = useState<TourStepId | null>(null);
   const [completedActionStepIds, setCompletedActionStepIds] = useState<Set<TourStepId>>(() => new Set());
   const [pendingPaywallStartRequestedAt, setPendingPaywallStartRequestedAt] = useState<number | null>(null);
   const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -741,13 +757,65 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const registerAnchorAction = useCallback((id: string, action: TourAnchorAction) => {
+    setAnchorActions((current) => (
+      current[id] === action ? current : { ...current, [id]: action }
+    ));
+  }, []);
+
+  const unregisterAnchorAction = useCallback((id: string, action: TourAnchorAction) => {
+    setAnchorActions((current) => {
+      if (current[id] !== action) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
   const isStepReady = useCallback((candidateStep: TourStep | null): boolean => {
     if (!candidateStep) return false;
     if (!isOnStepRoute(candidateStep.route)) return false;
-    if (candidateStep.anchorId && !anchorRects[candidateStep.anchorId]) return false;
+    if (
+      candidateStep.anchorId
+      && !anchorRects[candidateStep.anchorId]
+      && anchorFallbackStepId !== candidateStep.id
+    ) return false;
     if (candidateStep.id === 'go_insights' && isWorkoutActive) return false;
     return true;
-  }, [anchorRects, isOnStepRoute, isWorkoutActive]);
+  }, [anchorFallbackStepId, anchorRects, isOnStepRoute, isWorkoutActive]);
+
+  // A missing native measurement must never strand someone in the tour. Give
+  // the route and layout a short window to settle, then show the same guidance
+  // as a centered card with a Continue action.
+  useEffect(() => {
+    const anchorId = logicalStep?.anchorId;
+    const isAnchorMissing = Boolean(
+      isTourActive
+      && logicalStep
+      && isLogicalStepOnRoute
+      && anchorId
+      && !anchorRects[anchorId]
+    );
+
+    if (!isAnchorMissing || !logicalStep) {
+      setAnchorFallbackStepId((current) => (
+        current && current !== logicalStep?.id ? null : current
+      ));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setAnchorFallbackStepId(logicalStep.id);
+    }, TOUR_ANCHOR_FALLBACK_MS);
+
+    return () => clearTimeout(timer);
+  }, [anchorRects, isLogicalStepOnRoute, isTourActive, logicalStep]);
+
+  useEffect(() => {
+    const anchorId = logicalStep?.anchorId;
+    if (!anchorId || !anchorRects[anchorId]) return;
+    setAnchorFallbackStepId((current) => current === logicalStep.id ? null : current);
+  }, [anchorRects, logicalStep]);
 
   useEffect(() => {
     if (!isTourActive || !logicalStep) {
@@ -914,12 +982,17 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
 
     setCompletedActionStepIds(new Set());
+    // A branded cold-start wipe must never sit above the first tour step. This
+    // is visual-only; entitlement verification has already happened upstream.
+    completeStartupReveal();
     void setTourStateAndPersist(next);
     posthog.capture('tour_started');
     void markTourSeenOnServer({ status: 'started' });
-    router.navigate(TOUR_STEPS[0].route);
+    if (!isOnStepRoute(TOUR_STEPS[0].route)) {
+      router.navigate(TOUR_STEPS[0].route);
+    }
     return true;
-  }, [isAuthenticated, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
+  }, [isAuthenticated, isOnStepRoute, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
 
   const finishTour = useCallback((status: 'completed' | 'skipped') => {
     if (!tourLoaded) return;
@@ -1063,64 +1136,73 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     setTourState(null);
 
     const run = async () => {
-      if (FORCE_TOUR_ON_DEV_REFRESH) {
-        setTourLoaded(true);
-        return;
-      }
-
-      if (hasCompletedTourOnServer) {
-        // Server completion always wins over a stale local in-progress record.
-        setTourState(null);
-        setTourLoaded(true);
-        return;
-      }
-
-      if (isAuthenticated && profileResolved && !isNewUserTourEligible) {
-        await clearInAppTourState();
-        if (!isMounted) return;
-        setTourState(null);
-        setTourLoaded(true);
-        return;
-      }
-
-      const loaded = await loadInAppTourState();
-      if (!isMounted) return;
-
-      if (loaded && loaded.version !== IN_APP_TOUR_VERSION) {
-        if (loaded.status === 'completed' || loaded.status === 'skipped') {
-          // Completion is permanent across tour revisions. Preserve an offline
-          // completion even if its server sync failed, and migrate only the
-          // stored version so this account can never be re-enrolled.
-          const migratedCompletion: PersistedInAppTourState = {
-            ...loaded,
-            version: IN_APP_TOUR_VERSION,
-            updatedAt: new Date().toISOString(),
-          };
-          void setTourStateAndPersist(migratedCompletion);
+      try {
+        if (FORCE_TOUR_ON_DEV_REFRESH) {
           setTourLoaded(true);
           return;
         }
-        await clearInAppTourState();
+
+        if (hasCompletedTourOnServer) {
+          // Server completion always wins over a stale local in-progress record.
+          setTourState(null);
+          setTourLoaded(true);
+          return;
+        }
+
+        if (isAuthenticated && profileResolved && !isNewUserTourEligible) {
+          await clearInAppTourState();
+          if (!isMounted) return;
+          setTourState(null);
+          setTourLoaded(true);
+          return;
+        }
+
+        const loaded = await loadInAppTourState();
+        if (!isMounted) return;
+
+        if (loaded && loaded.version !== IN_APP_TOUR_VERSION) {
+          if (loaded.status === 'completed' || loaded.status === 'skipped') {
+            // Completion is permanent across tour revisions. Preserve an offline
+            // completion even if its server sync failed, and migrate only the
+            // stored version so this account can never be re-enrolled.
+            const migratedCompletion: PersistedInAppTourState = {
+              ...loaded,
+              version: IN_APP_TOUR_VERSION,
+              updatedAt: new Date().toISOString(),
+            };
+            void setTourStateAndPersist(migratedCompletion);
+            setTourLoaded(true);
+            return;
+          }
+          await clearInAppTourState();
+          setTourState(null);
+          setTourLoaded(true);
+          return;
+        }
+
+        if (loaded?.status === 'in_progress') {
+          const resumed = resumeInProgressTourAtStep(
+            loaded,
+            COLD_START_TOUR_RESUME_STEP_ID,
+          );
+          // Make the restored controls interactive in the same render that
+          // reveals them. Neither storage nor the network may gate the first tap.
+          void setTourStateAndPersist(resumed);
+          setTourLoaded(true);
+          void markTourSeenOnServer({ status: 'started' });
+          return;
+        }
+
+        setTourState(loaded);
+        setTourLoaded(true);
+      } catch (error) {
+        if (!isMounted) return;
+        console.warn('[InAppTour] Failed to load local tour state:', error);
+        // Fail open: eligible users can still start a fresh in-memory tour, and
+        // ineligible users remain excluded by the profile checks above.
         setTourState(null);
         setTourLoaded(true);
-        return;
       }
-
-      if (loaded?.status === 'in_progress') {
-        const resumed = resumeInProgressTourAtStep(
-          loaded,
-          COLD_START_TOUR_RESUME_STEP_ID,
-        );
-        // Make the restored controls interactive in the same render that
-        // reveals them. Neither storage nor the network may gate the first tap.
-        void setTourStateAndPersist(resumed);
-        setTourLoaded(true);
-        void markTourSeenOnServer({ status: 'started' });
-        return;
-      }
-
-      setTourState(loaded);
-      setTourLoaded(true);
     };
 
     void run();
@@ -1167,6 +1249,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   );
 
   const queueTourStartAfterPaywallClose = useCallback(() => {
+    // The paywall-to-tour handoff is not an app cold start. Mark the decorative
+    // reveal complete before Home mounts so it cannot cover or replay the tour.
+    completeStartupReveal();
     setPendingPaywallStartRequestedAt(Date.now());
   }, []);
 
@@ -1175,6 +1260,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     setPendingStepId(null);
     setIsTooltipVisible(false);
     setIsExitingTooltip(false);
+    setAnchorFallbackStepId(null);
     setCompletedActionStepIds(new Set());
     advancingStepIdRef.current = null;
     lastTrackedStepIdRef.current = null;
@@ -1311,9 +1397,20 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
 
+  const isTourScreenScrollLocked = shouldLockInAppTourScreen(
+    isTourActive,
+    logicalStep?.mode
+  ) && Boolean(
+    !logicalStep?.anchorId
+    || anchorRects[logicalStep.anchorId]
+    || anchorFallbackStepId === logicalStep.id
+  );
+
   const contextValue = useMemo<InAppTourContextValue>(() => ({
     registerAnchorRect,
     unregisterAnchor,
+    registerAnchorAction,
+    unregisterAnchorAction,
     isTourActive,
     hasTourFinished,
     activeStepId: logicalStep?.id ?? null,
@@ -1321,7 +1418,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     activeSecondaryAnchorId: logicalStep?.secondaryAnchorId ?? null,
     activeArrowAnchorId: logicalStep?.arrowAnchorId ?? null,
     premeasureAnchorIds,
-    isScreenScrollLocked: shouldLockInAppTourScreen(isTourActive, logicalStep?.mode),
+    isScreenScrollLocked: isTourScreenScrollLocked,
     advanceStep: () => void advanceStep(),
     skipTour: () => void finishTour('skipped'),
     currentStepNumber: logicalStep ? getStepIndexById(logicalStep.id) + 1 : null,
@@ -1342,11 +1439,18 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       isTourActive,
       placement,
     }),
-  }), [advanceStep, finishTour, hasTourFinished, isTourActive, logicalStep, premeasureAnchorIds, queueTourStartAfterPaywallClose, registerAnchorRect, resetTourForDev, unregisterAnchor]);
+  }), [advanceStep, finishTour, hasTourFinished, isTourActive, isTourScreenScrollLocked, logicalStep, premeasureAnchorIds, queueTourStartAfterPaywallClose, registerAnchorAction, registerAnchorRect, resetTourForDev, unregisterAnchor, unregisterAnchorAction]);
 
   const primaryAction = useMemo(() => {
-    if (!isTourActive || !overlayStep || !overlayStep.primaryActionLabel) return null;
-    const isActionRequired = Boolean(overlayStep.requiresActionBeforeNext);
+    if (!isTourActive || !overlayStep) return null;
+    const isMissingAnchorFallback = Boolean(
+      overlayStep.anchorId
+      && !currentAnchorRect
+      && anchorFallbackStepId === overlayStep.id
+    );
+    const actionLabel = overlayStep.primaryActionLabel ?? (isMissingAnchorFallback ? 'Continue' : null);
+    if (!actionLabel) return null;
+    const isActionRequired = !isMissingAnchorFallback && Boolean(overlayStep.requiresActionBeforeNext);
     const hasCompletedRequiredAction = !isActionRequired || completedActionStepIds.has(overlayStep.id);
     const canAdvanceFromDisplayedStep =
       tourLoaded &&
@@ -1355,14 +1459,68 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       logicalStep?.id === overlayStep.id &&
       hasCompletedRequiredAction;
     return {
-      label: overlayStep.primaryActionLabel,
+      label: actionLabel,
       onPress: () => {
         if (!canAdvanceFromDisplayedStep) return;
+        if (isMissingAnchorFallback) {
+          const nextStepId = getNextInAppTourStepId(overlayStep.id);
+          const nextStep = getStepById(nextStepId);
+          if (
+            nextStep
+            && USER_DRIVEN_NAV_STEP_IDS.has(nextStep.id)
+            && !isOnStepRoute(nextStep.route)
+          ) {
+            router.navigate(nextStep.route);
+          }
+        }
         void advanceStep();
       },
       disabled: !canAdvanceFromDisplayedStep,
     };
-  }, [advanceStep, completedActionStepIds, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId, tourLoaded]);
+  }, [advanceStep, anchorFallbackStepId, completedActionStepIds, currentAnchorRect, getStepById, isExitingTooltip, isOnStepRoute, isTourActive, logicalStep?.id, overlayStep, pendingStepId, router, tourLoaded]);
+
+  const anchorAction = useMemo(() => {
+    const canHandleAnchorAction = Boolean(
+      tourLoaded
+      && isTourActive
+      && overlayStep?.allowAnchorInteraction
+      && logicalStep?.id === overlayStep.id
+      && currentAnchorRect
+      && !isExitingTooltip
+      && !pendingStepId
+    );
+    if (!canHandleAnchorAction || !overlayStep?.anchorId) return null;
+
+    const registeredAction = (
+      overlayStep.arrowAnchorId
+        ? anchorActions[overlayStep.arrowAnchorId]
+        : null
+    ) ?? anchorActions[overlayStep.anchorId];
+    if (registeredAction) {
+      return {
+        label: overlayStep.body,
+        ...registeredAction,
+      };
+    }
+
+    if (overlayStep.id !== 'add_workout_routine') return null;
+
+    return {
+      label: 'Add workout',
+      onPress: () => {
+        void advanceStep();
+        router.navigate('/workout/create');
+      },
+    };
+  }, [advanceStep, anchorActions, currentAnchorRect, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId, router, tourLoaded]);
+
+  const anchorActionRect = useMemo(() => {
+    if (!overlayStep?.anchorId) return null;
+    if (overlayStep.arrowAnchorId && anchorActions[overlayStep.arrowAnchorId]) {
+      return arrowAnchorRect;
+    }
+    return currentAnchorRect;
+  }, [anchorActions, arrowAnchorRect, currentAnchorRect, overlayStep?.anchorId, overlayStep?.arrowAnchorId]);
 
   const stepLabel = useMemo(() => {
     if (!isTourActive || !overlayStep) return null;
@@ -1377,7 +1535,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated &&
     isMainAppRoute &&
     isOverlayStepOnRoute &&
-    (!overlayStep.anchorId || currentAnchorRect)
+    (!overlayStep.anchorId || currentAnchorRect || anchorFallbackStepId === overlayStep.id)
   );
   const showPrimaryStylePicker = Boolean(
     isTourActive &&
@@ -1406,9 +1564,15 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         boldPhrases={overlayStep?.boldPhrases}
         centerTooltip={
           Boolean(overlayStep?.centerTooltip) ||
+          anchorFallbackStepId === overlayStep?.id ||
           (overlayStep?.mode === 'spotlight' && !currentAnchorRect)
         }
-        showHighlight={isTooltipVisible && (overlayStep?.showHighlight ?? true) && Boolean(currentAnchorRect)}
+        showHighlight={
+          anchorFallbackStepId !== overlayStep?.id
+          && isTooltipVisible
+          && (overlayStep?.showHighlight ?? true)
+          && Boolean(currentAnchorRect)
+        }
         hideTooltip={Boolean(overlayStep?.hideTooltip) || !isTooltipVisible}
         tooltipOffsetY={overlayStep?.tooltipOffsetY ?? 0}
         pinTooltipToTop={overlayStep?.pinTooltipToTop ?? false}
@@ -1422,6 +1586,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         reserveArrowSpace={overlayStep?.reserveArrowSpace}
         allowAnchorInteraction={overlayStep?.allowAnchorInteraction}
         allowOnlyArrowTargetInteraction={overlayStep?.allowOnlyArrowTargetInteraction}
+        anchorAction={anchorAction}
+        anchorActionRect={anchorActionRect}
         onTooltipHideComplete={handleTooltipHideComplete}
       />
       <AccentColorPicker

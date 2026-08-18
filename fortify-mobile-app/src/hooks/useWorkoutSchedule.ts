@@ -20,7 +20,8 @@ import {
   type WorkoutScheduleHistoryEntry,
 } from '@/src/utils/workoutSchedule';
 
-export function useWorkoutSchedule() {
+export function useWorkoutSchedule(options: { enabled?: boolean } = {}) {
+  const { enabled = true } = options;
   const { profile, updateProfile, user } = useAuth();
   const [localDays, setLocalDays] = useState<number[] | null>(null);
   const [scheduleHistory, setScheduleHistory] = useState<WorkoutScheduleHistoryEntry[]>([]);
@@ -28,7 +29,15 @@ export function useWorkoutSchedule() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (!enabled) {
+      setLocalDays(null);
+      setScheduleHistory([]);
+      setIsLoaded(true);
+      return;
+    }
+
     let isActive = true;
+    setIsLoaded(false);
 
     Promise.all([
       loadLocalWorkoutScheduleDays(),
@@ -50,7 +59,7 @@ export function useWorkoutSchedule() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [enabled]);
 
   const scheduleDays = useMemo(
     () => resolveWorkoutScheduleDays(

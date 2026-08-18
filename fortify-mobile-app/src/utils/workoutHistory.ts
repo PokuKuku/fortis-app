@@ -1,5 +1,14 @@
 import type { WorkoutSession } from '@/src/types/workout';
 
+export const areWorkoutSessionsEqual = (
+  left: WorkoutSession[],
+  right: WorkoutSession[]
+): boolean => {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  return JSON.stringify(left) === JSON.stringify(right);
+};
+
 export const mergeWorkoutSessions = (
   remote: WorkoutSession[],
   local: WorkoutSession[]

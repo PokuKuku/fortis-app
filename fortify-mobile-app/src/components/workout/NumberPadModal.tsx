@@ -388,6 +388,7 @@ export function NumberPadModal({
                   id={TOUR_ANCHOR_IDS.activeSetFillDown}
                   disabled={!shouldAnchorFillDown}
                   deferMeasurementUntilInteractions
+                  onTourPress={handleFillDown}
                 >
                   <Pressable
                     testID="number-pad-fill-down"

@@ -326,6 +326,23 @@ describe('useRealtimeCoach', () => {
     jest.useRealTimers();
   });
 
+  it('does not initialize consent, native audio, or sockets when disabled for the tour', async () => {
+    const hook = renderHook(() => useRealtimeCoach({ preferences, enabled: false }));
+
+    await act(async () => {
+      await hook.result.current.start();
+      hook.result.current.stop();
+    });
+
+    expect(mockRequestAIDataSharingConsent).not.toHaveBeenCalled();
+    expect(mockInitialize).not.toHaveBeenCalled();
+    expect(mockSetAudioModeAsync).not.toHaveBeenCalled();
+    expect(MockWebSocket.instances).toHaveLength(0);
+
+    hook.unmount();
+    expect(mockSetAudioModeAsync).not.toHaveBeenCalled();
+  });
+
   it('connects without recording until the user holds to talk', async () => {
     const { hook } = await startConnectedSession();
 

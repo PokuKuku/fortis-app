@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { InAppTourProvider, useInAppTour } from '@/src/contexts/InAppTourContext';
 import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 
@@ -9,6 +9,7 @@ const mockUpdateProfile = jest.fn();
 const mockLoadInAppTourState = jest.fn();
 const mockSaveInAppTourState = jest.fn();
 const mockClearInAppTourState = jest.fn();
+const mockCompleteStartupReveal = jest.fn();
 const mockProfile = {
   id: 'user-1',
   onboarding_completed: true,
@@ -58,20 +59,32 @@ jest.mock('@/src/config/posthog', () => ({
   posthog: { capture: jest.fn() },
 }));
 
+jest.mock('@/src/utils/startupReveal', () => ({
+  completeStartupReveal: () => mockCompleteStartupReveal(),
+}));
+
 jest.mock('@/src/components/tour/TourOverlay', () => ({
   TourOverlay: ({
     visible,
     hideTooltip,
     primaryAction,
     secondaryAction,
+    onTooltipHideComplete,
   }: {
     visible: boolean;
     hideTooltip: boolean;
     primaryAction?: { label: string; onPress: () => void; disabled?: boolean } | null;
     secondaryAction?: { label: string; onPress: () => void; disabled?: boolean } | null;
+    onTooltipHideComplete?: (() => void) | null;
   }) => {
     const ReactModule = require('react') as typeof React;
     const { Pressable: MockPressable, Text: MockText } = require('react-native');
+
+    ReactModule.useEffect(() => {
+      if (hideTooltip) {
+        onTooltipHideComplete?.();
+      }
+    }, [hideTooltip, onTooltipHideComplete]);
 
     return (
       <ReactModule.Fragment>
@@ -187,6 +200,80 @@ describe('in-app tour responsiveness', () => {
       expect(view.getByTestId('tour-premeasure-anchors').props.children)
         .toContain(TOUR_ANCHOR_IDS.streakCounter);
     });
+  });
+
+  it('starts on Home without replaying navigation or the startup reveal', async () => {
+    mockLoadInAppTourState.mockResolvedValue(null);
+    mockProfile.has_seen_in_app_tour = false;
+
+    const view = render(
+      <InAppTourProvider>
+        <Text>App</Text>
+      </InAppTourProvider>
+    );
+
+    await waitFor(() => {
+      expect(view.getByTestId('tour-render-state').props.children).toBe('true:false:Continue');
+    });
+
+    expect(mockCompleteStartupReveal).toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a centered Continue step when an anchor never measures', async () => {
+    mockLoadInAppTourState.mockResolvedValue(null);
+    mockProfile.has_seen_in_app_tour = false;
+
+    function LockProbe() {
+      const { isScreenScrollLocked } = useInAppTour();
+      return <Text testID="tour-scroll-lock">{String(isScreenScrollLocked)}</Text>;
+    }
+
+    const view = render(
+      <InAppTourProvider>
+        <LockProbe />
+      </InAppTourProvider>
+    );
+
+    await waitFor(() => {
+      expect(view.getByTestId('tour-render-state').props.children).toBe('true:false:Continue');
+    });
+
+    fireEvent.press(view.getByRole('button', { name: 'Continue' }));
+
+    await waitFor(() => {
+      expect(view.getByTestId('tour-scroll-lock').props.children).toBe('false');
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1300));
+    });
+
+    await waitFor(() => {
+      expect(view.getByTestId('tour-render-state').props.children).toBe('true:false:Continue');
+      expect(view.getByTestId('tour-scroll-lock').props.children).toBe('true');
+    });
+  });
+
+  it('starts an in-memory tour when local state loading fails', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockLoadInAppTourState.mockRejectedValue(new Error('storage unavailable'));
+    mockProfile.has_seen_in_app_tour = false;
+
+    const view = render(
+      <InAppTourProvider>
+        <Text>App</Text>
+      </InAppTourProvider>
+    );
+
+    await waitFor(() => {
+      expect(view.getByTestId('tour-render-state').props.children).toBe('true:false:Continue');
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[InAppTour] Failed to load local tour state:',
+      expect.any(Error)
+    );
+    warnSpy.mockRestore();
   });
 
   it('preserves completion from an older tour version without showing the new tour', async () => {

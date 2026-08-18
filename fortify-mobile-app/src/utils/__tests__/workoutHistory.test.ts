@@ -1,5 +1,5 @@
 import type { WorkoutSession } from '@/src/types/workout';
-import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
+import { areWorkoutSessionsEqual, mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 
 function session(localId: string, startedAt: string, isSynced: boolean): WorkoutSession {
   return {
@@ -38,5 +38,21 @@ describe('mergeWorkoutSessions', () => {
 
     expect(merged).toHaveLength(1);
     expect(merged[0].startedAt.toISOString()).toBe('2026-05-18T18:00:00.000Z');
+  });
+});
+
+describe('areWorkoutSessionsEqual', () => {
+  it('recognizes equivalent persisted and refreshed histories', () => {
+    const persisted = [session('same-id', '2026-05-18T18:00:00Z', true)];
+    const refreshed = [session('same-id', '2026-05-18T18:00:00Z', true)];
+
+    expect(areWorkoutSessionsEqual(persisted, refreshed)).toBe(true);
+  });
+
+  it('detects a meaningful refreshed-history change', () => {
+    const persisted = [session('same-id', '2026-05-18T18:00:00Z', false)];
+    const refreshed = [session('same-id', '2026-05-18T18:00:00Z', true)];
+
+    expect(areWorkoutSessionsEqual(persisted, refreshed)).toBe(false);
   });
 });

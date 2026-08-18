@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { getTourSlideDirection, TourOverlay } from '@/src/components/tour/TourOverlay';
 
@@ -63,7 +64,7 @@ describe('TourOverlay', () => {
     expect(view.queryByTestId('tour-arrow-down')).toBeNull();
   });
 
-  it('uses a rounded spotlight cutout that matches the highlight frame', () => {
+  it('tracks rounded spotlight geometry', () => {
     const view = render(
       <TourOverlay
         visible
@@ -73,10 +74,25 @@ describe('TourOverlay', () => {
       />
     );
 
-    const spotlightHole = view.getByTestId('tour-spotlight-hole-0');
+    const spotlightStyle = StyleSheet.flatten(view.getByTestId('tour-spotlight-hole-0').props.style);
 
-    expect(spotlightHole.props.rx).toBeGreaterThan(0);
-    expect(spotlightHole.props.ry).toBe(spotlightHole.props.rx);
+    expect(spotlightStyle.borderRadius).toBeGreaterThan(0);
+  });
+
+  it('cuts rounded spotlight holes without an SVG mask', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 100, y: 200, width: 120, height: 50 }}
+        body="Safe rounded spotlight"
+      />
+    );
+
+    const dimPath = view.getByTestId('tour-spotlight-path').props;
+    expect(dimPath.fillRule).toBe(0);
+    expect(dimPath.d).toContain(' A ');
+    expect(dimPath.mask).toBeUndefined();
   });
 
   it('blocks touches inside informational highlights by default', () => {
@@ -145,6 +161,58 @@ describe('TourOverlay', () => {
     expect(view.queryByTestId('tour-hole-blocker-0')).toBeNull();
   });
 
+  it('can handle a highlighted action directly instead of relying on touch passthrough', () => {
+    const onPress = jest.fn();
+    const onPressIn = jest.fn();
+    const onPressOut = jest.fn();
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 260, y: 600, width: 52, height: 52 }}
+        body="Tap this button to add a workout"
+        allowAnchorInteraction
+        anchorAction={{ label: 'Add workout', onPress, onPressIn, onPressOut }}
+      />
+    );
+
+    const action = view.getByLabelText('Add workout');
+    fireEvent(action, 'pressIn');
+    fireEvent(action, 'pressOut');
+    fireEvent.press(action);
+
+    expect(onPressIn).toHaveBeenCalledTimes(1);
+    expect(onPressOut).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports explicit long-press actions on a separate arrow target', () => {
+    const onLongPress = jest.fn();
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 40, y: 120, width: 280, height: 400 }}
+        arrowTargetRect={{ x: 260, y: 300, width: 44, height: 44 }}
+        anchorActionRect={{ x: 260, y: 300, width: 44, height: 44 }}
+        body="Press and hold"
+        allowAnchorInteraction
+        anchorAction={{ label: 'Complete remaining sets', onLongPress, delayLongPress: 350 }}
+      />
+    );
+
+    fireEvent(view.getByLabelText('Complete remaining sets'), 'longPress');
+
+    expect(onLongPress).toHaveBeenCalledTimes(1);
+    const actionStyle = StyleSheet.flatten(view.getByTestId('tour-anchor-action').props.style);
+    expect(actionStyle).toEqual(expect.objectContaining({
+      left: 260,
+      top: 300,
+      width: 44,
+      height: 44,
+    }));
+  });
+
   it('supports bold emphasis within the tour directions', () => {
     const view = render(
       <TourOverlay
@@ -173,7 +241,8 @@ describe('TourOverlay', () => {
       />
     );
 
-    expect(view.getByTestId('tour-spotlight-hole-0').props.y).toBe(206);
+    const spotlightStyle = StyleSheet.flatten(view.getByTestId('tour-spotlight-hole-0').props.style);
+    expect(spotlightStyle.top).toBe(206);
   });
 
   it('can widen and raise a spotlight without extending its bottom edge', () => {
@@ -190,11 +259,11 @@ describe('TourOverlay', () => {
       />
     );
 
-    const spotlightHole = view.getByTestId('tour-spotlight-hole-0');
-    expect(spotlightHole.props.x).toBe(32);
-    expect(spotlightHole.props.y).toBe(112);
-    expect(spotlightHole.props.width).toBe(296);
-    expect(spotlightHole.props.height).toBe(408);
+    const spotlightStyle = StyleSheet.flatten(view.getByTestId('tour-spotlight-hole-0').props.style);
+    expect(spotlightStyle.left).toBe(32);
+    expect(spotlightStyle.top).toBe(112);
+    expect(spotlightStyle.width).toBe(296);
+    expect(spotlightStyle.height).toBe(408);
   });
 
   it('keeps replay and next as independent actions', () => {

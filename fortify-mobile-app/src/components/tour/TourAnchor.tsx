@@ -1,11 +1,14 @@
-import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
-import { InteractionManager, LayoutChangeEvent, View, type ViewProps } from 'react-native';
+import { PropsWithChildren, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Animated, InteractionManager, LayoutChangeEvent, View, type ViewProps } from 'react-native';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 
 type TourAnchorProps = PropsWithChildren<{
   id: string;
   disabled?: boolean;
   deferMeasurementUntilInteractions?: boolean;
+  onTourPress?: () => void;
+  onTourLongPress?: () => void;
+  tourDelayLongPress?: number;
   onLayout?: (event: LayoutChangeEvent) => void;
 } & Omit<ViewProps, 'onLayout'>>;
 
@@ -16,22 +19,78 @@ export function TourAnchor({
   id,
   disabled = false,
   deferMeasurementUntilInteractions = false,
+  onTourPress,
+  onTourLongPress,
+  tourDelayLongPress,
   onLayout,
   children,
+  style,
   ...viewProps
 }: TourAnchorProps) {
   const ref = useRef<View>(null);
+  const pressProgress = useRef(new Animated.Value(0)).current;
   const interactionTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lateSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     registerAnchorRect,
     unregisterAnchor,
+    registerAnchorAction,
+    unregisterAnchorAction,
     activeAnchorId,
     activeSecondaryAnchorId,
     activeArrowAnchorId,
     premeasureAnchorIds = [],
   } = useInAppTour();
+  const onTourPressRef = useRef(onTourPress);
+  onTourPressRef.current = onTourPress;
+  const onTourLongPressRef = useRef(onTourLongPress);
+  onTourLongPressRef.current = onTourLongPress;
+  const hasTourPress = typeof onTourPress === 'function';
+  const hasTourLongPress = typeof onTourLongPress === 'function';
+  const invokeTourPress = useCallback(() => {
+    onTourPressRef.current?.();
+  }, []);
+  const invokeTourLongPress = useCallback(() => {
+    onTourLongPressRef.current?.();
+  }, []);
+  const handleTourPressIn = useCallback(() => {
+    Animated.timing(pressProgress, {
+      toValue: 1,
+      duration: 80,
+      useNativeDriver: true,
+    }).start();
+  }, [pressProgress]);
+  const handleTourPressOut = useCallback(() => {
+    Animated.timing(pressProgress, {
+      toValue: 0,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  }, [pressProgress]);
+  const pressStyle = {
+    transform: [
+      {
+        translateY: pressProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 2],
+        }),
+      },
+      {
+        scale: pressProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.985],
+        }),
+      },
+    ],
+  };
+  const tourAction = useMemo(() => ({
+    onPress: hasTourPress ? invokeTourPress : undefined,
+    onLongPress: hasTourLongPress ? invokeTourLongPress : undefined,
+    delayLongPress: tourDelayLongPress,
+    onPressIn: handleTourPressIn,
+    onPressOut: handleTourPressOut,
+  }), [handleTourPressIn, handleTourPressOut, hasTourLongPress, hasTourPress, invokeTourLongPress, invokeTourPress, tourDelayLongPress]);
   const isCurrentAnchor = activeAnchorId === id
     || activeSecondaryAnchorId === id
     || activeArrowAnchorId === id;
@@ -65,6 +124,12 @@ export function TourAnchor({
       unregisterAnchor(id);
     }
   }, [disabled, id, unregisterAnchor]);
+
+  useEffect(() => {
+    if (disabled || (!hasTourPress && !hasTourLongPress)) return;
+    registerAnchorAction(id, tourAction);
+    return () => unregisterAnchorAction(id, tourAction);
+  }, [disabled, hasTourLongPress, hasTourPress, id, registerAnchorAction, tourAction, unregisterAnchorAction]);
 
   useEffect(() => {
     if (disabled || shouldMeasureAnchor) return;
@@ -149,13 +214,14 @@ export function TourAnchor({
   }, [deferMeasurementUntilInteractions, disabled, isCurrentAnchor, measure, onLayout, shouldMeasureAnchor]);
 
   return (
-    <View
+    <Animated.View
       ref={ref}
       collapsable={false}
       onLayout={handleLayout}
       {...viewProps}
+      style={[style, pressStyle]}
     >
       {children}
-    </View>
+    </Animated.View>
   );
 }
