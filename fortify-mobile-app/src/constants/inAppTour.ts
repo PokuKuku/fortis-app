@@ -5,9 +5,17 @@ export const IN_APP_TOUR_VERSION = 30 as const;
 export const IN_APP_TOUR_NEW_USER_CUTOFF = '2026-07-12T20:30:00.000Z' as const;
 
 export const TOUR_QUICK_START_TEMPLATE_ID = 'default-template-upper' as const;
-// This marks the tour-created template without using ai_source_chat_id, which
-// is reserved for real chat UUIDs in Supabase.
-export const TOUR_BACK_WORKOUT_TEMPLATE_MARKER = 'in_app_tour_back_workout' as const;
+export const TOUR_BACK_WORKOUT_TEMPLATE_ID = 'tour-simulation-back-workout' as const;
+export const TOUR_BACK_WORKOUT_ID = 'tour-simulation-back-workout-day' as const;
+
+// Tour workout data is intentionally static and local. It gives every screen the
+// same realistic content without creating a template or reading the exercise DB.
+export const TOUR_BACK_WORKOUT_EXERCISES = [
+  { exerciseId: '72f240eb-44d7-437d-b610-d53e23aad520', exerciseName: 'Barbell Bent Over Row', sets: 4, reps: '8 to 10', restSeconds: 120 },
+  { exerciseId: 'd4e6ab99-5b62-4ff0-9595-0263c247198f', exerciseName: 'Cable Pulldown', sets: 3, reps: '10 to 12', restSeconds: 90 },
+  { exerciseId: '92d98b61-2fcc-4696-9c60-a038b5bf716e', exerciseName: 'Cable Seated Row', sets: 3, reps: '10 to 12', restSeconds: 90 },
+  { exerciseId: '46ce10d3-2a2d-477a-89bd-92f6a260f419', exerciseName: 'Cable Lateral Pulldown With V Bar', sets: 3, reps: '12 to 15', restSeconds: 60 },
+] as const;
 
 export const TOUR_ANCHOR_IDS = {
   aiChatButton: 'tour.tabs.aiChatButton',

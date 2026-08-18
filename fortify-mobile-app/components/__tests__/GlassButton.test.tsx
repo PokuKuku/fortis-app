@@ -50,6 +50,18 @@ describe('GlassButton', () => {
     expect(onPressInMock).toHaveBeenCalledTimes(1);
   });
 
+  it('calls onPressOut when the press ends or is cancelled', () => {
+    const onPressOutMock = jest.fn();
+    const { getByText } = renderWithTheme(
+      <GlassButton onPressOut={onPressOutMock}>
+        <Text>Press Out</Text>
+      </GlassButton>
+    );
+
+    fireEvent(getByText('Press Out'), 'pressOut');
+    expect(onPressOutMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not call onPress when disabled', () => {
     const onPressMock = jest.fn();
     const { getByText } = renderWithTheme(

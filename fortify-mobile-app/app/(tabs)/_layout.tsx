@@ -26,11 +26,15 @@ import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import {
+  TOUR_ANCHOR_IDS,
+  TOUR_BACK_WORKOUT_EXERCISES,
+  TOUR_BACK_WORKOUT_ID,
+  TOUR_BACK_WORKOUT_TEMPLATE_ID,
+} from '@/src/constants/inAppTour';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
-import { TOUR_BACK_WORKOUT_TEMPLATE_MARKER } from '@/src/constants/inAppTour';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
@@ -56,9 +60,35 @@ import {
   completeStartupReveal,
   isStartupRevealComplete,
 } from '@/src/utils/startupReveal';
+import type { Program } from '@/src/types/workout';
 
 type PrimaryTabRoute = 'history' | 'insights' | 'index' | 'profile';
 const STARTUP_REVEAL_DURATION_MS = 175;
+const TOUR_SIMULATION_TEMPLATE: Program = {
+  id: TOUR_BACK_WORKOUT_TEMPLATE_ID,
+  name: 'Back Workout',
+  description: 'A complete back session with horizontal and vertical pulling.',
+  difficulty: 'intermediate',
+  goal: 'hypertrophy',
+  isPublic: false,
+  isDefault: false,
+  isAiCreated: true,
+  isTemplate: true,
+  lastPerformedAt: null,
+  createdBy: 'in-app-tour',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  workouts: [{
+    id: TOUR_BACK_WORKOUT_ID,
+    name: 'Back Workout',
+    dayNumber: 1,
+    exercises: TOUR_BACK_WORKOUT_EXERCISES.map((exercise, index) => ({
+      id: `tour-simulation-exercise-${index + 1}`,
+      ...exercise,
+      orderIndex: index,
+    })),
+  }],
+};
 
 export default function TabLayout() {
   const router = useRouter();
@@ -82,7 +112,7 @@ export default function TabLayout() {
   const { isSuperwallReady } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
   }));
-  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
+  const { isTourActive, hasTourFinished, activeStepId, advanceStep } = useInAppTour();
 
   // Theme-aware dynamic styles for accent color
   const themedStyles = {
@@ -106,6 +136,7 @@ export default function TabLayout() {
   };
   const isExercises = pathname?.includes('/exercises');
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
+  const startTourWorkoutSimulation = useWorkoutStore(s => s.startTourWorkoutSimulation);
   const showFirstWorkoutStreakModal = useWorkoutStore(s => s.showFirstWorkoutStreakModal);
   const dismissFirstWorkoutStreakModal = useWorkoutStore(s => s.dismissFirstWorkoutStreakModal);
   const { programs, fetchPrograms, isLoading: isProgramsLoading } = useProgramsStore();
@@ -297,8 +328,9 @@ export default function TabLayout() {
   }, [syncAccessState]);
 
   useEffect(() => {
+    if (!hasTourFinished) return;
     loadProgramProgress();
-  }, [loadProgramProgress]);
+  }, [hasTourFinished, loadProgramProgress]);
 
   // AI Store
   const { conversation } = useAIStore();
@@ -324,6 +356,7 @@ export default function TabLayout() {
   const [draftStartPreset, setDraftStartPreset] = useState<StartPreset | null>(null);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [pendingTabFeedback, setPendingTabFeedback] = useState<PrimaryTabRoute | null>(null);
+  const [isTourStartConfigured, setIsTourStartConfigured] = useState(false);
   const nameShake = useRef(new Animated.Value(0)).current;
   const primaryShake = useRef(new Animated.Value(0)).current;
   const startActionLock = useRef(false);
@@ -383,18 +416,13 @@ export default function TabLayout() {
     return templateMatch?.name ?? 'Workout template';
   }, [startPreset, programs]);
 
-  const tourQuickStartTemplate = useMemo(() => {
-    const markedTourTemplate = templates.find((template) =>
-      template.aiPayloadVersion === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
-      || template.aiSourceChatId === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
-    );
-    if (markedTourTemplate) return markedTourTemplate;
-
-    // Supports tours already in progress before the template marker was added.
-    return templates.find((template) =>
-      template.isAiCreated && /^back workout(?:\s+\d+)?$/i.test(template.name)
-    ) ?? null;
-  }, [templates]);
+  const tourQuickStartTemplate = isTourActive ? TOUR_SIMULATION_TEMPLATE : null;
+  const startModalTemplates = useMemo(
+    () => isTourActive
+      ? [TOUR_SIMULATION_TEMPLATE, ...templates.filter((template) => template.id !== TOUR_BACK_WORKOUT_TEMPLATE_ID)]
+      : templates,
+    [isTourActive, templates]
+  );
 
   const isTourQuickStartPreset = (preset: StartPreset | null) => {
     if (!preset || preset.type !== 'template') return false;
@@ -429,6 +457,12 @@ export default function TabLayout() {
       pendingTabFeedbackTimeoutRef.current = null;
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (!isTourActive) {
+      setIsTourStartConfigured(false);
+    }
+  }, [isTourActive]);
 
   useEffect(() => {
     return () => {
@@ -499,6 +533,17 @@ export default function TabLayout() {
       openStartConfig();
       return;
     }
+    if (isTourActive && activeStepId === 'launch_workout') {
+      const didStart = startTourWorkoutSimulation(
+        TOUR_SIMULATION_TEMPLATE.name,
+        TOUR_BACK_WORKOUT_EXERCISES.map((exercise) => ({ ...exercise })),
+      );
+      if (didStart) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+        router.push('/workout/active');
+      }
+      return;
+    }
     if (!startPreset) {
       openStartConfig();
       return;
@@ -507,8 +552,9 @@ export default function TabLayout() {
     await startWorkoutFromPreset(startPreset);
   };
 
-  const shouldOpenStartConfigOnPressIn =
-    !startPreset || (isTourActive && activeStepId === 'quick_start');
+  const shouldOpenStartConfigOnPressIn = isTourActive && activeStepId === 'launch_workout'
+    ? !isTourStartConfigured
+    : !startPreset || (isTourActive && activeStepId === 'quick_start');
 
   const handleStartPressIn = () => {
     if (isWorkoutActive || !shouldOpenStartConfigOnPressIn) return;
@@ -529,14 +575,17 @@ export default function TabLayout() {
 
     if (isTourActive && activeStepId === 'quick_start') {
       if (!isTourQuickStartPreset(nextPreset)) {
-        nextPreset = tourQuickStartTemplate
-          ? {
-              type: 'template',
-              templateId: tourQuickStartTemplate.id,
-              templateWorkoutId: tourQuickStartTemplate.workouts[0]?.id,
-            }
-          : null;
+        nextPreset = {
+          type: 'template',
+          templateId: TOUR_BACK_WORKOUT_TEMPLATE_ID,
+          templateWorkoutId: TOUR_BACK_WORKOUT_ID,
+        };
       }
+      setDraftStartPreset(nextPreset);
+      setIsTourStartConfigured(true);
+      setStartConfigVisible(false);
+      advanceStep();
+      return;
     }
 
     await setStartPreset(nextPreset);
@@ -852,7 +901,7 @@ export default function TabLayout() {
       currentPreset={startPreset}
       draftPreset={draftStartPreset}
       currentLabel={startPresetLabel}
-      templates={templates}
+      templates={startModalTemplates}
       programs={programPlans}
       isLoading={isProgramsLoading}
       onChange={handleChangeStartPreset}

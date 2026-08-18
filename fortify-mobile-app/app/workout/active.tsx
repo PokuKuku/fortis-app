@@ -108,10 +108,9 @@ export default function ActiveWorkoutScreen() {
     if (!exercise || !firstSet) return;
 
     preparedTourSetStepRef.current = activeStepId;
-    const { closeNumberPad, openNumberPad, setWeightUnit, updateSets } = useWorkoutStore.getState();
+    const { closeNumberPad, openNumberPad, updateSets } = useWorkoutStore.getState();
 
     if (activeStepId === 'fill_weight_column') {
-      void setWeightUnit(exercise.exerciseId, 'lbs');
       updateSets(exercise.localId, Object.fromEntries(exercise.sets.map((set, index) => [
         set.localId,
         index === 0
@@ -352,7 +351,10 @@ export default function ActiveWorkoutScreen() {
 
   // Fetch muscle data for exercises when they change
   useEffect(() => {
-    if (!activeSession?.exercises) return;
+    if (isTourActive || !activeSession?.exercises) {
+      setExerciseMuscleCache({});
+      return;
+    }
 
     const fetchMissingMuscles = async () => {
       const exerciseIds = activeSession.exercises.map(e => e.exerciseId);
@@ -380,9 +382,9 @@ export default function ActiveWorkoutScreen() {
     };
 
     fetchMissingMuscles();
-  }, [activeSession?.exercises.map(e => e.exerciseId).join(',')]);
+  }, [activeSession?.exercises.map(e => e.exerciseId).join(','), isTourActive]);
 
-  const { bodyweightKg } = useLatestBodyweight();
+  const { bodyweightKg } = useLatestBodyweight({ enabled: !isTourActive });
 
   // Compute muscle intensity levels for heatmap (volume-based)
   const muscleLevels = useMemo(() => {

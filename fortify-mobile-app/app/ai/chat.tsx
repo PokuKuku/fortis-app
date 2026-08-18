@@ -67,7 +67,11 @@ import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
 import { RealtimeCoachSettingsModal } from '@/src/components/ai/RealtimeCoachSettingsModal';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
 import { setLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
-import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_TEMPLATE_MARKER } from '@/src/constants/inAppTour';
+import {
+  TOUR_ANCHOR_IDS,
+  TOUR_BACK_WORKOUT_EXERCISES,
+  TOUR_BACK_WORKOUT_TEMPLATE_ID,
+} from '@/src/constants/inAppTour';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -357,21 +361,6 @@ export default function AIChatScreen() {
       setTourBackWorkoutMessages((current) => current?.map((message) => (
         message.id === messageId ? { ...message, savedWorkoutTemplateId: templateId } : message
       )) ?? null);
-
-      const staleTourTemplates = useProgramsStore.getState().programs.filter((program) =>
-        program.id !== templateId && (
-          program.aiPayloadVersion === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
-          || program.aiSourceChatId === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
-        )
-      );
-      for (const staleTemplate of staleTourTemplates) {
-        try {
-          await useProgramsStore.getState().deleteProgram(staleTemplate.id);
-        } catch (error) {
-          console.warn('[InAppTour] Failed to remove the legacy Back Workout template:', error);
-        }
-      }
-
       completeCurrentStepAction();
       return;
     }
@@ -385,9 +374,9 @@ export default function AIChatScreen() {
     markWorkoutTemplateSaved: markDisplayedWorkoutTemplateSaved,
     saveWorkoutPlacement: PAYWALL_PLACEMENTS.workoutLimit,
     useProvidedExerciseIds: (message) => message.id === 'tour-back-workout-response',
-    getAiPayloadVersion: (message) => (
+    getSimulatedTemplateId: (message) => (
       message.id === 'tour-back-workout-response'
-        ? TOUR_BACK_WORKOUT_TEMPLATE_MARKER
+        ? TOUR_BACK_WORKOUT_TEMPLATE_ID
         : undefined
     ),
   });
@@ -534,12 +523,7 @@ export default function AIChatScreen() {
       description: 'A complete back session with horizontal and vertical pulling.',
       focus: 'Back',
       estimatedDurationMinutes: 50,
-      exercises: [
-        { exerciseId: '72f240eb-44d7-437d-b610-d53e23aad520', exerciseName: 'Barbell Bent Over Row', sets: 4, reps: '8 to 10', restSeconds: 120 },
-        { exerciseId: 'd4e6ab99-5b62-4ff0-9595-0263c247198f', exerciseName: 'Cable Pulldown', sets: 3, reps: '10 to 12', restSeconds: 90 },
-        { exerciseId: '92d98b61-2fcc-4696-9c60-a038b5bf716e', exerciseName: 'Cable Seated Row', sets: 3, reps: '10 to 12', restSeconds: 90 },
-        { exerciseId: '46ce10d3-2a2d-477a-89bd-92f6a260f419', exerciseName: 'Cable Lateral Pulldown With V Bar', sets: 3, reps: '12 to 15', restSeconds: 60 },
-      ],
+      exercises: TOUR_BACK_WORKOUT_EXERCISES.map((exercise) => ({ ...exercise })),
     };
     setTourBackWorkoutMessages([
       {

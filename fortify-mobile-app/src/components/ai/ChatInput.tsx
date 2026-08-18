@@ -30,12 +30,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import {
-  ArrowsPointingInIcon,
-  ArrowsPointingOutIcon,
   MicrophoneIcon,
   PaperAirplaneIcon,
   PlusIcon,
 } from 'react-native-heroicons/outline';
+import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -58,6 +57,20 @@ type VoicePhase = 'idle' | 'listening' | 'processing';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 const COMPACT_INPUT_EXPAND_THRESHOLD = 72;
+
+function CornerResizeIcon({ color, size }: { color: string; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M14 4h6v6M10 20H4v-6"
+        stroke={color}
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
 type SpeechRecognitionPermissionResponse = {
   granted: boolean;
@@ -368,7 +381,7 @@ export function ChatInput({
               accessibilityLabel="Expand message editor"
               accessibilityRole="button"
             >
-              <ArrowsPointingOutIcon color={colors.textSecondary} size={IconSizes.sm} />
+              <CornerResizeIcon color={colors.textSecondary} size={IconSizes.sm} />
             </TouchableOpacity>
           )}
 
@@ -477,7 +490,13 @@ export function ChatInput({
           style={[styles.expandedScreen, { backgroundColor: colors.background }]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={styles.expandedSafeArea} edges={['top', 'bottom']}>
+          <SafeAreaView
+            style={[
+              styles.expandedSafeArea,
+              { paddingTop: Math.max(insets.top + Spacing['2xl'], Spacing['5xl']) },
+            ]}
+            edges={['left', 'right', 'bottom']}
+          >
             <View style={[styles.expandedEditor, themedStyles.container]}>
               <TouchableOpacity
                 testID="chat-collapse-editor"
@@ -487,7 +506,7 @@ export function ChatInput({
                 accessibilityLabel="Collapse message editor"
                 accessibilityRole="button"
               >
-                <ArrowsPointingInIcon color={colors.textSecondary} size={IconSizes.md} />
+                <CornerResizeIcon color={colors.textSecondary} size={IconSizes.md} />
               </TouchableOpacity>
 
               <TextInput

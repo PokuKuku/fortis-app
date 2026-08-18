@@ -370,9 +370,11 @@ interface WorkoutState {
   // Active session
   activeSession: WorkoutSession | null;
   isWorkoutActive: boolean;
+  isTourSimulation: boolean;
 
   // Completed sessions history
   completedSessions: WorkoutSession[];
+  hasLoadedCompletedSessions: boolean;
   syncingSessionIds: string[];
 
   // Timers
@@ -442,6 +444,7 @@ interface WorkoutState {
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string, backdateToDate?: Date) => void;
   startWorkoutFromPlan: (name: string, exercises: WorkoutPlanExerciseInput[]) => Promise<boolean>;
+  startTourWorkoutSimulation: (name: string, exercises: WorkoutPlanExerciseInput[]) => boolean;
   startWorkoutFromTemplate: (templateId: string) => Promise<boolean>;
   startWorkoutFromProgram: (programId: string, programWorkoutId: string) => Promise<boolean>;
   finishWorkout: () => Promise<WorkoutSession | null>;
@@ -636,7 +639,9 @@ export const useWorkoutStore = create<WorkoutState>()(
     return ({
     activeSession: null,
     isWorkoutActive: false,
+    isTourSimulation: false,
     completedSessions: [],
+    hasLoadedCompletedSessions: false,
     syncingSessionIds: [],
     workoutStartTime: null,
     isWorkoutTimerPaused: false,
@@ -823,6 +828,83 @@ export const useWorkoutStore = create<WorkoutState>()(
         isStartingWorkout = false;
         return false;
       }
+    },
+
+    startTourWorkoutSimulation: (name, planExercises) => {
+      if (isStartingWorkout || get().isWorkoutActive) return false;
+      if (!name.trim() || planExercises.length === 0) return false;
+      isStartingWorkout = true;
+
+      const exercises: WorkoutExercise[] = planExercises.map((planExercise, exerciseIndex) => {
+        const setCount = clampInitialSetCount(planExercise.sets);
+        const weightUnit: WeightUnit = 'lbs';
+        const sets: WorkoutSet[] = Array.from({ length: setCount }, (_, setIndex) => ({
+          localId: `tour-set-${exerciseIndex + 1}-${setIndex + 1}`,
+          setNumber: setIndex + 1,
+          setType: 'normal',
+          weight: null,
+          weightUnit,
+          reps: null,
+          rpe: null,
+          restSeconds: null,
+          notes: '',
+          isCompleted: false,
+          orderIndex: setIndex,
+        }));
+
+        return {
+          localId: `tour-exercise-${exerciseIndex + 1}`,
+          exerciseId: planExercise.exerciseId,
+          exerciseName: planExercise.exerciseName,
+          sets,
+          targetReps: planExercise.reps || DEFAULT_TARGET_REPS,
+          notes: planExercise.notes || '',
+          orderIndex: exerciseIndex,
+          baselinePerformance: {
+            sets: sets.map(() => ({
+              weight: null,
+              weightUnit,
+              reps: null,
+              setType: 'normal' as SetType,
+            })),
+          },
+        };
+      });
+
+      const now = new Date();
+      const session: WorkoutSession = {
+        localId: 'tour-simulation-session',
+        name: name.trim(),
+        notes: '',
+        startedAt: now,
+        lastEditedAt: now,
+        completedAt: null,
+        exercises,
+        isSynced: false,
+        originalExerciseIds: exercises.map((exercise) => exercise.exerciseId),
+        originalSetCounts: exercises.map((exercise) => exercise.sets.length),
+        originalTargetReps: exercises.map((exercise) => exercise.targetReps || DEFAULT_TARGET_REPS),
+      };
+
+      set({
+        activeSession: session,
+        isWorkoutActive: true,
+        isTourSimulation: true,
+        workoutStartTime: Date.now(),
+        isWorkoutTimerPaused: false,
+        pausedElapsedSeconds: 0,
+        backdatedDate: null,
+        restTimer: {
+          isActive: false,
+          remainingSeconds: 0,
+          totalSeconds: 0,
+          setType: 'normal',
+          endTimestamp: null,
+        },
+        restTimerNextStartSeconds: null,
+      });
+
+      return true;
     },
 
     startWorkoutFromTemplate: async (templateId: string) => {
@@ -1415,10 +1497,12 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     cancelWorkout: () => {
+      const wasTourSimulation = get().isTourSimulation;
       isStartingWorkout = false; // Reset lock
       set({
         activeSession: null,
         isWorkoutActive: false,
+        isTourSimulation: false,
         workoutStartTime: null,
         isWorkoutTimerPaused: false,
         pausedElapsedSeconds: 0,
@@ -1432,7 +1516,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         },
         restTimerNextStartSeconds: null,
       });
-      get().clearPersistedSession();
+      if (!wasTourSimulation) {
+        get().clearPersistedSession();
+      }
     },
 
     updateWorkoutName: (name) => {
@@ -1885,13 +1971,15 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     updateSets: (exerciseLocalId, updatesBySetLocalId) => {
-      const { activeSession, weightUnits } = get();
+      const { activeSession, isTourSimulation, weightUnits } = get();
       if (!activeSession) return;
 
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
 
-        const currentWeightUnit = weightUnits[ex.exerciseId] || 'lbs';
+        const currentWeightUnit = isTourSimulation
+          ? (ex.sets[0]?.weightUnit || 'lbs')
+          : (weightUnits[ex.exerciseId] || 'lbs');
         const sets = ex.sets.map((s) => {
           const updates = updatesBySetLocalId[s.localId];
           if (!updates) return s;
@@ -1913,7 +2001,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     completeSet: (exerciseLocalId, setLocalId) => {
-      const { activeSession, restTimerSettings, weightUnits } = get();
+      const { activeSession, isTourSimulation, restTimerSettings, weightUnits } = get();
       if (!activeSession) return;
 
       let completedSetType: SetType = 'normal';
@@ -1923,7 +2011,9 @@ export const useWorkoutStore = create<WorkoutState>()(
 
         const setIndex = ex.sets.findIndex((s) => s.localId === setLocalId);
         const previousSet = setIndex > 0 ? ex.sets[setIndex - 1] : undefined;
-        const currentWeightUnit = weightUnits[ex.exerciseId] || 'lbs';
+        const currentWeightUnit = isTourSimulation
+          ? (ex.sets[0]?.weightUnit || 'lbs')
+          : (weightUnits[ex.exerciseId] || 'lbs');
 
         const sets = ex.sets.map((s) => {
           if (s.localId !== setLocalId) return s;
@@ -1965,7 +2055,9 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       // Auto-start rest timer if set was marked complete
       if (completedSet?.isCompleted) {
-        posthog.capture('set_logged', { method: 'manual' });
+        if (!get().isTourSimulation) {
+          posthog.capture('set_logged', { method: 'manual' });
+        }
         get().startRestTimer(completedSetType);
       }
     },
@@ -2191,8 +2283,8 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     persistSession: async () => {
-      const { activeSession } = get();
-      if (!activeSession) return;
+      const { activeSession, isTourSimulation } = get();
+      if (!activeSession || isTourSimulation) return;
 
       try {
         await setScopedItem(
@@ -2314,18 +2406,18 @@ export const useWorkoutStore = create<WorkoutState>()(
             startedAt: new Date(session.startedAt),
             completedAt: session.completedAt ? new Date(session.completedAt) : null,
           }));
-          set({ completedSessions: sessions });
+          set({ completedSessions: sessions, hasLoadedCompletedSessions: true });
           return;
         }
-        set({ completedSessions: [] });
+        set({ completedSessions: [], hasLoadedCompletedSessions: true });
       } catch (error) {
         console.warn('Failed to load completed sessions:', error);
-        set({ completedSessions: [] });
+        set({ completedSessions: [], hasLoadedCompletedSessions: true });
       }
     },
 
     replaceCompletedSessions: async (sessions) => {
-      set({ completedSessions: sessions });
+      set({ completedSessions: sessions, hasLoadedCompletedSessions: true });
       try {
         await setScopedItem(COMPLETED_WORKOUTS_KEY, JSON.stringify(sessions));
       } catch (error) {
@@ -3661,7 +3753,9 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({
         activeSession: null,
         isWorkoutActive: false,
+        isTourSimulation: false,
         completedSessions: [],
+        hasLoadedCompletedSessions: false,
         syncingSessionIds: [],
         workoutStartTime: null,
         isWorkoutTimerPaused: false,
@@ -3705,7 +3799,11 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     clearCompletedSessions: async () => {
       // Clear from memory
-      set({ completedSessions: [], syncingSessionIds: [] });
+      set({
+        completedSessions: [],
+        hasLoadedCompletedSessions: true,
+        syncingSessionIds: [],
+      });
 
       // Clear from AsyncStorage
       try {

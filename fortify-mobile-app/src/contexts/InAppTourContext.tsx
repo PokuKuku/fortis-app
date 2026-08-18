@@ -586,6 +586,7 @@ type InAppTourContextValue = {
   activeAnchorId: TourAnchorId | null;
   activeSecondaryAnchorId: TourAnchorId | null;
   activeArrowAnchorId: TourAnchorId | null;
+  premeasureAnchorIds: readonly TourAnchorId[];
   isScreenScrollLocked: boolean;
   advanceStep: () => void;
   skipTour: () => void;
@@ -617,6 +618,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
   const isWorkoutActive = useWorkoutStore((s) => s.isWorkoutActive);
+  const isTourSimulation = useWorkoutStore((s) => s.isTourSimulation);
   const firstExerciseAllSetsCompleted = useWorkoutStore((s) => {
     const sets = s.activeSession?.exercises[0]?.sets ?? [];
     return sets.length > 0 && sets.every((set) => set.isCompleted);
@@ -646,12 +648,20 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isTourActive = tourState?.status === 'in_progress';
+  const hasCompletedTourOnServer = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(
+    profile?.has_seen_in_app_tour && profile?.in_app_tour_completed_at
+  );
   const currentStepIndex = useMemo(() => {
     if (!isTourActive) return -1;
     return getStepIndexById(tourState?.stepId ?? TOUR_STEPS[0].id);
   }, [isTourActive, tourState?.stepId]);
 
   const logicalStep = currentStepIndex >= 0 ? TOUR_STEPS[currentStepIndex] : null;
+  const nextLogicalStep = useMemo(() => {
+    if (!logicalStep) return null;
+    const nextStepId = getNextInAppTourStepId(logicalStep.id);
+    return getStepById(nextStepId);
+  }, [getStepById, logicalStep]);
   const renderStep = useMemo(() => getStepById(renderStepId), [getStepById, renderStepId]);
   const pendingStep = useMemo(() => getStepById(pendingStepId), [getStepById, pendingStepId]);
   const overlayStep = renderStep ?? pendingStep ?? logicalStep;
@@ -697,6 +707,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const shouldRouteLockLogicalStep = logicalStep ? ROUTE_LOCKED_STEP_IDS.has(logicalStep.id) : false;
   const isOverlayStepOnRoute = overlayStep ? isOnStepRoute(overlayStep.route) : false;
   const shouldRouteLockOverlayStep = overlayStep ? ROUTE_LOCKED_STEP_IDS.has(overlayStep.id) : false;
+  const premeasureAnchorIds = useMemo<readonly TourAnchorId[]>(() => {
+    if (!isTourActive || !nextLogicalStep || !isOnStepRoute(nextLogicalStep.route)) return [];
+    return Array.from(new Set([
+      nextLogicalStep.anchorId,
+      nextLogicalStep.secondaryAnchorId,
+      nextLogicalStep.arrowAnchorId,
+    ].filter((anchorId): anchorId is TourAnchorId => Boolean(anchorId))));
+  }, [isOnStepRoute, isTourActive, nextLogicalStep]);
 
   const registerAnchorRect = useCallback((id: string, rect: AnchorRect) => {
     setAnchorRects((prev) => {
@@ -742,6 +760,22 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
     setPendingStepId((current) => (current === logicalStep.id ? current : logicalStep.id));
   }, [isTourActive, logicalStep?.id]);
+
+  useEffect(() => {
+    if (!isTourActive || !logicalStep) return;
+    // Start hiding the current tooltip immediately. Route changes, layout,
+    // and next-anchor measurement can then happen during the exit instead of
+    // adding their latency after it.
+    if (
+      renderStepId
+      && renderStepId !== logicalStep.id
+      && isTooltipVisible
+      && !isExitingTooltip
+    ) {
+      setIsExitingTooltip(true);
+      setIsTooltipVisible(false);
+    }
+  }, [isExitingTooltip, isTooltipVisible, isTourActive, logicalStep?.id, renderStepId]);
 
   useEffect(() => {
     if (!isTourActive || !pendingStep) return;
@@ -791,8 +825,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
     const nextStep = getStepById(pendingStepId);
     if (!isStepReady(nextStep)) {
+      // The old tooltip has finished leaving. Keep it hidden while the next
+      // route/anchor becomes ready instead of bringing stale guidance back.
       setIsExitingTooltip(false);
-      setIsTooltipVisible(true);
       return;
     }
 
@@ -922,6 +957,12 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isTourActive]);
 
+  useEffect(() => {
+    if (!isTourActive && isTourSimulation) {
+      cancelWorkout();
+    }
+  }, [cancelWorkout, isTourActive, isTourSimulation]);
+
   const advanceStep = useCallback(() => {
     if (!tourLoaded) return;
     if (!isTourActive || currentStepIndex < 0) return;
@@ -945,8 +986,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
 
-    void setTourStateAndPersist(next);
-  }, [currentStepIndex, finishTour, isTourActive, logicalStep?.id, setTourStateAndPersist, tourLoaded]);
+    // Step progress is intentionally in-memory. Cold-start recovery already
+    // resumes at the lightweight final checkpoint, so writing every tooltip
+    // transition only adds storage contention without improving recovery.
+    setTourState(next);
+  }, [currentStepIndex, finishTour, isTourActive, logicalStep?.id, tourLoaded]);
 
   // Long presses update workout state asynchronously. Advance only after the
   // completed sets are committed, which keeps the next tour anchor available.
@@ -964,7 +1008,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     completedSetsTourAdvanceRef.current = true;
     const timer = setTimeout(() => {
       void advanceStep();
-    }, 180);
+    }, 40);
     return () => clearTimeout(timer);
   }, [advanceStep, firstExerciseAllSetsCompleted, isTourActive, logicalStep?.id]);
 
@@ -1024,6 +1068,13 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (hasCompletedTourOnServer) {
+        // Server completion always wins over a stale local in-progress record.
+        setTourState(null);
+        setTourLoaded(true);
+        return;
+      }
+
       if (isAuthenticated && profileResolved && !isNewUserTourEligible) {
         await clearInAppTourState();
         if (!isMounted) return;
@@ -1036,6 +1087,19 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       if (!isMounted) return;
 
       if (loaded && loaded.version !== IN_APP_TOUR_VERSION) {
+        if (loaded.status === 'completed' || loaded.status === 'skipped') {
+          // Completion is permanent across tour revisions. Preserve an offline
+          // completion even if its server sync failed, and migrate only the
+          // stored version so this account can never be re-enrolled.
+          const migratedCompletion: PersistedInAppTourState = {
+            ...loaded,
+            version: IN_APP_TOUR_VERSION,
+            updatedAt: new Date().toISOString(),
+          };
+          void setTourStateAndPersist(migratedCompletion);
+          setTourLoaded(true);
+          return;
+        }
         await clearInAppTourState();
         setTourState(null);
         setTourLoaded(true);
@@ -1067,6 +1131,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   }, [
     isAuthResolved,
     isAuthenticated,
+    hasCompletedTourOnServer,
     isNewUserTourEligible,
     markTourSeenOnServer,
     profileResolved,
@@ -1082,12 +1147,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     segments[0] !== 'paywall-gate';
   // Completing or skipping a tour is permanent for an account. Tour versions track
   // the content that was shown to new users; they must not re-enroll existing users.
-  const hasSeenServer = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(
-    profile?.has_seen_in_app_tour && profile?.in_app_tour_completed_at
-  );
-  const hasServerStartedTour = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(profile?.has_seen_in_app_tour);
-  const shouldUseLocalTourCompletion = !profileResolved || hasSeenServer || hasServerStartedTour;
-  const hasSeenLocal = shouldUseLocalTourCompletion && (
+  const hasSeenServer = hasCompletedTourOnServer;
+  const hasSeenLocal = (
     tourState?.status === 'completed' || tourState?.status === 'skipped'
   );
   const isEligibleForStart =
@@ -1259,6 +1320,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     activeAnchorId: logicalStep?.anchorId ?? null,
     activeSecondaryAnchorId: logicalStep?.secondaryAnchorId ?? null,
     activeArrowAnchorId: logicalStep?.arrowAnchorId ?? null,
+    premeasureAnchorIds,
     isScreenScrollLocked: shouldLockInAppTourScreen(isTourActive, logicalStep?.mode),
     advanceStep: () => void advanceStep(),
     skipTour: () => void finishTour('skipped'),
@@ -1280,7 +1342,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       isTourActive,
       placement,
     }),
-  }), [advanceStep, finishTour, hasTourFinished, isTourActive, logicalStep, queueTourStartAfterPaywallClose, registerAnchorRect, resetTourForDev, unregisterAnchor]);
+  }), [advanceStep, finishTour, hasTourFinished, isTourActive, logicalStep, premeasureAnchorIds, queueTourStartAfterPaywallClose, registerAnchorRect, resetTourForDev, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {
     if (!isTourActive || !overlayStep || !overlayStep.primaryActionLabel) return null;
@@ -1301,23 +1363,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       disabled: !canAdvanceFromDisplayedStep,
     };
   }, [advanceStep, completedActionStepIds, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId, tourLoaded]);
-
-  const skipAction = useMemo(() => {
-    if (!isTourActive || !overlayStep) return null;
-    const canSkip =
-      tourLoaded &&
-      !isExitingTooltip &&
-      !pendingStepId &&
-      logicalStep?.id === overlayStep.id;
-    return {
-      label: 'Skip tour',
-      onPress: () => {
-        if (!canSkip) return;
-        void finishTour('skipped');
-      },
-      disabled: !canSkip,
-    };
-  }, [finishTour, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId, tourLoaded]);
 
   const stepLabel = useMemo(() => {
     if (!isTourActive || !overlayStep) return null;
@@ -1353,8 +1398,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         arrowTargetRect={arrowAnchorRect}
         body={overlayStep?.body ?? ''}
         stepLabel={stepLabel}
+        transitionIndex={overlayStep ? getStepIndexById(overlayStep.id) : 0}
         primaryAction={primaryAction}
-        secondaryAction={skipAction}
         showArrow={Boolean(overlayStep?.showArrow) && isTooltipVisible && Boolean(currentAnchorRect)}
         arrowDirections={overlayStep?.arrowDirections}
         arrowColor={overlayStep?.arrowColor}

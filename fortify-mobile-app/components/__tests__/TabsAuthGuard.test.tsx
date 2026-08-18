@@ -2,11 +2,17 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 
 const mockReplace = jest.fn();
+const mockPrefetch = jest.fn();
 const mockUsePendingOnboardingAuthCompletion = jest.fn();
 const mockReconcileSubscriptionStatus = jest.fn();
 const mockSuperwallState = {
   isConfigured: false,
   isLoading: false,
+};
+const mockTourState = {
+  isTourActive: false,
+  hasTourFinished: true,
+  activeStepId: null as string | null,
 };
 
 const mockAuthState = {
@@ -26,6 +32,7 @@ jest.mock('expo-router', () => ({
   usePathname: () => '/programs',
   useRouter: () => ({
     replace: mockReplace,
+    prefetch: mockPrefetch,
   }),
 }));
 
@@ -70,8 +77,7 @@ jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
 
 jest.mock('@/src/contexts/InAppTourContext', () => ({
   useInAppTour: () => ({
-    isTourActive: false,
-    activeStepId: null,
+    ...mockTourState,
     advanceStep: jest.fn(),
   }),
 }));
@@ -79,6 +85,7 @@ jest.mock('@/src/contexts/InAppTourContext', () => ({
 jest.mock('@/src/store/workoutStore', () => ({
   useWorkoutStore: jest.fn((selector: any) => selector({
     isWorkoutActive: false,
+    startTourWorkoutSimulation: jest.fn(),
   })),
 }));
 
@@ -173,6 +180,9 @@ describe('Tabs auth guard', () => {
     mockAuthState.profile = { onboarding_completed: false };
     mockAuthState.profileResolved = true;
     mockAuthState.needsOnboarding = true;
+    mockTourState.isTourActive = false;
+    mockTourState.hasTourFinished = true;
+    mockTourState.activeStepId = null;
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: true });
     mockSuperwallState.isConfigured = false;
     mockSuperwallState.isLoading = false;
@@ -264,5 +274,18 @@ describe('Tabs auth guard', () => {
       expect(mockReconcileSubscriptionStatus).toHaveBeenCalled();
     });
     expect(mockReplace).not.toHaveBeenCalledWith('/paywall-gate');
+  });
+
+  it('does not prewarm primary tab routes while the tour is active', async () => {
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockTourState.isTourActive = true;
+    mockTourState.hasTourFinished = false;
+    mockTourState.activeStepId = 'support_overview';
+
+    render(<TabLayout />);
+
+    await waitFor(() => expect(mockReplace).not.toHaveBeenCalled());
+    expect(mockPrefetch).not.toHaveBeenCalled();
   });
 });

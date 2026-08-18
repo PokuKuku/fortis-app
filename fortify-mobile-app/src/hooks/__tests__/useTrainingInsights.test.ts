@@ -55,6 +55,15 @@ describe('useTrainingInsights', () => {
     mockGetRefreshState.mockResolvedValue(null);
   });
 
+  it('does not read cache or fetch insights when disabled for the tour', async () => {
+    const { result } = renderHook(() => useTrainingInsights({ enabled: false }));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.insights).toEqual([]);
+    expect(mockGetScopedItem).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('shows a recent cache without regenerating or fetching again', async () => {
     mockGetScopedItem.mockResolvedValue(JSON.stringify({
       items: [cachedInsight],

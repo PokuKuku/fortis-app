@@ -245,9 +245,9 @@ export default function CreateWorkoutScreen() {
     () => editorSession?.exercises.map(e => e.exerciseId) || [],
     [editorSession?.exercises]
   );
-  const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
+  const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds, { enabled: !isTourActive });
   const hasMuscles = exercisesWithMuscles.length > 0;
-  const { bodyweightKg } = useLatestBodyweight({ enabled: exerciseIds.length > 0 });
+  const { bodyweightKg } = useLatestBodyweight({ enabled: !isTourActive && exerciseIds.length > 0 });
 
   const heatmapLevels = useMemo(() => {
     if (!editorSession || exercisesWithMuscles.length === 0) return null;
@@ -1008,8 +1008,10 @@ export default function CreateWorkoutScreen() {
           didUsePasteTemplateRef.current = true;
           addEditorExercises(entries);
           setCreationMethod('paste_template');
-          posthog.capture('notes_to_template_used');
-          entries.forEach(() => posthog.capture('exercise_added', { method: 'paste' }));
+          if (!isTourActive) {
+            posthog.capture('notes_to_template_used');
+            entries.forEach(() => posthog.capture('exercise_added', { method: 'paste' }));
+          }
           if (workoutName && !editorSession?.name.trim()) {
             setEditorWorkoutName(workoutName);
           }

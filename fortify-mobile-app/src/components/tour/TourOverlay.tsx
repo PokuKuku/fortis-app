@@ -27,6 +27,8 @@ export type TourArrowDirection = 'top' | 'right' | 'bottom' | 'left';
 type Action = {
   label: string;
   onPress: () => void;
+  onPressIn?: () => void;
+  onPressOut?: () => void;
   disabled?: boolean;
 };
 
@@ -38,6 +40,7 @@ type TourOverlayProps = {
   arrowTargetRect?: AnchorRect | null;
   body: string;
   stepLabel?: string | null;
+  transitionIndex?: number;
   primaryAction?: Action | null;
   secondaryAction?: Action | null;
   auxiliaryAction?: Action | null;
@@ -74,14 +77,15 @@ const ARROW_BOB_DISTANCE = scale(6);
 const HOLE_PADDING = scale(10);
 const HIGHLIGHT_RADIUS = scale(16);
 const HIGHLIGHT_BORDER = scale(2);
-const TOOLTIP_TRANSITION_Y = scale(6);
-const TOOLTIP_ENTER_DURATION_MS = 240;
-const TOOLTIP_EXIT_DURATION_MS = 140;
-const TOOLTIP_POSITION_DURATION_MS = 180;
+const TOOLTIP_ENTER_DURATION_MS = 150;
+const TOOLTIP_EXIT_DURATION_MS = 120;
+const TOOLTIP_POSITION_DURATION_MS = 150;
 const TOOLTIP_POSITION_JITTER_PX = 2;
-const TOOLTIP_POSITION_DIRECT_SET_THRESHOLD_PX = 40;
 const TOUR_DIM_BACKGROUND = 'rgba(15, 23, 42, 0.55)';
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+export const getTourSlideDirection = (transitionIndex: number): -1 | 1 =>
+  transitionIndex % 2 === 0 ? -1 : 1;
 
 export const TourOverlay = memo(function TourOverlay({
   visible,
@@ -90,6 +94,7 @@ export const TourOverlay = memo(function TourOverlay({
   secondaryAnchorRect = null,
   arrowTargetRect = null,
   body,
+  transitionIndex = 0,
   primaryAction,
   secondaryAction,
   auxiliaryAction,
@@ -120,12 +125,13 @@ export const TourOverlay = memo(function TourOverlay({
   const [tooltipHeight, setTooltipHeight] = useState<number | null>(null);
   const arrowAnim = useSharedValue(0);
   const tooltipOpacity = useSharedValue(0);
-  const tooltipTranslate = useSharedValue(TOOLTIP_TRANSITION_Y);
+  const tooltipContentTranslateX = useSharedValue(screenWidth);
   const tooltipLeft = useSharedValue(0);
   const tooltipTop = useSharedValue(0);
   const lastTooltipPosRef = useRef<{ left: number; top: number } | null>(null);
   const wasTooltipShownRef = useRef(false);
   const onTooltipHideCompleteRef = useRef(onTooltipHideComplete);
+  const slideDirection = getTourSlideDirection(transitionIndex);
 
   useEffect(() => {
     onTooltipHideCompleteRef.current = onTooltipHideComplete;
@@ -277,7 +283,7 @@ export const TourOverlay = memo(function TourOverlay({
     if (!shouldShowTooltip) {
       tooltipLeft.value = nextLeft;
       tooltipTop.value = nextTop;
-      lastTooltipPosRef.current = null;
+      lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
       return;
     }
 
@@ -295,14 +301,6 @@ export const TourOverlay = memo(function TourOverlay({
 
     cancelAnimation(tooltipLeft);
     cancelAnimation(tooltipTop);
-
-    const totalDelta = deltaLeft + deltaTop;
-    if (totalDelta >= TOOLTIP_POSITION_DIRECT_SET_THRESHOLD_PX) {
-      tooltipLeft.value = nextLeft;
-      tooltipTop.value = nextTop;
-      lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
-      return;
-    }
 
     tooltipLeft.value = withTiming(nextLeft, {
       duration: TOOLTIP_POSITION_DURATION_MS,
@@ -347,9 +345,9 @@ export const TourOverlay = memo(function TourOverlay({
     if (!visible) {
       const wasShown = wasTooltipShownRef.current;
       cancelAnimation(tooltipOpacity);
-      cancelAnimation(tooltipTranslate);
+      cancelAnimation(tooltipContentTranslateX);
       tooltipOpacity.value = 0;
-      tooltipTranslate.value = TOOLTIP_TRANSITION_Y;
+      tooltipContentTranslateX.value = screenWidth;
       wasTooltipShownRef.current = false;
       if (wasShown) {
         notifyTooltipHideComplete();
@@ -358,19 +356,19 @@ export const TourOverlay = memo(function TourOverlay({
     }
 
     cancelAnimation(tooltipOpacity);
-    cancelAnimation(tooltipTranslate);
+    cancelAnimation(tooltipContentTranslateX);
 
     if (shouldShowTooltip) {
       if (!wasTooltipShownRef.current) {
         tooltipOpacity.value = 0;
-        tooltipTranslate.value = TOOLTIP_TRANSITION_Y;
+        tooltipContentTranslateX.value = screenWidth * slideDirection;
       }
 
       tooltipOpacity.value = withTiming(1, {
         duration: TOOLTIP_ENTER_DURATION_MS,
         easing: Easing.out(Easing.cubic),
       });
-      tooltipTranslate.value = withTiming(0, {
+      tooltipContentTranslateX.value = withTiming(0, {
         duration: TOOLTIP_ENTER_DURATION_MS,
         easing: Easing.out(Easing.cubic),
       });
@@ -387,16 +385,16 @@ export const TourOverlay = memo(function TourOverlay({
     tooltipOpacity.value = withTiming(0, {
       duration: TOOLTIP_EXIT_DURATION_MS,
       easing: Easing.in(Easing.cubic),
+    });
+    tooltipContentTranslateX.value = withTiming(screenWidth * slideDirection, {
+      duration: TOOLTIP_EXIT_DURATION_MS,
+      easing: Easing.in(Easing.cubic),
     }, (finished) => {
       if (finished) {
         runOnJS(finalizeTooltipExit)();
       }
     });
-    tooltipTranslate.value = withTiming(TOOLTIP_TRANSITION_Y, {
-      duration: TOOLTIP_EXIT_DURATION_MS,
-      easing: Easing.in(Easing.cubic),
-    });
-  }, [finalizeTooltipExit, notifyTooltipHideComplete, shouldShowTooltip, tooltipOpacity, tooltipTranslate, visible]);
+  }, [finalizeTooltipExit, notifyTooltipHideComplete, screenWidth, shouldShowTooltip, slideDirection, tooltipContentTranslateX, tooltipOpacity, visible]);
 
   const highlightAnimatedStyle = useAnimatedStyle(() => ({
     opacity: tooltipOpacity.value,
@@ -433,9 +431,23 @@ export const TourOverlay = memo(function TourOverlay({
   }));
 
   const tooltipContentAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: tooltipOpacity.value,
-    transform: [{ translateY: tooltipTranslate.value }],
+    transform: [{ translateX: tooltipContentTranslateX.value }],
   }));
+
+  const handlePrimaryPressIn = useCallback(() => {
+    if (!primaryAction || primaryAction.disabled) return;
+    primaryAction.onPressIn?.();
+  }, [primaryAction]);
+
+  const handlePrimaryPress = useCallback(() => {
+    if (!primaryAction || primaryAction.disabled) return;
+    primaryAction.onPress();
+  }, [primaryAction]);
+
+  const handlePrimaryPressOut = useCallback(() => {
+    if (!primaryAction || primaryAction.disabled) return;
+    primaryAction.onPressOut?.();
+  }, [primaryAction]);
 
   const blockOutside = mode !== 'non_blocking';
   const shouldRestrictInteraction = allowAnchorInteraction
@@ -741,30 +753,29 @@ export const TourOverlay = memo(function TourOverlay({
       {showHighlight ? renderHighlight(paddedSecondaryRect) : null}
       {renderArrow()}
 
-      {!hideTooltip ? (
-        <Animated.View
-          style={[
-            styles.tooltipPosition,
-            { width: tooltipWidth },
-            tooltipPositionAnimatedStyle,
-          ]}
-          pointerEvents="box-none"
+      <Animated.View
+        testID="tour-tooltip-shell"
+        style={[
+          styles.tooltipPosition,
+          { width: tooltipWidth },
+          tooltipPositionAnimatedStyle,
+        ]}
+        pointerEvents={shouldShowTooltip ? 'box-none' : 'none'}
+        accessibilityElementsHidden={!shouldShowTooltip}
+        importantForAccessibility={shouldShowTooltip ? 'auto' : 'no-hide-descendants'}
+      >
+        <View
+          style={[styles.tooltip, themedStyles.tooltip]}
+          pointerEvents="auto"
+          accessibilityRole="alert"
+          onLayout={(e) => {
+            const nextHeight = e.nativeEvent.layout.height;
+            if (tooltipHeight !== nextHeight) {
+              setTooltipHeight(nextHeight);
+            }
+          }}
         >
-          <Animated.View
-            style={[
-              styles.tooltip,
-              themedStyles.tooltip,
-              tooltipContentAnimatedStyle,
-            ]}
-            pointerEvents="auto"
-            accessibilityRole="alert"
-            onLayout={(e) => {
-              const nextHeight = e.nativeEvent.layout.height;
-              if (tooltipHeight !== nextHeight) {
-                setTooltipHeight(nextHeight);
-              }
-            }}
-          >
+          <Animated.View testID="tour-tooltip-content" style={tooltipContentAnimatedStyle}>
             <Text style={[styles.bodyText, themedStyles.bodyText]}>
               {boldPhrases.length === 0
                 ? body
@@ -796,7 +807,9 @@ export const TourOverlay = memo(function TourOverlay({
             {primaryAction ? (
               <GlassButton
                 style={styles.primaryButton}
-                onPress={primaryAction.onPress}
+                onPress={handlePrimaryPress}
+                onPressIn={handlePrimaryPressIn}
+                onPressOut={handlePrimaryPressOut}
                 disabled={primaryAction.disabled}
                 hapticFeedback="selection"
                 glow={false}
@@ -822,8 +835,8 @@ export const TourOverlay = memo(function TourOverlay({
               </TouchableOpacity>
             ) : null}
           </Animated.View>
-        </Animated.View>
-      ) : null}
+        </View>
+      </Animated.View>
     </View>
   );
 
@@ -845,6 +858,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     borderWidth: 1,
+    overflow: 'hidden',
   },
   tooltipPosition: {
     position: 'absolute',

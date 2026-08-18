@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChartBarIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
+import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { addDays, format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -45,6 +45,7 @@ import { posthog } from '@/src/config/posthog';
 import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { TabPageSkeleton } from '@/src/components/ui/TabPageSkeleton';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -811,8 +812,11 @@ export default function InsightsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const readableText = getReadableTextColors(isDark);
-  const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights();
-  const { exercises } = useExercises();
+  const { isTourActive } = useInAppTour();
+  const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights({
+    enabled: !isTourActive,
+  });
+  const { exercises } = useExercises({ enabled: !isTourActive });
   const sendMessage = useAIStore((state) => state.sendMessage);
   const { runProFeature } = useProFeatureGate();
   const { user } = useAuth();
@@ -910,7 +914,7 @@ export default function InsightsScreen() {
     () => watchlistItems.map((insight) => insight.exerciseId).filter(Boolean) as string[],
     [watchlistItems]
   );
-  const watchlistExercises = useExercisesWithMuscles(watchlistExerciseIds);
+  const watchlistExercises = useExercisesWithMuscles(watchlistExerciseIds, { enabled: !isTourActive });
   const watchlistNameById = useMemo(() => {
     const map = new Map<string, string>();
     watchlistExercises.forEach((exercise) => {
@@ -1120,18 +1124,6 @@ export default function InsightsScreen() {
           {!hasInsights ? (
             <AccentShadowCard radius={CARD_RADIUS} pressable={false}>
               <View style={[styles.emptyInsightCard, cardTheme]}>
-                <View
-                  style={[
-                    styles.emptyInsightIcon,
-                    {
-                      backgroundColor: colors.accentOverlay,
-                      borderColor: colors.accentBorder,
-                    },
-                  ]}
-                >
-                  <ChartBarIcon color={colors.accent} size={28} strokeWidth={2} />
-                </View>
-
                 <Text style={[styles.emptyInsightTitle, { color: colors.textPrimary }]}>
                   YOUR INSIGHTS ARE BUILDING
                 </Text>
@@ -1683,15 +1675,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(Spacing.xl),
     paddingVertical: EMPTY_PADDING_Y,
     alignItems: 'center',
-  },
-  emptyInsightIcon: {
-    width: scale(58),
-    height: scale(58),
-    borderRadius: scale(18),
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: scale(Spacing.lg),
   },
   emptyInsightTitle: {
     fontFamily: 'BankGothicBT-Medium',

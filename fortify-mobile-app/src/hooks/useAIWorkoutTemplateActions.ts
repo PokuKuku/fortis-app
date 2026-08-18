@@ -19,6 +19,7 @@ interface UseAIWorkoutTemplateActionsOptions {
   saveWorkoutPlacement?: PaywallPlacement;
   useProvidedExerciseIds?: (message: AIConversationMessage) => boolean;
   getAiPayloadVersion?: (message: AIConversationMessage) => string | null | undefined;
+  getSimulatedTemplateId?: (message: AIConversationMessage) => string | null | undefined;
 }
 
 export function useAIWorkoutTemplateActions({
@@ -29,6 +30,7 @@ export function useAIWorkoutTemplateActions({
   saveWorkoutPlacement = PAYWALL_PLACEMENTS.workoutLimit,
   useProvidedExerciseIds,
   getAiPayloadVersion,
+  getSimulatedTemplateId,
 }: UseAIWorkoutTemplateActionsOptions) {
   const router = useRouter();
   const posthog = usePostHog();
@@ -147,6 +149,15 @@ export function useAIWorkoutTemplateActions({
       return message.savedWorkoutTemplateId;
     }
 
+    const simulatedTemplateId = getSimulatedTemplateId?.(message);
+    if (simulatedTemplateId) {
+      // The in-app tour keeps the normal saved-card appearance, but the template
+      // exists only for the current tour render. No store, storage, or server write.
+      await markWorkoutTemplateSaved?.(message.id, simulatedTemplateId);
+      onWorkoutTemplateSaved?.(message.id, simulatedTemplateId);
+      return simulatedTemplateId;
+    }
+
     const normalizedTemplate = normalizeAIWorkoutTemplateMetadata(message.workoutTemplate);
     const validExercises = await resolveWorkoutTemplateExercises({
       ...message,
@@ -180,7 +191,7 @@ export function useAIWorkoutTemplateActions({
     });
     validExercises.forEach(() => posthog.capture('exercise_added', { method: 'ai' }));
     return createdTemplateId;
-  }, [conversationId, createWorkoutTemplate, getAiPayloadVersion, markWorkoutTemplateSaved, onWorkoutTemplateSaved, posthog, resolveWorkoutTemplateExercises, savedWorkoutTemplateCount]);
+  }, [conversationId, createWorkoutTemplate, getAiPayloadVersion, getSimulatedTemplateId, markWorkoutTemplateSaved, onWorkoutTemplateSaved, posthog, resolveWorkoutTemplateExercises, savedWorkoutTemplateCount]);
 
   const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
     if (

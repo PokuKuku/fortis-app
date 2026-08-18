@@ -37,7 +37,7 @@ import { AnimatedDayCompletion } from '@/src/components/program/AnimatedDayCompl
 import { PENDING_HOME_WORKOUT_CELEBRATION_KEY } from '@/src/constants/storageKeys';
 import { getScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
 import { StreakPercentileCelebrationModal } from '@/src/components/retention/StreakPercentileCelebrationModal';
-import Reanimated, { ZoomIn } from 'react-native-reanimated';
+import Reanimated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { useDevHomeTestControlsVisibility } from '@/src/hooks/useDevHomeTestControlsVisibility';
 import { FrostSnowflakeIcon } from '@/src/components/program/FrostSnowflakeIcon';
 
@@ -47,6 +47,8 @@ const CAROUSEL_WIDTH = SCREEN_WIDTH - HORIZONTAL_PADDING * 2;
 const DAY_SIZE = scale(38);
 const DAY_GAP = scale(8);
 const STREAK_PAUSES_PER_MONTH = 3;
+const WEEK_PAGE_RADIUS = 52;
+const CURRENT_WEEK_PAGE_INDEX = WEEK_PAGE_RADIUS;
 
 const buildDayPopIn = (index: number) =>
   ZoomIn
@@ -62,6 +64,8 @@ type WeeklyProgressCarouselProps = {
   sessions: WorkoutSession[];
   isFocused?: boolean;
   startupRevealComplete?: boolean;
+  isDataReady?: boolean;
+  animateStreakFromZero?: boolean;
   deferMilestoneCelebration?: boolean;
   onEditSchedule: () => void;
 };
@@ -117,6 +121,8 @@ export function WeeklyProgressCarousel({
   sessions,
   isFocused = true,
   startupRevealComplete = true,
+  isDataReady = true,
+  animateStreakFromZero = false,
   deferMilestoneCelebration = false,
   onEditSchedule,
 }: WeeklyProgressCarouselProps) {
@@ -139,7 +145,9 @@ export function WeeklyProgressCarousel({
   const homeCelebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handledCelebrationRef = useRef<string | null>(null);
   const shouldAnimateStartupDaysRef = useRef(!startupRevealComplete);
-  const [anchorDate, setAnchorDate] = useState(() => getSundayWeekStart(new Date()));
+  const shouldFadeInHydratedDataRef = useRef(!isDataReady);
+  const [calendarOrigin] = useState(() => getSundayWeekStart(new Date()));
+  const [anchorDate, setAnchorDate] = useState(calendarOrigin);
   const [selectedDay, setSelectedDay] = useState<WeekProgressDay | null>(null);
   const [isStreakModalVisible, setIsStreakModalVisible] = useState(false);
   const [devStreakBoost, setDevStreakBoost] = useState(0);
@@ -211,14 +219,15 @@ export function WeeklyProgressCarousel({
     };
   }, [isFocused]);
 
-  const pages = useMemo<WeekPage[]>(
-    () => [
-      { key: 'previous', anchorDate: addDays(anchorDate, -7) },
-      { key: 'current', anchorDate },
-      { key: 'next', anchorDate: addDays(anchorDate, 7) },
-    ],
-    [anchorDate]
-  );
+  const pages = useMemo<WeekPage[]>(() => (
+    Array.from({ length: WEEK_PAGE_RADIUS * 2 + 1 }, (_, index) => {
+      const weekStart = addDays(calendarOrigin, (index - CURRENT_WEEK_PAGE_INDEX) * 7);
+      return {
+        key: format(weekStart, 'yyyy-MM-dd'),
+        anchorDate: weekStart,
+      };
+    })
+  ), [calendarOrigin]);
 
   const streak = useMemo(
     () => getScheduledWorkoutDayStreak({
@@ -278,7 +287,8 @@ export function WeeklyProgressCarousel({
 
   useEffect(() => {
     if (
-      !isFocused
+      !isDataReady
+      || !isFocused
       || deferMilestoneCelebration
       || !pendingHomeCelebration
       || handledCelebrationRef.current === pendingHomeCelebration.sessionLocalId
@@ -318,7 +328,16 @@ export function WeeklyProgressCarousel({
       return;
     }
 
-    setAnchorDate(getSundayWeekStart(completedAt));
+    const completedWeekStart = getSundayWeekStart(completedAt);
+    const completedWeekKey = format(completedWeekStart, 'yyyy-MM-dd');
+    const completedWeekIndex = pages.findIndex((page) => page.key === completedWeekKey);
+    setAnchorDate(completedWeekStart);
+    if (completedWeekIndex >= 0) {
+      requestAnimationFrame(() => listRef.current?.scrollToIndex({
+        index: completedWeekIndex,
+        animated: false,
+      }));
+    }
     setMilestoneDateKey(completedDateKey);
     if (streak >= 1 && streak <= 10) {
       // Reset the hidden home UI while the milestone is covering it so both
@@ -335,7 +354,9 @@ export function WeeklyProgressCarousel({
   }, [
     animatedDisplayedStreak,
     deferMilestoneCelebration,
+    isDataReady,
     isFocused,
+    pages,
     pendingHomeCelebration,
     playHomeCelebration,
     scheduleDays,
@@ -352,13 +373,9 @@ export function WeeklyProgressCarousel({
 
   const handleMomentumEnd = (offsetX: number) => {
     const pageIndex = Math.round(offsetX / CAROUSEL_WIDTH);
-    if (pageIndex === 0) {
-      setAnchorDate((current) => addDays(current, -7));
-      requestAnimationFrame(() => listRef.current?.scrollToIndex({ index: 1, animated: false }));
-    }
-    if (pageIndex === 2) {
-      setAnchorDate((current) => addDays(current, 7));
-      requestAnimationFrame(() => listRef.current?.scrollToIndex({ index: 1, animated: false }));
+    const visiblePage = pages[pageIndex];
+    if (visiblePage) {
+      setAnchorDate(visiblePage.anchorDate);
     }
   };
 
@@ -554,9 +571,17 @@ export function WeeklyProgressCarousel({
     );
   };
 
+  if (!isDataReady) {
+    shouldFadeInHydratedDataRef.current = true;
+    return <View style={styles.dataPendingPlaceholder} testID="weekly-progress-pending" />;
+  }
+
   return (
     <>
-      <View style={styles.container}>
+      <Reanimated.View
+        entering={shouldFadeInHydratedDataRef.current ? FadeIn.duration(360) : undefined}
+        style={styles.container}
+      >
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{headerDateLabel}</Text>
           <View style={styles.headerActions}>
@@ -628,6 +653,7 @@ export function WeeklyProgressCarousel({
                       isPaused={isStreakPaused}
                       textStyle={styles.streakText}
                       celebrationKey={homeCelebrationToken}
+                      animateFromZeroOnMount={animateStreakFromZero}
                     />
                   </Pressable>
                 </TourAnchor>
@@ -658,7 +684,7 @@ export function WeeklyProgressCarousel({
           pagingEnabled
           bounces={false}
           showsHorizontalScrollIndicator={false}
-          initialScrollIndex={1}
+          initialScrollIndex={CURRENT_WEEK_PAGE_INDEX}
           getItemLayout={(_, index) => ({
             length: CAROUSEL_WIDTH,
             offset: CAROUSEL_WIDTH * index,
@@ -666,7 +692,7 @@ export function WeeklyProgressCarousel({
           })}
           onMomentumScrollEnd={(event) => handleMomentumEnd(event.nativeEvent.contentOffset.x)}
         />
-      </View>
+      </Reanimated.View>
 
       <BaseModal
         visible={Boolean(selectedDay)}
@@ -920,6 +946,10 @@ export function WeeklyProgressCarousel({
 
 const styles = StyleSheet.create({
   container: {
+    marginBottom: scale(16),
+  },
+  dataPendingPlaceholder: {
+    height: scale(98),
     marginBottom: scale(16),
   },
   headerRow: {

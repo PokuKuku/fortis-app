@@ -9,6 +9,7 @@ import {
   Dimensions,
   Pressable,
   DeviceEventEmitter,
+  InteractionManager,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
@@ -47,8 +48,9 @@ import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { Spacing } from '@/constants/Sizes';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_TEMPLATE_ID } from '@/src/constants/inAppTour';
 import { useProgramsStore } from '../../src/store/programsStore';
+import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useProgramProgressStore } from '../../src/store/programProgressStore';
 import { useStartPresetStore } from '../../src/store/startPresetStore';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../../src/constants/programs';
@@ -1494,7 +1496,7 @@ function sortItemsBySavedOrder<T extends { id: string }>(items: T[], savedIds: s
 export default function ProgramsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { user, isAuthResolved } = useAuth();
+  const { user, isAuthResolved, isHydrating } = useAuth();
   const readableSubtext = getReadableSubtextColors(isDark);
   const { isTourActive, activeStepId, hasTourFinished, isScreenScrollLocked } = useInAppTour();
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
@@ -1502,9 +1504,11 @@ export default function ProgramsScreen() {
   const isHomeFocused = useIsFocused();
   const modalStyles = useModalStyles();
   const { sessions: historySessions } = useWorkoutHistorySource({ enabled: Boolean(user) });
+  const hasLoadedCompletedSessions = useWorkoutStore(s => s.hasLoadedCompletedSessions);
   const {
     scheduleDays,
     scheduleHistory,
+    isLoaded: isScheduleLoaded,
     isSaving: isSavingSchedule,
     saveScheduleDays,
   } = useWorkoutSchedule();
@@ -1534,6 +1538,7 @@ export default function ProgramsScreen() {
   const [startupRevealComplete, setStartupRevealComplete] = useState(
     isStartupRevealComplete
   );
+  const shouldAnimateColdStartStreakRef = useRef(!startupRevealComplete);
   const [scheduleEditorVisible, setScheduleEditorVisible] = useState(false);
   const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
@@ -1545,6 +1550,11 @@ export default function ProgramsScreen() {
   const [isNewUserChecklistModalVisible, setIsNewUserChecklistModalVisible] = useState(false);
   const [isNewUserChecklistCompleteVisible, setIsNewUserChecklistCompleteVisible] = useState(false);
   const [deferWorkoutStreakCelebration, setDeferWorkoutStreakCelebration] = useState(false);
+  const isStreakScheduleReady = startupRevealComplete
+    && isAuthResolved
+    && !isHydrating
+    && hasLoadedCompletedSessions
+    && isScheduleLoaded;
   const previousNewUserChecklistCompletedCountRef = useRef<number | null>(null);
   const challengeDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
@@ -1576,7 +1586,9 @@ export default function ProgramsScreen() {
   }, [user?.id]);
 
   useEffect(() => {
-    void loadOnboardingProgramSpec();
+    const loadTask = InteractionManager.runAfterInteractions(() => {
+      void loadOnboardingProgramSpec();
+    });
 
     const subscription = DeviceEventEmitter.addListener(
       ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT,
@@ -1586,14 +1598,17 @@ export default function ProgramsScreen() {
     );
 
     return () => {
+      loadTask.cancel();
       subscription.remove();
     };
   }, [loadOnboardingProgramSpec]);
 
   useFocusEffect(
     useCallback(() => {
-      void loadOnboardingProgramSpec();
-      return undefined;
+      const task = InteractionManager.runAfterInteractions(() => {
+        void loadOnboardingProgramSpec();
+      });
+      return () => task.cancel();
     }, [loadOnboardingProgramSpec])
   );
 
@@ -1632,10 +1647,13 @@ export default function ProgramsScreen() {
       }
     };
 
-    void loadHomeCardOrder();
+    const task = InteractionManager.runAfterInteractions(() => {
+      void loadHomeCardOrder();
+    });
 
     return () => {
       isMounted = false;
+      task.cancel();
     };
   }, [isAuthResolved, user?.id]);
 
@@ -1663,10 +1681,13 @@ export default function ProgramsScreen() {
       }
     };
 
-    void loadChecklist();
+    const task = InteractionManager.runAfterInteractions(() => {
+      void loadChecklist();
+    });
 
     return () => {
       isMounted = false;
+      task.cancel();
     };
   }, [isAuthResolved, user?.id]);
 
@@ -1696,8 +1717,10 @@ export default function ProgramsScreen() {
       if (!isAuthResolved) {
         return undefined;
       }
-      void reloadNewUserChecklistState();
-      return undefined;
+      const task = InteractionManager.runAfterInteractions(() => {
+        void reloadNewUserChecklistState();
+      });
+      return () => task.cancel();
     }, [isAuthResolved, reloadNewUserChecklistState])
   );
 
@@ -1797,42 +1820,65 @@ export default function ProgramsScreen() {
     return () => clearTimeout(timeout);
   }, [highlightWorkoutId]);
 
-  // Transform store programs to UI format (exclude templates)
-  const basePrograms: ProgramItem[] = keepSingleOnboardingProgram(
-    storePrograms.filter(p => !p.isTemplate)
-  )
-    .map(p => ({
-      id: p.id,
-      name: p.name,
-      workouts: p.workouts.length,
-      weeks: p.durationWeeks || 0,
-      lastPerformed: formatRelativeTime(p.lastPerformedAt),
-      isAiCreated: p.isAiCreated,
-      aiPayloadVersion: p.aiPayloadVersion,
-    }));
+  // Tour/context updates can re-render this screen several times in quick
+  // succession. Keep the potentially large card projection stable so those
+  // updates never compete with tab presses on the JS thread.
+  const { basePrograms, baseTemplates } = useMemo(() => {
+    const pendingProgramSyncIdSet = new Set(pendingProgramSyncIds);
+    const syncingProgramSyncIdSet = new Set(syncingProgramSyncIds);
+    const projectedTemplates = storePrograms
+      .filter((program) => program.isTemplate)
+      .map((program): WorkoutItem & { programId: string } => ({
+        id: program.id,
+        programId: program.id,
+        name: program.name,
+        exercises: program.workouts[0]?.exercises.length || 0,
+        lastPerformed: formatRelativeTime(program.lastPerformedAt),
+        isAiCreated: program.isAiCreated,
+        isDefault: program.isDefault,
+        syncStatus: program.isDefault
+          ? null
+          : syncingProgramSyncIdSet.has(program.id)
+            ? 'syncing'
+            : (pendingProgramSyncIdSet.has(program.id) || isLocalProgramId(program.id))
+              ? 'pending'
+              : 'synced',
+      }));
+    const shouldShowTourTemplate = isTourActive && (
+      activeStepId === 'quick_start' || activeStepId === 'launch_workout'
+    );
 
-  // Templates (programs marked as isTemplate)
-  const pendingProgramSyncIdSet = new Set(pendingProgramSyncIds);
-  const syncingProgramSyncIdSet = new Set(syncingProgramSyncIds);
+    if (
+      shouldShowTourTemplate
+      && !projectedTemplates.some((template) => template.id === TOUR_BACK_WORKOUT_TEMPLATE_ID)
+    ) {
+      projectedTemplates.unshift({
+        id: TOUR_BACK_WORKOUT_TEMPLATE_ID,
+        programId: TOUR_BACK_WORKOUT_TEMPLATE_ID,
+        name: 'Back Workout',
+        exercises: 4,
+        lastPerformed: 'Never',
+        isAiCreated: true,
+        isDefault: false,
+        syncStatus: null,
+      });
+    }
 
-  const baseTemplates: (WorkoutItem & { programId: string })[] = storePrograms
-    .filter(p => p.isTemplate)
-    .map(p => ({
-      id: p.id,
-      programId: p.id,
-      name: p.name,
-      exercises: p.workouts[0]?.exercises.length || 0,
-      lastPerformed: formatRelativeTime(p.lastPerformedAt),
-      isAiCreated: p.isAiCreated,
-      isDefault: p.isDefault,
-      syncStatus: p.isDefault
-        ? null
-        : syncingProgramSyncIdSet.has(p.id)
-          ? 'syncing'
-          : (pendingProgramSyncIdSet.has(p.id) || isLocalProgramId(p.id))
-            ? 'pending'
-            : 'synced',
-    }));
+    return {
+      basePrograms: keepSingleOnboardingProgram(
+        storePrograms.filter((program) => !program.isTemplate)
+      ).map((program): ProgramItem => ({
+        id: program.id,
+        name: program.name,
+        workouts: program.workouts.length,
+        weeks: program.durationWeeks || 0,
+        lastPerformed: formatRelativeTime(program.lastPerformedAt),
+        isAiCreated: program.isAiCreated,
+        aiPayloadVersion: program.aiPayloadVersion,
+      })),
+      baseTemplates: projectedTemplates,
+    };
+  }, [activeStepId, isTourActive, pendingProgramSyncIds, storePrograms, syncingProgramSyncIds]);
 
   const programs = useMemo(
     () => sortItemsBySavedOrder(basePrograms, homeCardOrder.programIds),
@@ -2500,6 +2546,8 @@ export default function ProgramsScreen() {
             sessions={historySessions}
             isFocused={isHomeFocused}
             startupRevealComplete={startupRevealComplete}
+            isDataReady={isStreakScheduleReady}
+            animateStreakFromZero={shouldAnimateColdStartStreakRef.current}
             deferMilestoneCelebration={deferWorkoutStreakCelebration}
             onEditSchedule={() => setScheduleEditorVisible(true)}
           />

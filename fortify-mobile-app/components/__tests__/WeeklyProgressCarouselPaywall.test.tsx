@@ -1,4 +1,5 @@
 import React from 'react';
+import { FlatList } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { format } from 'date-fns';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
@@ -104,6 +105,56 @@ describe('WeeklyProgressCarousel streak paywall', () => {
     expect(view.UNSAFE_root.findAll((node: { props: Record<string, unknown> }) => (
       node.props.entering !== undefined
     ))).toHaveLength(0);
+  });
+
+  it('keeps date-keyed week pages stable while scrolling', () => {
+    const view = render(
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[]}
+          sessions={[]}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+    const initialList = view.UNSAFE_getByType(FlatList);
+    const initialPages = initialList.props.data;
+    const nextWeekOffset = initialList.props.getItemLayout(null, 53).offset;
+
+    act(() => {
+      initialList.props.onMomentumScrollEnd({
+        nativeEvent: { contentOffset: { x: nextWeekOffset } },
+      });
+    });
+
+    const updatedList = view.UNSAFE_getByType(FlatList);
+    expect(updatedList.props.data).toBe(initialPages);
+    expect(updatedList.props.data[53].key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('fades hydrated streak and schedule data into reserved blank space', () => {
+    const renderCarousel = (isDataReady: boolean) => (
+      <ThemeProvider>
+        <WeeklyProgressCarousel
+          scheduleDays={[]}
+          sessions={[]}
+          isDataReady={isDataReady}
+          onEditSchedule={jest.fn()}
+        />
+      </ThemeProvider>
+    );
+    const view = render(renderCarousel(false));
+
+    expect(view.getByTestId('weekly-progress-pending')).toBeTruthy();
+    expect(view.queryByLabelText('Loading workout streak and schedule')).toBeNull();
+    expect(view.queryByLabelText('Go Pro to view workout streak')).toBeNull();
+
+    view.rerender(renderCarousel(true));
+    expect(view.queryByTestId('weekly-progress-pending')).toBeNull();
+    expect(view.getByLabelText('Go Pro to view workout streak')).toBeTruthy();
+    expect(view.UNSAFE_root.findAll((node: { props: Record<string, unknown> }) => (
+      node.props.entering !== undefined
+    )).length).toBeGreaterThan(0);
   });
 
   it('opens streak options and pauses the streak for pro users', () => {

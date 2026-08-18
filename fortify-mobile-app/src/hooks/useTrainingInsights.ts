@@ -30,9 +30,10 @@ function fetchTrainingInsightsDeduped(): Promise<TrainingInsight[] | null> {
   return activeRemoteFetch;
 }
 
-export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
+export function useTrainingInsights(options?: { enabled?: boolean; skipRefresh?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const [insights, setInsights] = useState<TrainingInsight[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const lastFetchAtRef = useRef(0);
@@ -122,6 +123,14 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
   }, [insights, persistCache]);
 
   useEffect(() => {
+    if (!enabled) {
+      setInsights([]);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      initializedRef.current = false;
+      return;
+    }
+
     let isMounted = true;
 
     const run = async () => {
@@ -157,16 +166,18 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     return () => {
       isMounted = false;
     };
-  }, [fetchLatest, loadCached, options?.skipRefresh]);
+  }, [enabled, fetchLatest, loadCached, options?.skipRefresh]);
 
   useEffect(() => {
+    if (!enabled) return;
     return subscribeToTrainingInsightsRefresh(() => {
       void fetchLatest();
     });
-  }, [fetchLatest]);
+  }, [enabled, fetchLatest]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!enabled) return;
       if (options?.skipRefresh) return;
       if (!initializedRef.current) return;
       void (async () => {
@@ -180,7 +191,7 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
         if (now - lastFetchAtRef.current < REFRESH_THROTTLE_MS) return;
         await fetchLatest();
       })();
-    }, [fetchLatest, options?.skipRefresh])
+    }, [enabled, fetchLatest, options?.skipRefresh])
   );
 
   return {

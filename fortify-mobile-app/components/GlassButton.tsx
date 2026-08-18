@@ -23,6 +23,7 @@ interface GlassButtonProps {
   children: ReactNode;
   onPress?: () => void;
   onPressIn?: () => void;
+  onPressOut?: () => void;
   onLongPress?: () => void;
   style?: StyleProp<ViewStyle>;
   gradientColors?: string[];
@@ -39,6 +40,7 @@ export function GlassButton({
   children,
   onPress,
   onPressIn,
+  onPressOut,
   onLongPress,
   style,
   gradientColors,
@@ -138,6 +140,13 @@ export function GlassButton({
     }
   };
 
+  const handlePressOut = () => {
+    animatePress(0);
+    if (!disabled) {
+      onPressOut?.();
+    }
+  };
+
   return (
     <Animated.View
       pointerEvents={pointerEvents}
@@ -178,7 +187,7 @@ export function GlassButton({
           onPress={handlePress}
           onLongPress={handleLongPress}
           onPressIn={handlePressIn}
-          onPressOut={() => animatePress(0)}
+          onPressOut={handlePressOut}
           activeOpacity={0.8}
           disabled={disabled}
         >

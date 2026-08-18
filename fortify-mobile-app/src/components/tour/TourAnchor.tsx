@@ -30,19 +30,22 @@ export function TourAnchor({
     activeAnchorId,
     activeSecondaryAnchorId,
     activeArrowAnchorId,
+    premeasureAnchorIds = [],
   } = useInAppTour();
-  const isActiveAnchor = activeAnchorId === id
+  const isCurrentAnchor = activeAnchorId === id
     || activeSecondaryAnchorId === id
     || activeArrowAnchorId === id;
-  const isActiveAnchorRef = useRef(isActiveAnchor);
-  isActiveAnchorRef.current = isActiveAnchor;
+  const isPremeasureAnchor = premeasureAnchorIds.some((anchorId) => anchorId === id);
+  const shouldMeasureAnchor = isCurrentAnchor || isPremeasureAnchor;
+  const shouldMeasureAnchorRef = useRef(shouldMeasureAnchor);
+  shouldMeasureAnchorRef.current = shouldMeasureAnchor;
 
   const measure = useCallback(() => {
     if (disabled) {
       unregisterAnchor(id);
       return;
     }
-    if (!isActiveAnchorRef.current) return;
+    if (!shouldMeasureAnchorRef.current) return;
     const node = ref.current;
     if (!node) return;
     node.measureInWindow((x, y, width, height) => {
@@ -64,11 +67,11 @@ export function TourAnchor({
   }, [disabled, id, unregisterAnchor]);
 
   useEffect(() => {
-    if (disabled || isActiveAnchor) return;
+    if (disabled || shouldMeasureAnchor) return;
     interactionTaskRef.current?.cancel();
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     if (lateSettleTimerRef.current) clearTimeout(lateSettleTimerRef.current);
-  }, [disabled, isActiveAnchor]);
+  }, [disabled, shouldMeasureAnchor]);
 
   useEffect(() => {
     return () => {
@@ -82,7 +85,7 @@ export function TourAnchor({
   useEffect(() => {
     if (
       disabled
-      || !isActiveAnchor
+      || !shouldMeasureAnchor
     ) return;
 
     if (!deferMeasurementUntilInteractions) {
@@ -113,13 +116,14 @@ export function TourAnchor({
     deferMeasurementUntilInteractions,
     disabled,
     id,
-    isActiveAnchor,
+    isCurrentAnchor,
+    shouldMeasureAnchor,
     measure,
   ]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     onLayout?.(event);
-    if (disabled || !isActiveAnchor) return;
+    if (disabled || !shouldMeasureAnchor) return;
     // Modal-route anchors should wait for the transition to finish before reporting a position.
     if (!deferMeasurementUntilInteractions) {
       requestAnimationFrame(measure);
@@ -142,7 +146,7 @@ export function TourAnchor({
         requestAnimationFrame(measure);
       }, ACTIVE_ANCHOR_SETTLE_MS);
     });
-  }, [deferMeasurementUntilInteractions, disabled, isActiveAnchor, measure, onLayout]);
+  }, [deferMeasurementUntilInteractions, disabled, isCurrentAnchor, measure, onLayout, shouldMeasureAnchor]);
 
   return (
     <View

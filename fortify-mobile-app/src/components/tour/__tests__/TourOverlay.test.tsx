@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import { TourOverlay } from '@/src/components/tour/TourOverlay';
+import { getTourSlideDirection, TourOverlay } from '@/src/components/tour/TourOverlay';
 
 jest.mock('@/src/contexts/ThemeContext', () => ({
   useTheme: () => ({
@@ -23,6 +23,30 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 describe('TourOverlay', () => {
+  it('keeps the tooltip shell mounted while its exit animation completes', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="blocking"
+        anchorRect={null}
+        body="Transitioning tooltip"
+        hideTooltip
+      />
+    );
+
+    const tooltipShell = view.getByTestId('tour-tooltip-shell', { includeHiddenElements: true });
+    expect(tooltipShell).toBeTruthy();
+    expect(view.getByText('Transitioning tooltip', { includeHiddenElements: true })).toBeTruthy();
+    expect(tooltipShell.props.pointerEvents).toBe('none');
+  });
+
+  it('alternates the horizontal direction between tooltip handoffs', () => {
+    expect(getTourSlideDirection(0)).toBe(-1);
+    expect(getTourSlideDirection(1)).toBe(1);
+    expect(getTourSlideDirection(2)).toBe(-1);
+    expect(getTourSlideDirection(3)).toBe(1);
+  });
+
   it('points upward when the tooltip is placed below its anchor', () => {
     const view = render(
       <TourOverlay
@@ -192,6 +216,32 @@ describe('TourOverlay', () => {
 
     expect(replay).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('provides immediate press feedback hooks without advancing early', () => {
+    const onPress = jest.fn();
+    const onPressIn = jest.fn();
+    const onPressOut = jest.fn();
+    const view = render(
+      <TourOverlay
+        visible
+        mode="blocking"
+        anchorRect={null}
+        body="Immediate feedback"
+        primaryAction={{ label: 'Continue', onPress, onPressIn, onPressOut }}
+      />
+    );
+    const button = view.getByText('Continue');
+
+    fireEvent(button, 'pressIn');
+    expect(onPressIn).toHaveBeenCalledTimes(1);
+    expect(onPress).not.toHaveBeenCalled();
+
+    fireEvent(button, 'pressOut');
+    expect(onPressOut).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(button);
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 
   it('renders the secondary tour action and responds immediately', () => {
