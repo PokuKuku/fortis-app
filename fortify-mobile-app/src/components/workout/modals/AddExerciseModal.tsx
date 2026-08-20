@@ -223,7 +223,7 @@ export function AddExerciseModal({
   const restoreTargetOffset = useRef(0);
   const restoreTargetIndex = useRef(0);
   const firstVisibleIndex = useRef(0);
-  const wasVisible = useRef(false);
+  const wasOpen = useRef(false);
   const sheetTranslateProgress = useRef(new RNAnimated.Value(1)).current;
   const targetModalVisible = visible && !suspended;
   const [isModalRendered, setIsModalRendered] = useState(targetModalVisible);
@@ -241,11 +241,11 @@ export function AddExerciseModal({
   }, []);
 
   useEffect(() => {
-    if (targetModalVisible && !wasVisible.current) {
+    if (visible && !wasOpen.current) {
       resetListPositionState();
     }
-    wasVisible.current = targetModalVisible;
-  }, [targetModalVisible, resetListPositionState]);
+    wasOpen.current = visible;
+  }, [visible, resetListPositionState]);
 
   useEffect(() => {
     if (targetModalVisible) {
@@ -286,9 +286,10 @@ export function AddExerciseModal({
     return () => animation.stop();
   }, [isModalRendered, sheetTranslateProgress, targetModalVisible]);
 
-  // Reset state after the exit animation completes.
+  // Reset state after an intentional close. A suspended modal is only hidden
+  // while exercise details are open, so preserve its search and list position.
   useEffect(() => {
-    if (isModalRendered) return;
+    if (isModalRendered || visible) return;
     resetListPositionState();
     setSearchQuery('');
     setSelectedExercises([]);
@@ -299,7 +300,7 @@ export function AddExerciseModal({
     setVoiceTranscript('');
     setVoiceCandidates([]);
     isProcessing.current = false;
-  }, [isModalRendered, resetListPositionState]);
+  }, [isModalRendered, resetListPositionState, visible]);
 
   const sheetAnimatedStyle = {
     transform: [

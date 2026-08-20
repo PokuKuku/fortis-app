@@ -32,15 +32,15 @@ export type WeekProgressDay = {
 export function shouldEarnStreakFreezePass({
   currentStreak,
   latestScheduledCompletionDateKey,
-  scheduledCompletionsAfterMilestone,
+  scheduledCompletionsAfterProgressReset,
   streakFreezePassAvailable,
-  streakFreezePassMilestoneDateKey,
+  streakFreezeProgressResetDateKey,
 }: {
   currentStreak: number;
   latestScheduledCompletionDateKey: string | null;
-  scheduledCompletionsAfterMilestone: number;
+  scheduledCompletionsAfterProgressReset: number;
   streakFreezePassAvailable: boolean;
-  streakFreezePassMilestoneDateKey: string | null;
+  streakFreezeProgressResetDateKey: string | null;
 }): boolean {
   if (
     currentStreak < 5
@@ -51,10 +51,31 @@ export function shouldEarnStreakFreezePass({
   }
 
   // Grandfather users whose streak was already past five when freeze passes launched.
-  if (!streakFreezePassMilestoneDateKey) return true;
+  if (!streakFreezeProgressResetDateKey) return true;
 
-  // Redemption resets the milestone, so progress only includes later scheduled workouts.
-  return scheduledCompletionsAfterMilestone >= 5;
+  // A redemption or streak pause resets progress toward the next pass.
+  return scheduledCompletionsAfterProgressReset >= 5;
+}
+
+export function getStreakFreezeProgressResetDateKey({
+  streakFreezePassMilestoneDateKey,
+  streakPausePeriods,
+  today = new Date(),
+}: {
+  streakFreezePassMilestoneDateKey: string | null;
+  streakPausePeriods: StreakPausePeriod[];
+  today?: Date;
+}): string | null {
+  const resetDateKeys = streakFreezePassMilestoneDateKey
+    ? [streakFreezePassMilestoneDateKey]
+    : [];
+  const todayKey = getDateKey(today);
+
+  streakPausePeriods.forEach((period) => {
+    resetDateKeys.push(period.endDateKey ?? todayKey);
+  });
+
+  return resetDateKeys.sort().at(-1) ?? null;
 }
 
 export function normalizeWorkoutScheduleDays(value: unknown): number[] {

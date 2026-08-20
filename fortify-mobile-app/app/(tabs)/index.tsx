@@ -1923,7 +1923,7 @@ export default function ProgramsScreen() {
     onboardingProgramSpec?.programName ??
     'Your program';
   const onboardingProgramPreviewSubtitle = onboardingPreviewProgram
-    ? 'Your personalized program is ready.'
+    ? null
     : onboardingProgramSpec?.status === 'failed'
       ? 'We are retrying your personalized program.'
       : 'Preparing your personalized program...';
@@ -2613,12 +2613,14 @@ export default function ProgramsScreen() {
                       >
                         {onboardingProgramPreviewTitle}
                       </Text>
-                      <Text
-                        style={[styles.onboardingProgramPreviewSubtitle, { color: colors.textSecondary }]}
-                        numberOfLines={2}
-                      >
-                        {onboardingProgramPreviewSubtitle}
-                      </Text>
+                      {onboardingProgramPreviewSubtitle ? (
+                        <Text
+                          style={[styles.onboardingProgramPreviewSubtitle, { color: colors.textSecondary }]}
+                          numberOfLines={2}
+                        >
+                          {onboardingProgramPreviewSubtitle}
+                        </Text>
+                      ) : null}
                     </View>
                     {onboardingPreviewProgram ? (
                       <SparklesIcon color={colors.accent} size={MODAL_ICON_SIZE} strokeWidth={2} />

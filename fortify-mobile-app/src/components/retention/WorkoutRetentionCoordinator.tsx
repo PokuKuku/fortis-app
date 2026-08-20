@@ -36,6 +36,7 @@ import {
   getLatestScheduledCompletionDateKey,
   getScheduledWorkoutCompletionCountAfterDateKey,
   getScheduledWorkoutDayStreak,
+  getStreakFreezeProgressResetDateKey,
   shouldEarnStreakFreezePass,
 } from '@/src/utils/workoutSchedule';
 
@@ -79,16 +80,23 @@ function WorkoutRetentionCoordinatorContent() {
     () => getLatestScheduledCompletionDateKey({ scheduleDays, scheduleHistory, sessions }),
     [scheduleDays, scheduleHistory, sessions]
   );
-  const scheduledCompletionsAfterFreezePassMilestone = useMemo(
-    () => streakFreezePassMilestoneDateKey
+  const streakFreezeProgressResetDateKey = useMemo(
+    () => getStreakFreezeProgressResetDateKey({
+      streakFreezePassMilestoneDateKey,
+      streakPausePeriods,
+    }),
+    [currentDateKey, streakFreezePassMilestoneDateKey, streakPausePeriods]
+  );
+  const scheduledCompletionsAfterFreezeProgressReset = useMemo(
+    () => streakFreezeProgressResetDateKey
       ? getScheduledWorkoutCompletionCountAfterDateKey({
-        afterDateKey: streakFreezePassMilestoneDateKey,
+        afterDateKey: streakFreezeProgressResetDateKey,
         scheduleDays,
         scheduleHistory,
         sessions,
       })
       : 0,
-    [scheduleDays, scheduleHistory, sessions, streakFreezePassMilestoneDateKey]
+    [scheduleDays, scheduleHistory, sessions, streakFreezeProgressResetDateKey]
   );
 
   const reconcileStreakFreezePass = useCallback(async () => {
@@ -99,9 +107,9 @@ function WorkoutRetentionCoordinatorContent() {
       && shouldEarnStreakFreezePass({
         currentStreak,
         latestScheduledCompletionDateKey,
-        scheduledCompletionsAfterMilestone: scheduledCompletionsAfterFreezePassMilestone,
+        scheduledCompletionsAfterProgressReset: scheduledCompletionsAfterFreezeProgressReset,
         streakFreezePassAvailable,
-        streakFreezePassMilestoneDateKey,
+        streakFreezeProgressResetDateKey,
       })
     ) {
       const earned = await earnStreakFreezePass(latestScheduledCompletionDateKey);
@@ -133,10 +141,11 @@ function WorkoutRetentionCoordinatorContent() {
     retentionDataReady,
     scheduleDays,
     scheduleHistory,
-    scheduledCompletionsAfterFreezePassMilestone,
+    scheduledCompletionsAfterFreezeProgressReset,
     sessions,
     streakFreezePassAvailable,
     streakFreezePassMilestoneDateKey,
+    streakFreezeProgressResetDateKey,
     streakPausePeriods,
   ]);
 

@@ -12,6 +12,7 @@ import {
   getScheduleDaysForDate,
   getScheduledWorkoutCompletionCountAfterDateKey,
   getScheduledWorkoutDayStreak,
+  getStreakFreezeProgressResetDateKey,
   getWorkoutDayStreak,
   normalizeWorkoutScheduleDays,
   resolveWorkoutScheduleDays,
@@ -65,9 +66,9 @@ describe('workoutSchedule', () => {
   describe('streak freeze pass eligibility', () => {
     const baseEligibility = {
       latestScheduledCompletionDateKey: '2026-08-11',
-      scheduledCompletionsAfterMilestone: 0,
+      scheduledCompletionsAfterProgressReset: 0,
       streakFreezePassAvailable: false,
-      streakFreezePassMilestoneDateKey: null,
+      streakFreezeProgressResetDateKey: null,
     };
 
     it('grandfathers a user whose streak already exceeds five', () => {
@@ -84,11 +85,74 @@ describe('workoutSchedule', () => {
       })).toBe(false);
     });
 
+    it('does not count a protected pause day toward the five-workout milestone', () => {
+      const sessions = [
+        session('first', '2026-08-17T12:00:00'),
+        session('second', '2026-08-18T12:00:00'),
+        session('third', '2026-08-20T12:00:00'),
+        session('fourth', '2026-08-21T12:00:00'),
+      ];
+      const currentStreak = getScheduledWorkoutDayStreak({
+        scheduleDays: [0, 1, 2, 3, 4, 5, 6],
+        sessions,
+        streakPausePeriods: [{
+          startDateKey: '2026-08-19',
+          endDateKey: '2026-08-19',
+        }],
+        today: new Date('2026-08-21T18:00:00'),
+      });
+
+      expect(currentStreak).toBe(4);
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak,
+        latestScheduledCompletionDateKey: '2026-08-21',
+      })).toBe(false);
+    });
+
+    it('does not include workouts completed before a pause', () => {
+      const sessions = [
+        session('first', '2026-08-17T12:00:00'),
+        session('second', '2026-08-18T12:00:00'),
+        session('third', '2026-08-20T12:00:00'),
+        session('fourth', '2026-08-21T12:00:00'),
+        session('fifth', '2026-08-22T12:00:00'),
+      ];
+      const currentStreak = getScheduledWorkoutDayStreak({
+        scheduleDays: [0, 1, 2, 3, 4, 5, 6],
+        sessions,
+        streakPausePeriods: [{
+          startDateKey: '2026-08-19',
+          endDateKey: '2026-08-19',
+        }],
+        today: new Date('2026-08-22T18:00:00'),
+      });
+
+      expect(currentStreak).toBe(5);
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak,
+        latestScheduledCompletionDateKey: '2026-08-22',
+        scheduledCompletionsAfterProgressReset: 3,
+        streakFreezeProgressResetDateKey: '2026-08-19',
+      })).toBe(false);
+    });
+
+    it('awards after five workouts completed after the latest pause', () => {
+      expect(shouldEarnStreakFreezePass({
+        ...baseEligibility,
+        currentStreak: 7,
+        latestScheduledCompletionDateKey: '2026-08-24',
+        scheduledCompletionsAfterProgressReset: 5,
+        streakFreezeProgressResetDateKey: '2026-08-19',
+      })).toBe(true);
+    });
+
     it('does not immediately re-award a redeemed pass above five', () => {
       expect(shouldEarnStreakFreezePass({
         ...baseEligibility,
         currentStreak: 30,
-        streakFreezePassMilestoneDateKey: '2026-08-05',
+        streakFreezeProgressResetDateKey: '2026-08-05',
       })).toBe(false);
     });
 
@@ -96,9 +160,28 @@ describe('workoutSchedule', () => {
       expect(shouldEarnStreakFreezePass({
         ...baseEligibility,
         currentStreak: 33,
-        scheduledCompletionsAfterMilestone: 5,
-        streakFreezePassMilestoneDateKey: '2026-07-15',
+        scheduledCompletionsAfterProgressReset: 5,
+        streakFreezeProgressResetDateKey: '2026-07-15',
       })).toBe(true);
+    });
+
+    it('uses the latest pause or redemption as the freeze progress reset', () => {
+      expect(getStreakFreezeProgressResetDateKey({
+        streakFreezePassMilestoneDateKey: '2026-08-05',
+        streakPausePeriods: [
+          { startDateKey: '2026-08-12', endDateKey: '2026-08-12' },
+          { startDateKey: '2026-08-17', endDateKey: '2026-08-18' },
+        ],
+        today: new Date('2026-08-20T12:00:00'),
+      })).toBe('2026-08-18');
+    });
+
+    it('prevents freeze progress from advancing during an active pause', () => {
+      expect(getStreakFreezeProgressResetDateKey({
+        streakFreezePassMilestoneDateKey: null,
+        streakPausePeriods: [{ startDateKey: '2026-08-17', endDateKey: null }],
+        today: new Date('2026-08-20T12:00:00'),
+      })).toBe('2026-08-20');
     });
 
     it('does not award a second pass while one is available', () => {
